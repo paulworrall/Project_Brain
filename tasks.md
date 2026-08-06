@@ -38,13 +38,13 @@
 * [x] 2.11 **CHECKPOINT:** Update `progress.md` and `agent.md`, commit
 
 ### 3.0 Core UI Shell, Navigation & Auth
-* [ ] 3.1 Build base layout (header, sidebar navigation, footer)
-* [ ] 3.2 Build login/signup screens wired to NextAuth
-* [ ] 3.3 Build Hub → Client → Workstream → Project taxonomy browser
-* [ ] 3.4 Build Project Detail page shell (Stage Tracker, Outputs Library, Chatbot, Knowledge Upload tabs)
-* [ ] 3.5 Establish base design tokens (colors, typography, spacing)
-* [ ] 3.6 **TESTING:** Component tests for navigation and auth flows
-* [ ] 3.7 **CHECKPOINT:** Update `progress.md` and `agent.md`, commit
+* [x] 3.1 Build base layout (header, sidebar navigation, footer)
+* [x] 3.2 Build login/signup screens wired to NextAuth
+* [x] 3.3 Build Hub → Client → Workstream → Project taxonomy browser
+* [x] 3.4 Build Project Detail page shell (Stage Tracker, Outputs Library, Chatbot, Knowledge Upload tabs)
+* [x] 3.5 Establish base design tokens (colors, typography, spacing)
+* [x] 3.6 **TESTING:** Component tests for navigation and auth flows
+* [x] 3.7 **CHECKPOINT:** Update `progress.md` and `agent.md`, commit
 
 ### 4.0 Intake Agent & Brief Ingestion (Stages 1-2)
 * [ ] 4.1 Build brief upload/paste UI on the Project creation flow

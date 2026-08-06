@@ -59,15 +59,15 @@
     {
       "parent_id": 3.0,
       "parent_task": "Core UI Shell, Navigation & Auth",
-      "status": "pending",
+      "status": "completed",
       "subtasks": [
-        {"task_id": 3.1, "description": "Build base layout components (header, sidebar navigation, footer) in Tailwind", "status": "pending"},
-        {"task_id": 3.2, "description": "Build login/signup screens wired to NextAuth email/password", "status": "pending"},
-        {"task_id": 3.3, "description": "Build Hub -> Client -> Workstream -> Project taxonomy browser", "status": "pending"},
-        {"task_id": 3.4, "description": "Build Project Detail page shell (tabs for Stage Tracker, Outputs Library, Chatbot, Knowledge Upload)", "status": "pending"},
-        {"task_id": 3.5, "description": "Establish base design tokens (colors, typography, spacing) for the clean/efficient direction", "status": "pending"},
-        {"task_id": 3.6, "description": "TESTING: Component tests for navigation and auth flows (React Testing Library)", "status": "pending"},
-        {"task_id": 3.7, "description": "CHECKPOINT: Update progress.md and agent.md, commit", "status": "pending"}
+        {"task_id": 3.1, "description": "Build base layout components (header, sidebar navigation, footer) in Tailwind", "status": "completed"},
+        {"task_id": 3.2, "description": "Build login/signup screens wired to NextAuth email/password", "status": "completed"},
+        {"task_id": 3.3, "description": "Build Hub -> Client -> Workstream -> Project taxonomy browser", "status": "completed"},
+        {"task_id": 3.4, "description": "Build Project Detail page shell (tabs for Stage Tracker, Outputs Library, Chatbot, Knowledge Upload)", "status": "completed"},
+        {"task_id": 3.5, "description": "Establish base design tokens (colors, typography, spacing) for the clean/efficient direction", "status": "completed"},
+        {"task_id": 3.6, "description": "TESTING: Component tests for navigation and auth flows (React Testing Library)", "status": "completed"},
+        {"task_id": 3.7, "description": "CHECKPOINT: Update progress.md and agent.md, commit", "status": "completed"}
       ]
     },
     {

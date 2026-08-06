@@ -1,17 +1,17 @@
 # Project Brain — Progress
 
 ## Current Status
-- **Active Task**: 3.0 Core UI Shell, Navigation & Auth
-- **Last Completed**: 2.0 Data Layer & Schema
+- **Active Task**: 4.0 Intake Agent & Brief Ingestion
+- **Last Completed**: 3.0 Core UI Shell, Navigation & Auth
 - **Blocked**: None
-- **Last Updated**: 2026-08-06T20:25:00Z
+- **Last Updated**: 2026-08-06T21:05:00Z
 
 ## Task Status
 | Task | Status | Completed At |
 |------|--------|-------------|
 | 1.0 Project Setup & Environment | ✅ Complete | 2026-08-06T16:55:00Z |
 | 2.0 Data Layer & Schema | ✅ Complete | 2026-08-06T20:25:00Z |
-| 3.0 Core UI Shell, Navigation & Auth | ⏳ Not Started | — |
+| 3.0 Core UI Shell, Navigation & Auth | ✅ Complete | 2026-08-06T21:05:00Z |
 | 4.0 Intake Agent & Brief Ingestion | ⏳ Not Started | — |
 | 5.0 Clarification Capture & Triage Agent | ⏳ Not Started | — |
 | 6.0 Specialist Review Capture & Deliverables + Services | ⏳ Not Started | — |
@@ -43,3 +43,14 @@
   ```
 - Also hit repeatedly: Neon's free-tier compute auto-suspends when idle, so the *first* connection attempt after a period of inactivity often fails with `P1001` regardless of platform — a simple retry (or a throwaway `pg` connection first) resolves it. Don't mistake this for the binary-blocking issue above; the binary-blocking issue is 100% reproducible and persists across retries, the cold-start issue resolves itself after one retry.
 - This is a workaround for THIS machine's local security posture, not a code issue — nothing about it should be "fixed" in the repo itself. If a future session is on a different machine (or this one after an IT-approved fix), these DB-touching commands may just work natively on Windows; try that first and only fall back to the WSL steps above if `P1001` reappears immediately (not just on the first cold-start attempt).
+
+### Task 3.0 notes
+
+- **NextAuth type augmentation gotcha**: `declare module "next-auth/jwt" { interface JWT {...} }` does **not** work — `next-auth/jwt.d.ts` re-exports the `JWT` interface from `@auth/core/jwt` via a wildcard `export *`, and TypeScript declaration merging only attaches to the module where an interface is genuinely declared. Wildcard re-exports don't support this; named re-exports (`export type { Session, User } from "@auth/core/types"`, which is what `next-auth`'s main entry actually uses) do. Fixed by augmenting `"@auth/core/jwt"` directly in `src/types/next-auth.d.ts`. Without this fix, any property read off the JWT token (`token.role`) silently types as `unknown` (JWT extends `Record<string, unknown>`), not a "property doesn't exist" error — easy to miss.
+- Auth is built with Server Actions (`useActionState` + `action={formAction}`), matching Next.js's own current App Router guidance (checked `node_modules/next/dist/docs/01-app/02-guides/authentication.md` before building) — not client-side `signIn()` from `next-auth/react`, which would've needed a `SessionProvider` wrapping the app for no real benefit here.
+- Route protection uses `src/proxy.ts` (Next 16 renamed `middleware.ts` → `proxy.ts`), wrapping NextAuth's `auth()` helper: unauthenticated users hitting a non-public route redirect to `/login`; authenticated users hitting `/login` or `/signup` redirect to `/`. Verified in-browser both directions.
+- Full auth flow (login success, login failure with wrong password, signup creating a real `User` row + auto-sign-in, sign-out, 404 on an unknown project id, tab switching on the Project Detail shell) verified end-to-end in the browser tool against the real dev database — not just typechecked/linted.
+- **Browser-tool artifact, not a real bug**: at a resized mobile (375px) viewport, the automation tool's `form_input` (sets DOM `.value` directly) and a separate `left_click` on the submit button raced — the dev server logged the submitted `FormData` as empty even though a direct JS check confirmed the DOM inputs held the correct values at that moment. This only happened after `resize_window` + a fresh navigate in this same tool session; the identical login flow worked correctly and repeatedly at desktop size, and the login page's markup has zero breakpoint-conditional differences to begin with. Concluded this is a tool synchronization quirk, not a responsive-design defect — didn't chase it further. If a future session hits the same symptom (empty FormData despite correct-looking DOM state) after a viewport resize, this is why.
+- Component tests needed `afterEach(cleanup)` added manually to `tests/setup.ts` (imported from `@testing-library/react`) — React Testing Library's automatic cleanup relies on a global `afterEach` hook that only self-registers when Vitest's `test.globals: true` is set, which this project doesn't use (tests import `describe`/`it`/`expect` explicitly from `"vitest"` instead). Without it, DOM nodes accumulated across tests in the same file and caused "found multiple elements" failures, plus a spurious "form was unexpectedly submitted" React warning from stale unmounted-but-still-attached forms.
+- Installed `zod` (v4) for form validation (signup) — also intended for later use validating Claude's structured JSON outputs in the agent tasks (4.0+), matching CLAUDE.md's "never parse prose, always validate structured output" rule.
+- Design tokens: deliberately no dark mode for now (single light "clean/efficient/professional" palette via Tailwind v4 `@theme` in `globals.css`) — not required by the PRP, and simpler for a first pass.
