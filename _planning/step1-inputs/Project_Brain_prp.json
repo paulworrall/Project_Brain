@@ -1,0 +1,212 @@
+{
+  "prp_template": {
+    "metadata": {
+      "template_version": "1.0",
+      "framework": "Vibe Coding Five-Step Framework",
+      "thinking_levels": ["Logical", "Analytical", "Computational", "Procedural"]
+    },
+    "project_overview": {
+      "app_name": "Project Brain",
+      "idea_goal_statement": {
+        "description": "Define the goal of the project and what the application is",
+        "value": "An internal platform that makes the delivery, management, and communication of client projects more efficient. It uses Claude-powered agents to turn a client brief into a structured, staged workflow — generating key documents (clarification emails, position documents, scope documents, specialist briefs) at each stage, while keeping humans in control of every client- and specialist-facing conversation. Initial build covers Stages 1-5 of a 10-stage pipeline: Intake, Get Clarifications from Client, Triage, and Review with Specialist Leads."
+      },
+      "vibe_style": {
+        "description": "Describe the desired aesthetic, feeling, or tone of the application",
+        "value": "Clean, efficient, professional — built from scratch with no existing design system. Genuinely well-designed rather than purely functional, since ease of use directly drives adoption by internal account and delivery teams who could otherwise bypass the tool.",
+        "options": ["professional", "minimalist", "modern"]
+      }
+    },
+    "target_audience": {
+      "audience_definition": {
+        "description": "Define exactly who the application is designed for",
+        "value": "Two internal user groups at a creative/marketing agency: Client Engagement (Account Managers, Account Directors) who own client relationships, and Delivery (Project Managers at Student/Junior/Mid/Senior levels) who run projects day to day."
+      },
+      "problem_solved": {
+        "description": "Briefly state the pain point this app alleviates",
+        "value": "Project scoping and setup today relies on ad hoc documents, emails, and inconsistent manual processes with no shared structure or historical record. This makes early-stage project delivery slow, inconsistent, and hard to track across a lifecycle that can span days, weeks, or months."
+      },
+      "socioeconomic_contextual_factors": {
+        "description": "Include details about the users, their environment, preferences, or specific factors the app must accommodate",
+        "value": "~90% desktop usage, ~10% mobile (for on-the-go status checks/approvals) — build desktop-first. Users span junior to senior PM levels, so the UX must require no training. Real client briefs are confidential; the pilot uses anonymized seed data (Hub: 'Caroline'; Clients: 'Fizzy', 'Coffee', 'Tooth') until IT/security approves real client data in the platform."
+      }
+    },
+    "user_journey": {
+      "workflow_description": {
+        "description": "Outline the sequence of steps a typical user takes",
+        "steps": [
+          "AM/PM manually uploads or pastes a client brief (deck, Word doc, PDF, email, or call transcript) to start a new Project under a Hub > Client > Workstream",
+          "Intake Agent classifies the brief type, extracts what it can, and generates 3 artifacts: a draft Clarification Email, a Project Position Document, and a Project Set-Up Checklist",
+          "AM sends the clarification email externally (outside the platform); once the client responds, the PM pastes the client's reply back into the platform as freeform notes",
+          "An extraction step updates the Project Position Document (new version), resolving gaps flagged earlier and separating genuine unknowns from client-flagged 'still deciding' items",
+          "Triage Agent generates a Draft Scope Document (objectives, deliverables, milestones, roles & responsibilities, budget, assumptions/constraints) from the Position Doc, proceeding even with gaps but flagging them clearly for specialists",
+          "PM shares the Draft Scope Document with Specialist Leads (outside the platform), then pastes their feedback back in as freeform notes",
+          "An extraction step generates the Deliverables + Services Document: a Deliverables list, a Services table across fixed capabilities (Experience/Creative, Business, Architecture, Tech and Data, Orchestration, Other [free text]), Open Questions/Risks, and Outstanding Gaps Carried Forward",
+          "At every point, the PM/AM can see which Stage a project is currently in, tick off manual checklist items, and browse every previously generated document and version"
+        ]
+      }
+    },
+    "ai_agent_architecture": {
+      "description": "How each 'Agent' named in the workflow is actually built - not autonomous/free-roaming bots, but narrow, single-purpose functions with fixed inputs and structured outputs",
+      "principles": [
+        "One dedicated module per agent (e.g. intake-agent.ts, triage-agent.ts) - each independently buildable, testable, and improvable without touching the others",
+        "Structured output, not free text - each agent returns a defined JSON shape matching the exact fields designed for its artifact (e.g. budget, gaps, deliverables as named fields), not prose the app has to parse",
+        "Multi-step logic split into separate sequential Claude calls where it helps accuracy (e.g. Intake Agent: classify brief type, THEN extract fields for that type, as two calls rather than one)",
+        "No heavyweight agent/orchestration framework - direct calls to the Anthropic API from backend functions is sufficient at this scale and keeps the codebase simple to read and debug",
+        "Each parent task in the implementation plan maps to one agent: define its prompt, define its output structure, wire it up, test it"
+      ],
+      "agents_in_scope_for_mvp": [
+        "Intake Agent (brief classification + extraction -> 3 artifacts)",
+        "Clarification Extraction step (freeform client reply -> updated Position Document)",
+        "Triage Agent (Position Document + clarification -> Draft Scope Document)",
+        "Specialist Review Extraction step (freeform specialist notes -> Deliverables + Services Document)",
+        "Project Brain Chatbot (project-scoped Q&A over that project's documents and knowledge items)"
+      ],
+      "knowledge_base_and_chatbot": {
+        "description": "Two related, cross-cutting capabilities that sit alongside the staged workflow rather than inside a single stage",
+        "ad_hoc_knowledge_upload": "Users can upload documents or paste meeting notes at any time, on any project, regardless of current Stage. Stored as a new 'Knowledge Item' entity: project_id, type, title, content/file, uploaded_by, uploaded_at. Distinct from the versioned Stage Documents (which are agent-generated pipeline artifacts) - Knowledge Items are supplementary and unstructured.",
+        "project_scoped_chatbot": "A per-project Q&A interface. When a user asks a question (e.g. 'what is the delivery date?'), the backend assembles context from ONLY that project's data - its Stage Documents, checklist state, touchpoint notes, and Knowledge Items - filtered by project_id at the database query level. That filtered context plus the question is sent to Claude for an answer.",
+        "cross_project_isolation_guarantee": "Isolation between projects (even within the same Client) is enforced structurally, not just by prompting: every query the chatbot runs is scoped with a project_id WHERE clause at the database layer, so another project's data is never retrieved into context in the first place - there is nothing for the model to leak, because it is never given it.",
+        "scaling_note_for_later": "For pilot scale, assembling all of a project's documents/notes directly into the Claude context window on each question is simple and reliable. If a project accumulates a very large volume of notes/documents over many months, a Level 2 enhancement would add a semantic-search step - still strictly scoped to that one project_id - rather than passing everything in every time."
+      }
+    },
+    "core_features": {
+      "level_1_mvp": {
+        "description": "Minimal Viable Product - Stages 1-5 of the full pipeline only",
+        "core_functionality": {
+          "description": "List the minimum features required",
+          "features": [
+            "Multi-format brief ingestion for Intake (Word, PDF, PPTX, pasted text/transcript)",
+            "Intake Agent: classify brief type, extract known/unknown fields, generate Clarification Email draft + Project Position Document + Project Set-Up Checklist",
+            "Freeform note capture at every human touchpoint (Get Clarifications, Review with Specialist Leads) feeding the next agent",
+            "Triage Agent: generate Draft Scope Document from Position Doc + clarification notes; proceed regardless of gaps, flag them clearly",
+            "Specialist-review note capture -> generate Deliverables + Services Document",
+            "Project Stage Tracker: visual current-stage status per project across the pipeline",
+            "Outputs Library: every generated artifact kept and browsable, versioned at each stage transition (not per-edit)",
+            "Manual tick-box checklist for project set-up tasks (no external system integration yet)",
+            "Hub -> Client -> Workstream -> Project taxonomy, seeded with Hub 'Caroline' and Clients 'Fizzy', 'Coffee', 'Tooth', with room for future bespoke per-client structure",
+            "Simple email/password authentication; two role types (Client Engagement, Delivery)",
+            "Ad-hoc knowledge upload: documents or meeting notes can be added at any time, on any project, building a running project knowledge base independent of the staged workflow",
+            "Project Brain Chatbot: per-project natural-language Q&A (e.g. 'what is the delivery date?') answered strictly from that project's own documents and uploaded knowledge - never another project's, even within the same Client"
+          ]
+        },
+        "key_inputs": {
+          "description": "Define what data the user provides",
+          "inputs": [
+            "Client brief (file upload or pasted text, any format)",
+            "Freeform notes pasted after client/specialist conversations",
+            "Manual checklist tick-offs",
+            "Hub/Client/Workstream/Project selection",
+            "Ad-hoc meeting notes/documents uploaded at any time",
+            "Natural-language questions asked to the project chatbot"
+          ]
+        },
+        "key_outputs": {
+          "description": "Define what the user receives",
+          "outputs": [
+            "Clarification Email draft",
+            "Project Position Document (versioned, with 'What We Know' / 'What We Need to Find Out' / 'Client-Flagged Open Items' sections)",
+            "Project Set-Up Checklist",
+            "Draft Scope Document",
+            "Deliverables + Services Document",
+            "Per-project Stage status and full document/version history",
+            "Chatbot answers grounded only in the specific project's documents and knowledge items"
+          ]
+        }
+      },
+      "level_2_platform_enhancements": {
+        "description": "Features that enhance the core product, focusing on storage, management, and tracking",
+        "additional_functionality": {
+          "features": [
+            "Bespoke per-client onboarding/configuration flow (structure overrides beyond the baseline taxonomy)",
+            "Auto-ingestion of briefs (email forwarding, Teams/SharePoint integration) instead of manual upload",
+            "Notifications/automated triggers for checklist items (e.g. auto-notify whoever raises job codes)",
+            "Company SSO (Microsoft/Azure AD) authentication",
+            "Integration with the organization's actual resource-management 'Workbook' tool"
+          ]
+        }
+      },
+      "level_3_future_complexity": {
+        "description": "Ambitious, complex features - Stages 6-10 of the full pipeline",
+        "advanced_features": {
+          "features": [
+            "Estimation Kick Off Agent (Stage 6) and Estimation Session capture (Stage 7)",
+            "Commercials Builder Agent (Stage 8), including Statement of Work generation as a Word (.docx) artifact from an existing client-specific baseline template",
+            "Planning Agent + Capability Briefing Agent running in parallel (Stage 9) - requires supporting multiple concurrent documents/threads within one stage",
+            "Commercial Status Agent (Stage 10) - a recurring/ongoing monitoring stage producing dated snapshots, not a one-time gate",
+            "Multi-client bespoke taxonomy variants beyond the baseline Hub > Client > Workstream > Project structure"
+          ],
+          "categories": ["Agentic"]
+        }
+      }
+    },
+    "technical_stack": {
+      "front_end": {
+        "description": "Front-end frameworks and libraries",
+        "technologies": ["Next.js", "React", "TypeScript", "Tailwind CSS"]
+      },
+      "back_end_database": {
+        "description": "Backend services, databases, and authentication",
+        "technologies": ["PostgreSQL (hosted on Neon)", "Prisma ORM", "NextAuth (email/password) - upgradeable to SSO later"]
+      },
+      "styling_ui": {
+        "description": "UI component libraries and styling frameworks",
+        "technologies": ["Tailwind CSS - custom design, no existing design system to match"]
+      },
+      "ai_integration": {
+        "description": "AI models and services",
+        "technologies": ["Anthropic Claude via the Anthropic API - one call per agent action (Intake, Triage, extraction steps)"]
+      },
+      "external_apis_packages": {
+        "description": "Third-party APIs and specialized packages",
+        "apis": [
+          {"name": "Document parsing (docx/pdf/pptx)", "purpose": "Ingest client briefs in whatever format they arrive"},
+          {"name": "Document generation (Markdown/PDF now; docx later)", "purpose": "Produce generated artifacts, with Word-doc generation from a template required later for the SOW"}
+        ]
+      },
+      "version_control": {
+        "mandatory": true,
+        "description": "Git repository already created and cloned locally",
+        "required_setup": [
+          "Git repository initialization - DONE (github.com/paulworrall/Project_Brain)",
+          "GitHub remote connection - DONE",
+          "Branch strategy definition - TBD, default to trunk-based (main) for pilot scale",
+          "Commit conventions - TBD, default to conventional commits"
+        ]
+      }
+    },
+    "contextual_enhancements": {
+      "mockups_inspiration": {
+        "description": "Links to image mock-ups or examples of desired design/flow",
+        "links": [],
+        "images": []
+      },
+      "system_prompt_rules": {
+        "description": "Writing rules or documentation the AI should adhere to",
+        "rules": [
+          "Never auto-send client-facing emails or documents - every client-facing artifact is a draft for human review before it leaves the platform",
+          "Always separate genuine gaps in agency understanding from items the client themselves flagged as still-deciding (TBC / '???' / 'add number') - these are semantically different and must stay in separate sections",
+          "Version documents at stage transitions, not on every edit, to keep history meaningful",
+          "Use only anonymized/test client data (Hub 'Caroline', Clients 'Fizzy'/'Coffee'/'Tooth') until security/IT sign-off for real client data",
+          "Never hardcode secrets (API keys, DB connection strings) in code or commit them to git - environment variables only, via .env.local which is gitignored",
+          "The 'Services' capability list is fixed for now: Experience/Creative, Business, Architecture, Tech and Data, Orchestration, Other (with a free-text label for Other)",
+          "Every database query behind the chatbot must filter by project_id - never assemble or expose data from more than one project in a single chatbot response, even for projects under the same Client"
+        ]
+      }
+    },
+    "implementation_guide": {
+      "steps": [
+        {"step": 1, "name": "PRP Complete", "description": "This document - defines what is being built, for whom, and why"},
+        {"step": 2, "name": "Generate Implementation Plan", "description": "Convert this PRP into tasks.json, tasks.md, CLAUDE.md, and README.md for the build agent"},
+        {"step": 3, "name": "Build with Claude Code", "description": "Claude Code, running locally against the Project_Brain repo, executes the task list"}
+      ],
+      "vibe_coding_principles": [
+        {"principle": "Thinking", "description": "Deep consideration at four levels (Logical, Analytical, Computational, Procedural)"},
+        {"principle": "Frameworks", "description": "Use established patterns and tools"},
+        {"principle": "Checkpoints", "description": "Version control and incremental builds"},
+        {"principle": "Debugging", "description": "Clear error handling and testing"},
+        {"principle": "Context", "description": "Provide comprehensive information to the AI"}
+      ]
+    }
+  }
+}
