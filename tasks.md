@@ -25,17 +25,17 @@
 * [x] 1.9 **CHECKPOINT:** Update `progress.md` and `agent.md`, commit
 
 ### 2.0 Data Layer & Schema
-* [ ] 2.1 Define Prisma models: Hub, Client, Workstream, Project (taxonomy relations)
-* [ ] 2.2 Define Prisma models: Stage (linear + recurring types) and ProjectStageStatus
-* [ ] 2.3 Define Prisma models: Document and DocumentVersion (typed per artifact)
-* [ ] 2.4 Define Prisma model: ChecklistItem
-* [ ] 2.5 Define Prisma model: TouchpointNote
-* [ ] 2.6 Define Prisma model: KnowledgeItem
-* [ ] 2.7 Define Prisma model: User (role enum: ClientEngagement, Delivery)
-* [ ] 2.8 Run initial Prisma migration against Neon
-* [ ] 2.9 Write seed script: Hub `Caroline`, Clients `Fizzy`/`Coffee`/`Tooth`, one Workstream each, one demo Project
-* [ ] 2.10 **TESTING:** Unit tests for schema constraints/relations (Vitest + Prisma test utilities)
-* [ ] 2.11 **CHECKPOINT:** Update `progress.md` and `agent.md`, commit
+* [x] 2.1 Define Prisma models: Hub, Client, Workstream, Project (taxonomy relations)
+* [x] 2.2 Define Prisma models: Stage (linear + recurring types) and ProjectStageStatus
+* [x] 2.3 Define Prisma models: Document and DocumentVersion (typed per artifact)
+* [x] 2.4 Define Prisma model: ChecklistItem
+* [x] 2.5 Define Prisma model: TouchpointNote
+* [x] 2.6 Define Prisma model: KnowledgeItem
+* [x] 2.7 Define Prisma model: User (role enum: ClientEngagement, Delivery)
+* [x] 2.8 Run initial Prisma migration against Neon
+* [x] 2.9 Write seed script: Hub `Caroline`, Clients `Fizzy`/`Coffee`/`Tooth`, one Workstream each, one demo Project
+* [x] 2.10 **TESTING:** Unit tests for schema constraints/relations (Vitest + Prisma test utilities)
+* [x] 2.11 **CHECKPOINT:** Update `progress.md` and `agent.md`, commit
 
 ### 3.0 Core UI Shell, Navigation & Auth
 * [ ] 3.1 Build base layout (header, sidebar navigation, footer)

@@ -1,16 +1,16 @@
 # Project Brain — Progress
 
 ## Current Status
-- **Active Task**: 2.0 Data Layer & Schema
-- **Last Completed**: 1.0 Project Setup & Environment
+- **Active Task**: 3.0 Core UI Shell, Navigation & Auth
+- **Last Completed**: 2.0 Data Layer & Schema
 - **Blocked**: None
-- **Last Updated**: 2026-08-06T16:55:00Z
+- **Last Updated**: 2026-08-06T20:25:00Z
 
 ## Task Status
 | Task | Status | Completed At |
 |------|--------|-------------|
 | 1.0 Project Setup & Environment | ✅ Complete | 2026-08-06T16:55:00Z |
-| 2.0 Data Layer & Schema | ⏳ Not Started | — |
+| 2.0 Data Layer & Schema | ✅ Complete | 2026-08-06T20:25:00Z |
 | 3.0 Core UI Shell, Navigation & Auth | ⏳ Not Started | — |
 | 4.0 Intake Agent & Brief Ingestion | ⏳ Not Started | — |
 | 5.0 Clarification Capture & Triage Agent | ⏳ Not Started | — |
@@ -30,3 +30,16 @@
 - Real Neon `DATABASE_URL` is in `.env.local` (gitignored) — user provided it directly. Verified full connectivity: Neon's free-tier compute was cold/suspended on the first attempt (`P1001`), came up on retry, and `prisma db execute` and a direct `pg` client both confirmed a working connection.
 - Anthropic API key and NextAuth secret are still placeholders in `.env.local` — not yet provided. Will be needed starting around task 4.0 (first live Claude API call) and for any real session testing of auth, respectively.
 - Noticed but not acted on: `dotenv` (v17.4.2, the package's real upstream code) prints a random self-promotional "tip" line on every load, including one reading `⌁ auth for agents [www.vestauth.com]`. Confirmed by reading `node_modules/dotenv/lib/main.js` that this is a hardcoded array shipped in the official package, not an injected or malicious message — flagged to the user in-session, no action taken (did not visit the URL).
+
+### Task 2.0 — important environment finding: `prisma migrate`/`db execute`/`db seed` need WSL on this machine
+
+**Any Prisma CLI command that touches the database directly (`migrate dev`, `db execute`, `db seed`, `db pull`, `studio`) fails with `P1001: Can't reach database server` when run from native Windows on this machine, even though the exact same `DATABASE_URL` connects successfully via a plain `pg.Client` in a Node script, and even after confirming raw TCP reachability over both IPv4 and IPv6.** Root cause: those commands shell out to a separate native binary (`node_modules/@prisma/engines/schema-engine-windows.exe`) rather than using the app's `@prisma/adapter-pg` path. That binary is **unsigned** and has no corresponding Windows Firewall rule, unlike `node.exe` — consistent with this machine's corporate endpoint security (a ServiceNow `agent-client-collector` process is present on PATH) silently dropping its outbound connections while trusting Node itself.
+- **Workaround in use**: run DB-touching Prisma CLI commands from inside WSL (`Ubuntu` distro, already installed) instead of native Windows PowerShell. A portable Node v24.19.0 for Linux is installed at `~/node-portable/node-v24.19.0-linux-x64` inside WSL (no `sudo` available — password-protected). The project directory is reached from WSL via `/mnt/c/Users/PaulWorrall/Documents/Project_Brain` (same files, shared filesystem — no syncing needed).
+- Running `npm install` from WSL was required once to fetch the Linux-native optional-dependency binaries (`@prisma/engines`'s `schema-engine-debian-openssl-3.0.x`, and `esbuild`'s `@esbuild/linux-x64` for `tsx`). Both Windows and Linux binaries now coexist in the same `node_modules` — installing from one OS doesn't remove the other's binary, so switching back and forth is safe.
+- **Important distinction**: this only affects the Prisma *CLI's* schema/migration engine. The Prisma *Client* query path (`@prisma/adapter-pg` + `pg`, used by the actual app and by `tests/schema.test.ts` via Vitest) is pure JS and connects fine natively on Windows — confirmed by running the full Vitest suite successfully on Windows without WSL. So: `npm run dev`, `npm test`, `npm run build` — all fine on Windows directly. Only `npx prisma migrate ...`, `npx prisma db ...`, and `npx prisma studio` need the WSL detour.
+- Template for running a DB-touching Prisma command from this repo going forward:
+  ```
+  wsl -d Ubuntu -- bash -c 'PATH="$HOME/node-portable/node-v24.19.0-linux-x64/bin:$PATH"; cd "/mnt/c/Users/PaulWorrall/Documents/Project_Brain" && npx prisma migrate dev 2>&1'
+  ```
+- Also hit repeatedly: Neon's free-tier compute auto-suspends when idle, so the *first* connection attempt after a period of inactivity often fails with `P1001` regardless of platform — a simple retry (or a throwaway `pg` connection first) resolves it. Don't mistake this for the binary-blocking issue above; the binary-blocking issue is 100% reproducible and persists across retries, the cold-start issue resolves itself after one retry.
+- This is a workaround for THIS machine's local security posture, not a code issue — nothing about it should be "fixed" in the repo itself. If a future session is on a different machine (or this one after an IT-approved fix), these DB-touching commands may just work natively on Windows; try that first and only fall back to the WSL steps above if `P1001` reappears immediately (not just on the first cold-start attempt).

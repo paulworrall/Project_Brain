@@ -1,7 +1,7 @@
 # Project Brain — Codebase Summary
 
 ## Architecture Overview
-Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (Postgres/Neon, driver-adapter-based), and NextAuth v5 (beta) for email/password auth. Only the project skeleton and tooling exist so far — no data models, UI, or agents have been built yet.
+Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (Postgres/Neon, driver-adapter-based), and NextAuth v5 (beta) for email/password auth. The full data schema is now migrated and seeded with anonymized taxonomy data. No UI or agents have been built yet — that starts at task 3.0.
 
 ## File Inventory
 
@@ -12,45 +12,58 @@ Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (P
 | `src/app/page.tsx` | Default home page (generated, not yet customized) | 1.1 |
 | `src/app/globals.css` | Tailwind v4 entry (`@import "tailwindcss"`) + theme tokens | 1.1/1.2 |
 | `src/app/api/auth/[...nextauth]/route.ts` | NextAuth App Router route handler, re-exports `handlers` | 1.5 |
-| `src/lib/auth.ts` | NextAuth config: Credentials provider (stub `authorize()`, returns `null` until 2.7/3.2), JWT sessions, `/login` sign-in page | 1.5 |
+| `src/lib/auth.ts` | NextAuth config: Credentials provider (stub `authorize()`, returns `null` until 3.2 wires it to `User`), JWT sessions, `/login` sign-in page | 1.5 |
 | `src/lib/prisma.ts` | Prisma Client singleton using `@prisma/adapter-pg` (`PrismaPg`) | 1.3 |
-| `src/generated/prisma/*` | Generated Prisma Client output (gitignored, regenerated via `npx prisma generate`) | 1.3 |
-| `prisma/schema.prisma` | Prisma schema — `prisma-client` generator, Postgres datasource, **no models yet** | 1.3 |
-| `prisma.config.ts` | Prisma 7 config — loads `.env.local` via `dotenv`, wires `DATABASE_URL`, schema/migrations paths | 1.3 |
+| `src/generated/prisma/*` | Generated Prisma Client output (gitignored, regenerated via `npx prisma generate`) | 2.1-2.7 |
+| `prisma/schema.prisma` | Full schema: `Hub → Client → Workstream → Project` taxonomy, `Stage`/`ProjectStageStatus`, `Document`/`DocumentVersion` (JSON `content` typed per `DocumentType` in app code, not per-type Prisma models), `ChecklistItem`, `TouchpointNote`, `KnowledgeItem`, `User` | 2.1-2.7 |
+| `prisma.config.ts` | Prisma 7 config — loads `.env.local` via `dotenv`, wires `DATABASE_URL`, schema/migrations paths, `seed: "tsx prisma/seed.ts"` | 1.3/2.9 |
+| `prisma/migrations/20260806190913_init/` | Initial migration, applied to the real Neon dev database | 2.8 |
+| `prisma/seed.ts` | Seeds all 10 `Stage` rows, Hub `Caroline`, Clients `Fizzy`/`Coffee`/`Tooth` (one Workstream each), one demo Project (`Fizzy Summer Launch`, Stage 1 in progress), and two demo `User`s (one per role) | 2.9 |
+| `tests/setup.ts` | Vitest setup — loads `.env.local` via `dotenv` | 2.10 |
+| `tests/schema.test.ts` | 9 tests against the real dev DB: unique constraints, FK enforcement, cascade deletes, per-type/per-version uniqueness — all scoped under one throwaway Hub, deleted via cascade in `afterAll` | 2.10 |
 
-### Directory scaffolding (empty, `.gitkeep` placeholders per CLAUDE.md File Structure)
-`src/components/{ui,features,layout}`, `src/services/{agents,parsing}`, `src/types`, `src/styles`, `tests/`
+### Directory scaffolding (still empty, `.gitkeep` placeholders per CLAUDE.md File Structure)
+`src/components/{ui,features,layout}`, `src/services/{agents,parsing}`, `src/types`, `src/styles`
 
 ### Configuration Files
 | File | Purpose |
 |------|---------|
-| `package.json` | Scripts: `dev`, `build`, `start`, `lint` (eslint directly — `next lint` is removed in v16), `format`, `format:check` |
+| `package.json` | Scripts: `dev`, `build`, `start`, `lint`, `format`, `format:check`, `test` (`vitest run`), `test:watch` |
 | `tsconfig.json` | Standard Next.js App Router config (generated, unmodified) |
 | `next.config.ts` | Empty Next config (generated, unmodified) |
+| `vitest.config.mts` | Node environment, `tests/setup.ts` setup file, `@/*` alias matching `tsconfig.json` |
 | `eslint.config.mjs` | Flat config: `eslint-config-next` (core-web-vitals + typescript) + `eslint-config-prettier` |
 | `.prettierrc.json` / `.prettierignore` | Prettier formatting config |
 | `postcss.config.mjs` | Tailwind v4 PostCSS plugin (generated, unmodified) |
 | `.gitignore` | Standard Next.js ignores + `/src/generated/prisma` + env-file rules (`.env`, `.env.local`, `.env*.local` ignored; `.env.local.example` explicitly un-ignored) |
 | `.env.local.example` | Committed placeholder template: `DATABASE_URL`, `ANTHROPIC_API_KEY`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL` |
-| `.env.local` | Gitignored. **Real** `DATABASE_URL` (Neon, provided by user, verified working). `ANTHROPIC_API_KEY` and `NEXTAUTH_SECRET` are still placeholders. |
+| `.env.local` | Gitignored. **Real** `DATABASE_URL` (Neon, rotated once by user, verified working). `ANTHROPIC_API_KEY` and `NEXTAUTH_SECRET` are still placeholders. |
 | `AGENTS.md` | Auto-managed by `next dev` — points AI agents at bundled version-matched docs in `node_modules/next/dist/docs/`. Do not delete; it regenerates. |
 | `.agents/skills/`, `.claude/skills/`, `.windsurf/skills/`, `skills-lock.json` | Auto-installed by `prisma init` — bundled, version-accurate Prisma 7 usage/migration reference docs. Kept and committed intentionally. |
 
 ### Test Files
-None yet. `tests/` directory scaffolded (empty).
+| File | Tests | Status |
+|------|-------|--------|
+| `tests/schema.test.ts` | 9 (uniqueness, cascade deletes, FK enforcement) | ✅ passing |
 
 ## Key Dependencies
 - `next` 16.3.0, `react`/`react-dom` 19.2.8
 - `tailwindcss` ^4, `@tailwindcss/postcss` ^4
 - `prisma` / `@prisma/client` 7.9.1, `@prisma/adapter-pg` ^7.9.1, `pg` ^8.22.0, `dotenv` ^17.4.2
 - `next-auth` ^5.0.0-beta.32 (Auth.js v5 — intentional, App Router requires it; npm `latest` tag is still v4)
-- Dev: `typescript` ^5, `eslint` ^9 + `eslint-config-next` 16.3.0 + `eslint-config-prettier`, `prettier` ^3.9.6, `@types/pg`
+- `bcryptjs` ^3.0.3 (+ `@types/bcryptjs`) — password hashing for seeded/future `User` rows
+- Dev: `typescript` ^5, `eslint` ^9 + `eslint-config-next` 16.3.0 + `eslint-config-prettier`, `prettier` ^3.9.6, `vitest` ^4.1.10, `tsx` ^4.23.9, `@types/pg`
 
 ## Environment Variables
 `DATABASE_URL`, `ANTHROPIC_API_KEY`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL` — all in `.env.local` (gitignored) and templated in `.env.local.example` (committed).
 
-## Toolchain Note (this machine)
-Node.js is not on system PATH by default — a portable Node v24.19.0 LTS lives at `~\node-portable\node-v24.19.0-win-x64` (no admin rights available for the standard installer). It's on the persisted user PATH and in the PowerShell profile, but this tool's shell invocations don't always inherit that automatically — prefix commands with the portable Node path if `node`/`npm` aren't found.
+## Toolchain Notes (this machine — see `progress.md` for full detail)
+- Node.js isn't on system PATH by default — a portable Node v24.19.0 LTS lives at `~\node-portable\node-v24.19.0-win-x64` (no admin rights for the standard installer). Prefix shell commands with `$env:Path = "$env:USERPROFILE\node-portable\node-v24.19.0-win-x64;$env:Path"` if `node`/`npm` aren't found.
+- **DB-touching Prisma CLI commands (`migrate`, `db execute`, `db seed`, `db pull`, `studio`) currently require WSL** on this machine — they invoke a separate unsigned native binary (`schema-engine-windows.exe`) that this machine's endpoint security silently blocks, even though the Prisma Client's own connection (used by the app and by Vitest tests) works fine natively on Windows. Run those specific commands via:
+  ```
+  wsl -d Ubuntu -- bash -c 'PATH="$HOME/node-portable/node-v24.19.0-linux-x64/bin:$PATH"; cd "/mnt/c/Users/PaulWorrall/Documents/Project_Brain" && npx prisma migrate dev'
+  ```
+  `npm run dev`, `npm test`, `npm run build`, `npx prisma generate` all work fine natively on Windows — no WSL needed.
 
 ## Current State Summary
-Task 1.0 (Project Setup & Environment) is complete: Next.js/Tailwind/Prisma/NextAuth/ESLint/Prettier are installed and verified (typecheck clean, lint clean, dev server serves 200, Prisma connects to the real Neon database). Next up: task 2.0 — define the full Prisma schema (Hub/Client/Workstream/Project taxonomy, Stage/ProjectStageStatus, Document/DocumentVersion, ChecklistItem, TouchpointNote, KnowledgeItem, User), migrate, and seed anonymized data.
+Tasks 1.0 and 2.0 are complete: the full Prisma schema is migrated to the real Neon database and seeded (10 Stages, Hub `Caroline`, Clients `Fizzy`/`Coffee`/`Tooth` with one Workstream each, one demo Project, two demo Users), with 9 passing schema-constraint tests. Next up: task 3.0 — base layout, login/signup screens wired to NextAuth, the Hub→Client→Workstream→Project taxonomy browser, and the Project Detail page shell.

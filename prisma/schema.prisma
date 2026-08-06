@@ -1,8 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -10,4 +8,239 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Taxonomy: Hub -> Client -> Workstream -> Project
+// ---------------------------------------------------------------------------
+
+model Hub {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clients Client[]
+}
+
+model Client {
+  id        String   @id @default(cuid())
+  name      String
+  hubId     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  hub         Hub          @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  workstreams Workstream[]
+
+  @@unique([hubId, name])
+}
+
+model Workstream {
+  id        String   @id @default(cuid())
+  name      String
+  clientId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client   Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  projects Project[]
+
+  @@unique([clientId, name])
+}
+
+model Project {
+  id           String @id @default(cuid())
+  name         String
+  workstreamId String
+
+  // Raw brief as ingested at Stage 1 (task 4.1/4.2) — parsed to plain text
+  // regardless of source format (docx/pdf/pptx/pasted text).
+  briefRawText  String?
+  briefFileName String?
+  briefFileType String?
+
+  // Denormalized convenience field for Stage Tracker / list views — the
+  // source of truth for per-stage state is still ProjectStageStatus.
+  currentStageNumber Int @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workstream      Workstream           @relation(fields: [workstreamId], references: [id], onDelete: Cascade)
+  stageStatuses   ProjectStageStatus[]
+  documents       Document[]
+  checklistItems  ChecklistItem[]
+  touchpointNotes TouchpointNote[]
+  knowledgeItems  KnowledgeItem[]
+
+  @@unique([workstreamId, name])
+}
+
+// ---------------------------------------------------------------------------
+// Stages (1-10 modeled; 1-5 active for MVP, 6-10 placeholders)
+// ---------------------------------------------------------------------------
+
+enum StageType {
+  LINEAR
+  RECURRING
+}
+
+model Stage {
+  id     String    @id @default(cuid())
+  number Int       @unique
+  name   String
+  type   StageType @default(LINEAR)
+
+  stageStatuses ProjectStageStatus[]
+}
+
+enum StageStatusValue {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETE
+}
+
+model ProjectStageStatus {
+  id          String           @id @default(cuid())
+  projectId   String
+  stageId     String
+  status      StageStatusValue @default(NOT_STARTED)
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stage   Stage   @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, stageId])
+}
+
+// ---------------------------------------------------------------------------
+// Documents & versions (typed per artifact; versioned at stage transitions)
+// ---------------------------------------------------------------------------
+
+enum DocumentType {
+  CLARIFICATION_EMAIL
+  POSITION_DOCUMENT
+  CHECKLIST
+  DRAFT_SCOPE_DOCUMENT
+  DELIVERABLES_SERVICES_DOCUMENT
+}
+
+model Document {
+  id        String       @id @default(cuid())
+  projectId String
+  type      DocumentType
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  project  Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versions DocumentVersion[]
+
+  @@unique([projectId, type])
+}
+
+model DocumentVersion {
+  id            String   @id @default(cuid())
+  documentId    String
+  versionNumber Int
+  // Structured fields for this artifact type (see src/types for the shape
+  // matching each DocumentType) — agents write this, never free text.
+  content       Json
+  stageNumber   Int
+  createdById   String?
+  createdAt     DateTime @default(now())
+
+  document  Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdBy User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([documentId, versionNumber])
+}
+
+// ---------------------------------------------------------------------------
+// Manual checklist (interactive tick-box state, distinct from the versioned
+// CHECKLIST Document artifact that generated the initial items)
+// ---------------------------------------------------------------------------
+
+model ChecklistItem {
+  id          String    @id @default(cuid())
+  projectId   String
+  label       String
+  isComplete  Boolean   @default(false)
+  order       Int       @default(0)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Freeform human touchpoint notes (client clarification reply, specialist
+// review feedback) that feed the next agent step
+// ---------------------------------------------------------------------------
+
+enum TouchpointNoteType {
+  CLARIFICATION_REPLY
+  SPECIALIST_REVIEW
+}
+
+model TouchpointNote {
+  id          String             @id @default(cuid())
+  projectId   String
+  type        TouchpointNoteType
+  content     String
+  createdById String?
+  createdAt   DateTime           @default(now())
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+}
+
+// ---------------------------------------------------------------------------
+// Ad-hoc knowledge base (independent of Stage, always available)
+// ---------------------------------------------------------------------------
+
+enum KnowledgeItemType {
+  DOCUMENT
+  NOTE
+}
+
+model KnowledgeItem {
+  id               String            @id @default(cuid())
+  projectId        String
+  type             KnowledgeItemType
+  title            String
+  content          String
+  originalFileName String?
+  uploadedById     String?
+  uploadedAt       DateTime          @default(now())
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploadedBy User?   @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+}
+
+// ---------------------------------------------------------------------------
+// Users & roles
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  CLIENT_ENGAGEMENT
+  DELIVERY
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         UserRole
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  documentVersions DocumentVersion[]
+  touchpointNotes  TouchpointNote[]
+  knowledgeItems   KnowledgeItem[]
 }
