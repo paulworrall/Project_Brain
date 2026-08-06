@@ -73,19 +73,19 @@
     {
       "parent_id": 4.0,
       "parent_task": "Intake Agent & Brief Ingestion (Stages 1-2)",
-      "status": "pending",
+      "status": "completed",
       "subtasks": [
-        {"task_id": 4.1, "description": "Build brief upload/paste UI (file upload + textarea) on the Project creation flow", "status": "pending"},
-        {"task_id": 4.2, "description": "Implement document parsing utilities: docx, pdf, pptx to plain text", "status": "pending"},
-        {"task_id": 4.3, "description": "Implement Intake Agent module (src/services/agents/intake-agent.ts): brief-type classification call to Claude", "status": "pending"},
-        {"task_id": 4.4, "description": "Extend Intake Agent: field-extraction call to Claude returning structured JSON matching Position Document fields", "status": "pending"},
-        {"task_id": 4.5, "description": "Implement Clarification Email draft generator from extracted fields", "status": "pending"},
-        {"task_id": 4.6, "description": "Implement Project Position Document generator (all sections always shown, 'Not specified in brief' fallback, Client-Flagged Open Items kept separate from genuine gaps)", "status": "pending"},
-        {"task_id": 4.7, "description": "Implement Project Set-Up Checklist generator (Workbook, folder, job code, PM assignment, Teams channel)", "status": "pending"},
-        {"task_id": 4.8, "description": "Build UI to display the generated Clarification Email (editable draft), Position Document, and Checklist (tick-boxes)", "status": "pending"},
-        {"task_id": 4.9, "description": "Wire Stage 1 -> 2 transition: creating a Project with a brief triggers the Intake Agent and advances Stage", "status": "pending"},
-        {"task_id": 4.10, "description": "TESTING: Unit tests for parsing utilities and Intake Agent output structure, mocking the Claude API", "status": "pending"},
-        {"task_id": 4.11, "description": "CHECKPOINT: Update progress.md and agent.md, commit", "status": "pending"}
+        {"task_id": 4.1, "description": "Build brief upload/paste UI (file upload + textarea) on the Project creation flow", "status": "completed"},
+        {"task_id": 4.2, "description": "Implement document parsing utilities: docx, pdf, pptx to plain text", "status": "completed"},
+        {"task_id": 4.3, "description": "Implement Intake Agent module (src/services/agents/intake-agent.ts): brief-type classification call to Claude", "status": "completed"},
+        {"task_id": 4.4, "description": "Extend Intake Agent: field-extraction call to Claude returning structured JSON matching Position Document fields", "status": "completed"},
+        {"task_id": 4.5, "description": "Implement Clarification Email draft generator from extracted fields", "status": "completed"},
+        {"task_id": 4.6, "description": "Implement Project Position Document generator (all sections always shown, 'Not specified in brief' fallback, Client-Flagged Open Items kept separate from genuine gaps)", "status": "completed"},
+        {"task_id": 4.7, "description": "Implement Project Set-Up Checklist generator (Workbook, folder, job code, PM assignment, Teams channel)", "status": "completed"},
+        {"task_id": 4.8, "description": "Build UI to display the generated Clarification Email (editable draft), Position Document, and Checklist (tick-boxes)", "status": "completed"},
+        {"task_id": 4.9, "description": "Wire Stage 1 -> 2 transition: creating a Project with a brief triggers the Intake Agent and advances Stage", "status": "completed"},
+        {"task_id": 4.10, "description": "TESTING: Unit tests for parsing utilities and Intake Agent output structure, mocking the Claude API", "status": "completed"},
+        {"task_id": 4.11, "description": "CHECKPOINT: Update progress.md and agent.md, commit", "status": "completed"}
       ]
     },
     {

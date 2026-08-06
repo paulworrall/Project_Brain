@@ -1,10 +1,10 @@
 # Project Brain — Progress
 
 ## Current Status
-- **Active Task**: 4.0 Intake Agent & Brief Ingestion
-- **Last Completed**: 3.0 Core UI Shell, Navigation & Auth
+- **Active Task**: 5.0 Clarification Capture & Triage Agent
+- **Last Completed**: 4.0 Intake Agent & Brief Ingestion
 - **Blocked**: None
-- **Last Updated**: 2026-08-06T21:05:00Z
+- **Last Updated**: 2026-08-06T22:10:00Z
 
 ## Task Status
 | Task | Status | Completed At |
@@ -12,7 +12,7 @@
 | 1.0 Project Setup & Environment | ✅ Complete | 2026-08-06T16:55:00Z |
 | 2.0 Data Layer & Schema | ✅ Complete | 2026-08-06T20:25:00Z |
 | 3.0 Core UI Shell, Navigation & Auth | ✅ Complete | 2026-08-06T21:05:00Z |
-| 4.0 Intake Agent & Brief Ingestion | ⏳ Not Started | — |
+| 4.0 Intake Agent & Brief Ingestion | ✅ Complete | 2026-08-06T22:10:00Z |
 | 5.0 Clarification Capture & Triage Agent | ⏳ Not Started | — |
 | 6.0 Specialist Review Capture & Deliverables + Services | ⏳ Not Started | — |
 | 7.0 Outputs Library, Stage Tracker & Version History | ⏳ Not Started | — |
@@ -54,3 +54,15 @@
 - Component tests needed `afterEach(cleanup)` added manually to `tests/setup.ts` (imported from `@testing-library/react`) — React Testing Library's automatic cleanup relies on a global `afterEach` hook that only self-registers when Vitest's `test.globals: true` is set, which this project doesn't use (tests import `describe`/`it`/`expect` explicitly from `"vitest"` instead). Without it, DOM nodes accumulated across tests in the same file and caused "found multiple elements" failures, plus a spurious "form was unexpectedly submitted" React warning from stale unmounted-but-still-attached forms.
 - Installed `zod` (v4) for form validation (signup) — also intended for later use validating Claude's structured JSON outputs in the agent tasks (4.0+), matching CLAUDE.md's "never parse prose, always validate structured output" rule.
 - Design tokens: deliberately no dark mode for now (single light "clean/efficient/professional" palette via Tailwind v4 `@theme` in `globals.css`) — not required by the PRP, and simpler for a first pass.
+
+### Task 4.0 notes
+
+- **Anthropic API key provided by the user** and added to `.env.local` (gitignored). Verified working with a live smoke test before building the rest of the agent on top of it.
+- **Model choice: `claude-opus-5`.** Loaded the bundled `claude-api` skill before writing any Anthropic SDK code (per its own trigger rule whenever Claude/Anthropic is named) — it's current on model IDs, structured-output syntax, and API shape, none of which should be trusted from training-data recall given how fast this surface moves.
+- **Structured output via `output_config.format` + `zodOutputFormat()` + `client.messages.parse()`**, not manual JSON parsing or a tool-call workaround. This directly satisfies CLAUDE.md's "every agent returns structured JSON, never free text the app has to parse" — validation is enforced by the SDK against the same Zod schema used for the TypeScript types, and `message.parsed_output` is already the typed, validated object.
+- **Consolidated docx/pdf/pptx parsing onto a single library (`officeparser`)** instead of CLAUDE.md's suggested `mammoth` + `pdf-parse` + a separate pptx library. `officeparser` actively maintains all three formats (plus more) with one consistent API (`OfficeParser.parseOffice(buffer)` → `ast.to("text")`), which is simpler and more consistent than juggling three different library APIs — CLAUDE.md's library list was explicitly "or similar" for each. Installed, then uninstalled `mammoth`/`pdf-parse` once this was confirmed sufficient.
+- **Intake Agent is 3 real Claude calls, not more, not fewer**: classify → extract → draft clarification email. The Project Position Document and Set-Up Checklist are **not** separate Claude calls — the Position Document is a direct structural rendering of the extraction call's output (no extra AI step needed), and the Set-Up Checklist is a fixed, deterministic template (`generateSetupChecklist()`, no AI call at all) per the task list's own wording ("Workbook, folder, job code, PM assignment, Teams channel" — a fixed list, not something to extract from the brief).
+- **Synchronous request, not a background job**: `createProjectAction` runs all 3 Claude calls inline within the Server Action before redirecting. This is a real latency/timeout tradeoff (Vercel serverless function limits) accepted deliberately for MVP simplicity — verified in-browser that the full round trip (with real Claude calls) completes in well under any Vercel timeout tier for a normal-length brief, and the form shows a "Running Intake Agent…" pending state throughout. If briefs grow much longer or this needs to scale, revisit as a background job in Level 2.
+- **Checklist items are dual-tracked by design**: a `Document{type: CHECKLIST}` + `DocumentVersion` stores the immutable generated-checklist artifact (for the Outputs Library/version history later), while separate `ChecklistItem` rows (one per item) are what task 7.4 will wire up for interactive tick-boxes. Both are created together in the same transaction when a project is created. The Outputs Library tab currently renders `ChecklistItem` rows read-only (no tick interaction yet — that's explicitly task 7.4's job, not 4.8's).
+- **Full flow verified end-to-end in the browser against the real Claude API and real Neon database**: pasted a genuine-shaped brief (Coffee loyalty app, with both a genuine gap and a client-flagged TBC item) through `/projects/new`, watched Stage 1 → Stage 2 transition correctly on the taxonomy browser, and confirmed the Outputs Library tab renders a well-structured clarification email, a position document with properly separated "genuine gap" vs "client-flagged" sections, and the checklist — not just typechecked/linted.
+- Prisma's typed `Json` write fields (`DocumentVersion.content`) reject a pre-typed object (like our own `SetupChecklist` interface) unless cast to `Prisma.InputJsonValue` — Prisma's `InputJsonObject` requires an index signature that named interfaces don't structurally satisfy on their own. Fresh object literals inferred inline don't hit this; a named type assigned through a function return does. Cast with `as unknown as Prisma.InputJsonValue` at the call site when this comes up again (e.g. future Draft Scope Document / Deliverables+Services writes).

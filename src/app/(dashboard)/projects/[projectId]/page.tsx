@@ -2,6 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { ProjectDetailTabs } from "@/components/features/ProjectDetailTabs";
+import {
+  ClarificationEmailSchema,
+  PositionDocumentFieldsSchema,
+} from "@/types/intake";
 
 export default async function ProjectDetailPage({
   params,
@@ -20,6 +24,17 @@ export default async function ProjectDetailPage({
           },
         },
       },
+      documents: {
+        include: {
+          versions: {
+            orderBy: { versionNumber: "desc" },
+            take: 1,
+          },
+        },
+      },
+      checklistItems: {
+        orderBy: { order: "asc" },
+      },
     },
   });
 
@@ -27,9 +42,19 @@ export default async function ProjectDetailPage({
     notFound();
   }
 
-  const { workstream } = project;
+  const { workstream, documents, checklistItems } = project;
   const { client } = workstream;
   const { hub } = client;
+
+  const clarificationEmailContent = documents.find(
+    (d) => d.type === "CLARIFICATION_EMAIL"
+  )?.versions[0]?.content;
+  const positionDocumentContent = documents.find(
+    (d) => d.type === "POSITION_DOCUMENT"
+  )?.versions[0]?.content;
+
+  const clarificationEmail = ClarificationEmailSchema.safeParse(clarificationEmailContent);
+  const positionDocument = PositionDocumentFieldsSchema.safeParse(positionDocumentContent);
 
   return (
     <div className="space-y-6">
@@ -46,7 +71,15 @@ export default async function ProjectDetailPage({
         <h1 className="mt-1 text-xl font-semibold text-foreground">{project.name}</h1>
       </div>
 
-      <ProjectDetailTabs />
+      <ProjectDetailTabs
+        clarificationEmail={clarificationEmail.success ? clarificationEmail.data : null}
+        positionDocument={positionDocument.success ? positionDocument.data : null}
+        checklistItems={checklistItems.map((item) => ({
+          id: item.id,
+          label: item.label,
+          isComplete: item.isComplete,
+        }))}
+      />
     </div>
   );
 }

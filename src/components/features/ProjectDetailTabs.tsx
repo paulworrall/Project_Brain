@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 import { Card } from "@/components/ui/Card";
+import type { ClarificationEmail, PositionDocumentFields } from "@/types/intake";
+import { ClarificationEmailView } from "./ClarificationEmailView";
+import { PositionDocumentView } from "./PositionDocumentView";
+import { ChecklistView, type ChecklistItemView } from "./ChecklistView";
 
 const TABS = [
   { key: "stage-tracker", label: "Stage Tracker" },
@@ -12,14 +16,17 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 
-const PLACEHOLDER_COPY: Record<TabKey, string> = {
-  "stage-tracker": "Stage Tracker — coming in task 7.1.",
-  outputs: "Outputs Library — coming in task 7.2.",
-  chatbot: "Project Brain Chatbot — coming in task 8.3-8.4.",
-  knowledge: "Knowledge Upload — coming in task 8.1-8.2.",
-};
+interface ProjectDetailTabsProps {
+  clarificationEmail: ClarificationEmail | null;
+  positionDocument: PositionDocumentFields | null;
+  checklistItems: ChecklistItemView[];
+}
 
-export function ProjectDetailTabs() {
+export function ProjectDetailTabs({
+  clarificationEmail,
+  positionDocument,
+  checklistItems,
+}: ProjectDetailTabsProps) {
   const [activeTab, setActiveTab] = useState<TabKey>("stage-tracker");
 
   return (
@@ -43,9 +50,66 @@ export function ProjectDetailTabs() {
         ))}
       </div>
 
-      <Card role="tabpanel" className="mt-4 p-6">
-        <p className="text-sm text-muted-foreground">{PLACEHOLDER_COPY[activeTab]}</p>
-      </Card>
+      <div role="tabpanel" className="mt-4">
+        {activeTab === "stage-tracker" && (
+          <Card className="p-6">
+            <p className="text-sm text-muted-foreground">Stage Tracker — coming in task 7.1.</p>
+          </Card>
+        )}
+
+        {activeTab === "outputs" && (
+          <div className="space-y-6">
+            <section>
+              <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Clarification Email
+              </h2>
+              {clarificationEmail ? (
+                <ClarificationEmailView email={clarificationEmail} />
+              ) : (
+                <Card className="p-6">
+                  <p className="text-sm text-muted-foreground">Not generated yet.</p>
+                </Card>
+              )}
+            </section>
+
+            <section>
+              <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Project Position Document
+              </h2>
+              {positionDocument ? (
+                <PositionDocumentView fields={positionDocument} />
+              ) : (
+                <Card className="p-6">
+                  <p className="text-sm text-muted-foreground">Not generated yet.</p>
+                </Card>
+              )}
+            </section>
+
+            <section>
+              <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Set-Up Checklist
+              </h2>
+              <ChecklistView items={checklistItems} />
+            </section>
+          </div>
+        )}
+
+        {activeTab === "chatbot" && (
+          <Card className="p-6">
+            <p className="text-sm text-muted-foreground">
+              Project Brain Chatbot — coming in task 8.3-8.4.
+            </p>
+          </Card>
+        )}
+
+        {activeTab === "knowledge" && (
+          <Card className="p-6">
+            <p className="text-sm text-muted-foreground">
+              Knowledge Upload — coming in task 8.1-8.2.
+            </p>
+          </Card>
+        )}
+      </div>
     </div>
   );
 }

@@ -47,17 +47,17 @@
 * [x] 3.7 **CHECKPOINT:** Update `progress.md` and `agent.md`, commit
 
 ### 4.0 Intake Agent & Brief Ingestion (Stages 1-2)
-* [ ] 4.1 Build brief upload/paste UI on the Project creation flow
-* [ ] 4.2 Implement document parsing utilities: docx, pdf, pptx → plain text
-* [ ] 4.3 Implement Intake Agent — brief-type classification call to Claude
-* [ ] 4.4 Extend Intake Agent — field-extraction call returning structured JSON (Position Document fields)
-* [ ] 4.5 Implement Clarification Email draft generator
-* [ ] 4.6 Implement Project Position Document generator (all sections always shown; Client-Flagged Open Items kept separate from genuine gaps)
-* [ ] 4.7 Implement Project Set-Up Checklist generator
-* [ ] 4.8 Build UI to display the generated Email draft, Position Document, and Checklist
-* [ ] 4.9 Wire Stage 1 → 2 transition
-* [ ] 4.10 **TESTING:** Unit tests for parsing utilities and Intake Agent output, mocking the Claude API
-* [ ] 4.11 **CHECKPOINT:** Update `progress.md` and `agent.md`, commit
+* [x] 4.1 Build brief upload/paste UI on the Project creation flow
+* [x] 4.2 Implement document parsing utilities: docx, pdf, pptx → plain text
+* [x] 4.3 Implement Intake Agent — brief-type classification call to Claude
+* [x] 4.4 Extend Intake Agent — field-extraction call returning structured JSON (Position Document fields)
+* [x] 4.5 Implement Clarification Email draft generator
+* [x] 4.6 Implement Project Position Document generator (all sections always shown; Client-Flagged Open Items kept separate from genuine gaps)
+* [x] 4.7 Implement Project Set-Up Checklist generator
+* [x] 4.8 Build UI to display the generated Email draft, Position Document, and Checklist
+* [x] 4.9 Wire Stage 1 → 2 transition
+* [x] 4.10 **TESTING:** Unit tests for parsing utilities and Intake Agent output, mocking the Claude API
+* [x] 4.11 **CHECKPOINT:** Update `progress.md` and `agent.md`, commit
 
 ### 5.0 Clarification Capture & Triage Agent (Stages 3-4)
 * [ ] 5.1 Build UI for pasting freeform client clarification notes

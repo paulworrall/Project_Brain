@@ -24,11 +24,19 @@ export default async function TaxonomyBrowserPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">All Projects</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Browse by Hub → Client → Workstream → Project.
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">All Projects</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Browse by Hub → Client → Workstream → Project.
+          </p>
+        </div>
+        <Link
+          href="/projects/new"
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover"
+        >
+          + New Project
+        </Link>
       </div>
 
       {hubs.length === 0 && (
