@@ -91,16 +91,16 @@
     {
       "parent_id": 5.0,
       "parent_task": "Clarification Capture & Triage Agent (Stages 3-4)",
-      "status": "pending",
+      "status": "completed",
       "subtasks": [
-        {"task_id": 5.1, "description": "Build UI for pasting freeform client clarification notes (Stage 3)", "status": "pending"},
-        {"task_id": 5.2, "description": "Implement Clarification Extraction step: Claude call taking Position Document + freeform notes, returning updated fields", "status": "pending"},
-        {"task_id": 5.3, "description": "Implement Position Document versioning at this stage transition, preserving and exposing prior versions", "status": "pending"},
-        {"task_id": 5.4, "description": "Implement Triage Agent module (src/services/agents/triage-agent.ts): generate Draft Scope Document (Objectives, Deliverables, Milestones, Roles & Responsibilities [contacts + capability list], Budget, Assumptions/Constraints), proceeding regardless of gaps but flagging them clearly", "status": "pending"},
-        {"task_id": 5.5, "description": "Build UI to display the Draft Scope Document with gaps visually flagged", "status": "pending"},
-        {"task_id": 5.6, "description": "Wire Stage 3 -> 4 transition logic", "status": "pending"},
-        {"task_id": 5.7, "description": "TESTING: Unit tests for the extraction step and Triage Agent output structure, mocking the Claude API", "status": "pending"},
-        {"task_id": 5.8, "description": "CHECKPOINT: Update progress.md and agent.md, commit", "status": "pending"}
+        {"task_id": 5.1, "description": "Build UI for pasting freeform client clarification notes (Stage 3)", "status": "completed"},
+        {"task_id": 5.2, "description": "Implement Clarification Extraction step: Claude call taking Position Document + freeform notes, returning updated fields", "status": "completed"},
+        {"task_id": 5.3, "description": "Implement Position Document versioning at this stage transition, preserving and exposing prior versions", "status": "completed"},
+        {"task_id": 5.4, "description": "Implement Triage Agent module (src/services/agents/triage-agent.ts): generate Draft Scope Document (Objectives, Deliverables, Milestones, Roles & Responsibilities [contacts + capability list], Budget, Assumptions/Constraints), proceeding regardless of gaps but flagging them clearly", "status": "completed"},
+        {"task_id": 5.5, "description": "Build UI to display the Draft Scope Document with gaps visually flagged", "status": "completed"},
+        {"task_id": 5.6, "description": "Wire Stage 3 -> 4 transition logic", "status": "completed"},
+        {"task_id": 5.7, "description": "TESTING: Unit tests for the extraction step and Triage Agent output structure, mocking the Claude API", "status": "completed"},
+        {"task_id": 5.8, "description": "CHECKPOINT: Update progress.md and agent.md, commit", "status": "completed"}
       ]
     },
     {

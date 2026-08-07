@@ -60,14 +60,14 @@
 * [x] 4.11 **CHECKPOINT:** Update `progress.md` and `agent.md`, commit
 
 ### 5.0 Clarification Capture & Triage Agent (Stages 3-4)
-* [ ] 5.1 Build UI for pasting freeform client clarification notes
-* [ ] 5.2 Implement Clarification Extraction step (Position Doc + notes → updated fields)
-* [ ] 5.3 Implement Position Document versioning at this stage transition
-* [ ] 5.4 Implement Triage Agent — generate Draft Scope Document, proceeding regardless of gaps but flagging them
-* [ ] 5.5 Build UI to display the Draft Scope Document with gaps flagged
-* [ ] 5.6 Wire Stage 3 → 4 transition
-* [ ] 5.7 **TESTING:** Unit tests for extraction step and Triage Agent output, mocking the Claude API
-* [ ] 5.8 **CHECKPOINT:** Update `progress.md` and `agent.md`, commit
+* [x] 5.1 Build UI for pasting freeform client clarification notes
+* [x] 5.2 Implement Clarification Extraction step (Position Doc + notes → updated fields)
+* [x] 5.3 Implement Position Document versioning at this stage transition
+* [x] 5.4 Implement Triage Agent — generate Draft Scope Document, proceeding regardless of gaps but flagging them
+* [x] 5.5 Build UI to display the Draft Scope Document with gaps flagged
+* [x] 5.6 Wire Stage 3 → 4 transition
+* [x] 5.7 **TESTING:** Unit tests for extraction step and Triage Agent output, mocking the Claude API
+* [x] 5.8 **CHECKPOINT:** Update `progress.md` and `agent.md`, commit
 
 ### 6.0 Specialist Review Capture & Deliverables + Services (Stage 5)
 * [ ] 6.1 Build UI for pasting freeform specialist-lead feedback notes

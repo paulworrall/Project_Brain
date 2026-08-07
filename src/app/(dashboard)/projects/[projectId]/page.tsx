@@ -6,6 +6,7 @@ import {
   ClarificationEmailSchema,
   PositionDocumentFieldsSchema,
 } from "@/types/intake";
+import { DraftScopeDocumentSchema } from "@/types/triage";
 
 export default async function ProjectDetailPage({
   params,
@@ -35,6 +36,11 @@ export default async function ProjectDetailPage({
       checklistItems: {
         orderBy: { order: "asc" },
       },
+      touchpointNotes: {
+        where: { type: "CLARIFICATION_REPLY" },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      },
     },
   });
 
@@ -51,7 +57,7 @@ export default async function ProjectDetailPage({
     },
   });
 
-  const { workstream, documents, checklistItems } = project;
+  const { workstream, documents, checklistItems, touchpointNotes } = project;
   const { client } = workstream;
   const { hub } = client;
 
@@ -61,9 +67,13 @@ export default async function ProjectDetailPage({
   const positionDocumentContent = documents.find(
     (d) => d.type === "POSITION_DOCUMENT"
   )?.versions[0]?.content;
+  const draftScopeDocumentContent = documents.find(
+    (d) => d.type === "DRAFT_SCOPE_DOCUMENT"
+  )?.versions[0]?.content;
 
   const clarificationEmail = ClarificationEmailSchema.safeParse(clarificationEmailContent);
   const positionDocument = PositionDocumentFieldsSchema.safeParse(positionDocumentContent);
+  const draftScopeDocument = DraftScopeDocumentSchema.safeParse(draftScopeDocumentContent);
 
   return (
     <div className="space-y-6">
@@ -81,6 +91,7 @@ export default async function ProjectDetailPage({
       </div>
 
       <ProjectWorkflow
+        projectId={project.id}
         projectName={project.name}
         briefFileName={project.briefFileName}
         stages={stages.map((stage) => ({
@@ -95,6 +106,8 @@ export default async function ProjectDetailPage({
           label: item.label,
           isComplete: item.isComplete,
         }))}
+        clarificationNotes={touchpointNotes[0]?.content ?? null}
+        draftScopeDocument={draftScopeDocument.success ? draftScopeDocument.data : null}
       />
     </div>
   );
