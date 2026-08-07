@@ -70,12 +70,12 @@
 * [x] 5.8 **CHECKPOINT:** Update `progress.md` and `agent.md`, commit
 
 ### 6.0 Specialist Review Capture & Deliverables + Services (Stage 5)
-* [ ] 6.1 Build UI for pasting freeform specialist-lead feedback notes
-* [ ] 6.2 Implement Specialist Review Extraction step → Deliverables + Services Document fields
-* [ ] 6.3 Build UI to display the Deliverables + Services Document (editable "Other" label)
-* [ ] 6.4 Wire Stage 4 → 5 transition
-* [ ] 6.5 **TESTING:** Unit tests for extraction step output, mocking the Claude API
-* [ ] 6.6 **CHECKPOINT:** Update `progress.md` and `agent.md`, commit
+* [x] 6.1 Build UI for pasting freeform specialist-lead feedback notes
+* [x] 6.2 Implement Specialist Review Extraction step → Deliverables + Services Document fields
+* [x] 6.3 Build UI to display the Deliverables + Services Document (editable "Other" label)
+* [x] 6.4 Wire Stage 4 → 5 transition
+* [x] 6.5 **TESTING:** Unit tests for extraction step output, mocking the Claude API
+* [x] 6.6 **CHECKPOINT:** Update `progress.md` and `agent.md`, commit
 
 ### 7.0 Outputs Library, Stage Tracker & Version History
 * [ ] 7.1 Build Stage Tracker component (Stages 1-5 active, 6-10 as placeholders)

@@ -8,6 +8,7 @@ import {
   PositionDocumentFieldsSchema,
 } from "@/types/intake";
 import { DraftScopeDocumentSchema } from "@/types/triage";
+import { DeliverablesServicesDocumentSchema } from "@/types/deliverables-services";
 
 export default async function ProjectDetailPage({
   params,
@@ -38,9 +39,7 @@ export default async function ProjectDetailPage({
         orderBy: { order: "asc" },
       },
       touchpointNotes: {
-        where: { type: "CLARIFICATION_REPLY" },
         orderBy: { createdAt: "desc" },
-        take: 1,
       },
       projectManager: true,
     },
@@ -78,10 +77,21 @@ export default async function ProjectDetailPage({
   const draftScopeDocumentContent = documents.find(
     (d) => d.type === "DRAFT_SCOPE_DOCUMENT"
   )?.versions[0]?.content;
+  const deliverablesServicesDocumentContent = documents.find(
+    (d) => d.type === "DELIVERABLES_SERVICES_DOCUMENT"
+  )?.versions[0]?.content;
 
   const clarificationEmail = ClarificationEmailSchema.safeParse(clarificationEmailContent);
   const positionDocument = PositionDocumentFieldsSchema.safeParse(positionDocumentContent);
   const draftScopeDocument = DraftScopeDocumentSchema.safeParse(draftScopeDocumentContent);
+  const deliverablesServicesDocument = DeliverablesServicesDocumentSchema.safeParse(
+    deliverablesServicesDocumentContent
+  );
+
+  const clarificationNotes =
+    touchpointNotes.find((n) => n.type === "CLARIFICATION_REPLY")?.content ?? null;
+  const specialistFeedback =
+    touchpointNotes.find((n) => n.type === "SPECIALIST_REVIEW")?.content ?? null;
 
   const projectStatus = stages.every((stage) => stage.stageStatuses[0]?.status === "COMPLETE")
     ? "COMPLETE"
@@ -128,8 +138,12 @@ export default async function ProjectDetailPage({
           label: item.label,
           isComplete: item.isComplete,
         }))}
-        clarificationNotes={touchpointNotes[0]?.content ?? null}
+        clarificationNotes={clarificationNotes}
         draftScopeDocument={draftScopeDocument.success ? draftScopeDocument.data : null}
+        specialistFeedback={specialistFeedback}
+        deliverablesServicesDocument={
+          deliverablesServicesDocument.success ? deliverablesServicesDocument.data : null
+        }
       />
     </div>
   );

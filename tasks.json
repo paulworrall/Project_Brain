@@ -106,14 +106,14 @@
     {
       "parent_id": 6.0,
       "parent_task": "Specialist Review Capture & Deliverables + Services (Stage 5)",
-      "status": "pending",
+      "status": "completed",
       "subtasks": [
-        {"task_id": 6.1, "description": "Build UI for pasting freeform specialist-lead feedback notes (Stage 5)", "status": "pending"},
-        {"task_id": 6.2, "description": "Implement Specialist Review Extraction step: Claude call generating Deliverables + Services Document fields (Deliverables list; Services table across Experience/Creative, Business, Architecture, Tech and Data, Orchestration, Other [free-text label]; Open Questions/Risks; Outstanding Gaps Carried Forward)", "status": "pending"},
-        {"task_id": 6.3, "description": "Build UI to display the Deliverables + Services Document, with an editable free-text label for the 'Other' capability row", "status": "pending"},
-        {"task_id": 6.4, "description": "Wire Stage 4 -> 5 transition logic", "status": "pending"},
-        {"task_id": 6.5, "description": "TESTING: Unit tests for the extraction step output structure, mocking the Claude API", "status": "pending"},
-        {"task_id": 6.6, "description": "CHECKPOINT: Update progress.md and agent.md, commit", "status": "pending"}
+        {"task_id": 6.1, "description": "Build UI for pasting freeform specialist-lead feedback notes (Stage 5)", "status": "completed"},
+        {"task_id": 6.2, "description": "Implement Specialist Review Extraction step: Claude call generating Deliverables + Services Document fields (Deliverables list; Services table across Experience/Creative, Business, Architecture, Tech and Data, Orchestration, Other [free-text label]; Open Questions/Risks; Outstanding Gaps Carried Forward)", "status": "completed"},
+        {"task_id": 6.3, "description": "Build UI to display the Deliverables + Services Document, with an editable free-text label for the 'Other' capability row", "status": "completed"},
+        {"task_id": 6.4, "description": "Wire Stage 4 -> 5 transition logic", "status": "completed"},
+        {"task_id": 6.5, "description": "TESTING: Unit tests for the extraction step output structure, mocking the Claude API", "status": "completed"},
+        {"task_id": 6.6, "description": "CHECKPOINT: Update progress.md and agent.md, commit", "status": "completed"}
       ]
     },
     {

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { ClarificationEmail, PositionDocumentFields } from "@/types/intake";
 import type { DraftScopeDocument } from "@/types/triage";
+import type { DeliverablesServicesDocument } from "@/types/deliverables-services";
 import type { WorkflowStep } from "@/types/workflow";
 import { WorkflowStepList, type WorkflowStepData } from "./WorkflowStepList";
 import { ChatPanel } from "./ChatPanel";
@@ -10,6 +11,8 @@ import { ChecklistView, type ChecklistItemView } from "./ChecklistView";
 import { ClarificationNotesForm } from "./ClarificationNotesForm";
 import { RunTriageAgentButton } from "./RunTriageAgentButton";
 import { DraftScopeDocumentView } from "./DraftScopeDocumentView";
+import { SpecialistFeedbackForm } from "./SpecialistFeedbackForm";
+import { DeliverablesServicesDocumentView } from "./DeliverablesServicesDocumentView";
 
 function PlaceholderStepContent({
   taskRef,
@@ -130,6 +133,44 @@ function TriageStepContent({
   return <p className="text-sm text-muted-foreground">Waiting on Step 3 to complete.</p>;
 }
 
+function SpecialistReviewStepContent({
+  projectId,
+  specialistFeedback,
+  deliverablesServicesDocument,
+}: {
+  projectId: string;
+  specialistFeedback: string | null;
+  deliverablesServicesDocument: DeliverablesServicesDocument | null;
+}) {
+  if (specialistFeedback === null) {
+    return <SpecialistFeedbackForm projectId={projectId} />;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Input
+        </h3>
+        <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{specialistFeedback}</p>
+      </div>
+      <div>
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Output — Deliverables + Services Document
+        </h3>
+        {deliverablesServicesDocument ? (
+          <DeliverablesServicesDocumentView
+            projectId={projectId}
+            document={deliverablesServicesDocument}
+          />
+        ) : (
+          <p className="text-sm text-muted-foreground">Not generated yet.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface ProjectWorkflowProps {
   projectId: string;
   projectName: string;
@@ -140,6 +181,8 @@ interface ProjectWorkflowProps {
   checklistItems: ChecklistItemView[];
   clarificationNotes: string | null;
   draftScopeDocument: DraftScopeDocument | null;
+  specialistFeedback: string | null;
+  deliverablesServicesDocument: DeliverablesServicesDocument | null;
 }
 
 export function ProjectWorkflow({
@@ -152,6 +195,8 @@ export function ProjectWorkflow({
   checklistItems,
   clarificationNotes,
   draftScopeDocument,
+  specialistFeedback,
+  deliverablesServicesDocument,
 }: ProjectWorkflowProps) {
   const triageStageStatus = stages.find((s) => s.stageNumber === 4)?.status ?? "NOT_STARTED";
 
@@ -189,7 +234,13 @@ export function ProjectWorkflow({
         draftScopeDocument={draftScopeDocument}
       />
     ),
-    5: <PlaceholderStepContent taskRef="6.0" actionLabel="Submit Specialist Feedback" />,
+    5: (
+      <SpecialistReviewStepContent
+        projectId={projectId}
+        specialistFeedback={specialistFeedback}
+        deliverablesServicesDocument={deliverablesServicesDocument}
+      />
+    ),
     6: <PlaceholderStepContent taskRef="Level 3 (post-MVP)" actionLabel="Run Agent" />,
     7: <PlaceholderStepContent taskRef="Level 3 (post-MVP)" actionLabel="Submit Session Notes" />,
     8: <PlaceholderStepContent taskRef="Level 3 (post-MVP)" actionLabel="Run Agent" />,

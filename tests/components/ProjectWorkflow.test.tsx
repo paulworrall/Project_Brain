@@ -5,6 +5,8 @@ import { render, screen } from "@testing-library/react";
 vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
   submitClarificationNotesAction: vi.fn(),
   runTriageAgentAction: vi.fn(),
+  submitSpecialistFeedbackAction: vi.fn(),
+  updateOtherServiceLabelAction: vi.fn(),
 }));
 
 const { ProjectWorkflow } = await import("@/components/features/ProjectWorkflow");
@@ -45,6 +47,20 @@ const draftScope = {
   flaggedGaps: ["Target audience still unknown"],
 };
 
+const deliverablesServices = {
+  deliverables: ["Creative concept territories"],
+  services: {
+    experienceCreative: { involvement: "Lead concept and design." },
+    business: { involvement: "Not required." },
+    architecture: { involvement: "Not required." },
+    techAndData: { involvement: "Not required." },
+    orchestration: { involvement: "Coordinate the campaign schedule." },
+    other: { involvement: "Legal review of influencer usage.", label: "Legal & Compliance" },
+  },
+  openQuestionsRisks: ["POS print lead time risk"],
+  outstandingGapsCarriedForward: ["Talent usage undefined"],
+};
+
 /**
  * WorkflowStepList auto-expands only the first non-COMPLETE step (and keeps
  * that as local state thereafter), so each test must mark every earlier
@@ -77,6 +93,8 @@ function baseProps() {
     checklistItems: [],
     clarificationNotes: null as string | null,
     draftScopeDocument: null as typeof draftScope | null,
+    specialistFeedback: null as string | null,
+    deliverablesServicesDocument: null as typeof deliverablesServices | null,
   };
 }
 
@@ -128,6 +146,32 @@ describe("ProjectWorkflow", () => {
     expect(screen.getByText("Target audience still unknown")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Run Triage Agent" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the specialist feedback form on Step 5 when no feedback has been submitted yet", () => {
+    render(<ProjectWorkflow {...baseProps()} stages={stagesUpTo(5, "IN_PROGRESS")} />);
+
+    expect(
+      screen.getByPlaceholderText(/Paste the specialist leads' feedback/)
+    ).toBeInTheDocument();
+  });
+
+  it("shows submitted specialist feedback read-only and the Deliverables + Services Document", () => {
+    render(
+      <ProjectWorkflow
+        {...baseProps()}
+        stages={stagesUpTo(5, "IN_PROGRESS")}
+        specialistFeedback="Creative needs 2 concept rounds."
+        deliverablesServicesDocument={deliverablesServices}
+      />
+    );
+
+    expect(screen.getByText("Creative needs 2 concept rounds.")).toBeInTheDocument();
+    expect(screen.getByText("Legal & Compliance")).toBeInTheDocument();
+    expect(screen.getByText("Legal review of influencer usage.")).toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText(/Paste the specialist leads' feedback/)
     ).not.toBeInTheDocument();
   });
 });

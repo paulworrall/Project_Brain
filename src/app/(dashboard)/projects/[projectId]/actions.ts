@@ -9,7 +9,13 @@ import {
   extractClarificationUpdate,
 } from "@/services/agents/clarification-extraction";
 import { TriageAgentError, generateDraftScopeDocument } from "@/services/agents/triage-agent";
+import {
+  SpecialistReviewExtractionError,
+  extractDeliverablesAndServices,
+} from "@/services/agents/specialist-review-extraction";
 import { PositionDocumentFieldsSchema } from "@/types/intake";
+import { DraftScopeDocumentSchema } from "@/types/triage";
+import { DeliverablesServicesDocumentSchema } from "@/types/deliverables-services";
 
 export interface ActionState {
   message?: string;
@@ -224,6 +230,148 @@ export async function runTriageAgentAction(
     });
 
     await tx.project.update({ where: { id: projectId }, data: { currentStageNumber: 5 } });
+  });
+
+  revalidatePath(`/projects/${projectId}`);
+}
+
+const FeedbackSchema = z.object({
+  feedback: z
+    .string()
+    .trim()
+    .min(1, { error: "Paste the specialist leads' feedback before submitting." }),
+});
+
+export async function submitSpecialistFeedbackAction(
+  projectId: string,
+  _prevState: ActionState | undefined,
+  formData: FormData
+): Promise<ActionState | undefined> {
+  const parsed = FeedbackSchema.safeParse({ feedback: formData.get("feedback") });
+  if (!parsed.success) {
+    return {
+      message: z.flattenError(parsed.error).fieldErrors.feedback?.[0] ?? "Invalid feedback.",
+    };
+  }
+
+  const session = await auth();
+
+  const draftScopeDocument = await prisma.document.findUnique({
+    where: { projectId_type: { projectId, type: "DRAFT_SCOPE_DOCUMENT" } },
+    include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
+  });
+  const currentFields = DraftScopeDocumentSchema.safeParse(
+    draftScopeDocument?.versions[0]?.content
+  );
+
+  if (!currentFields.success) {
+    return { message: "No Draft Scope Document found to review." };
+  }
+
+  let deliverablesAndServices;
+  try {
+    deliverablesAndServices = await extractDeliverablesAndServices(
+      currentFields.data,
+      parsed.data.feedback
+    );
+  } catch (error) {
+    if (error instanceof SpecialistReviewExtractionError) {
+      return { message: error.message };
+    }
+    throw error;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.touchpointNote.create({
+      data: {
+        projectId,
+        type: "SPECIALIST_REVIEW",
+        content: parsed.data.feedback,
+        createdById: session?.user?.id,
+      },
+    });
+
+    await tx.document.create({
+      data: {
+        projectId,
+        type: "DELIVERABLES_SERVICES_DOCUMENT",
+        versions: {
+          create: {
+            versionNumber: 1,
+            stageNumber: 5,
+            content: deliverablesAndServices,
+            createdById: session?.user?.id,
+          },
+        },
+      },
+    });
+
+    const [specialistReviewStage, estimationKickOffStage] = await Promise.all([
+      tx.stage.findUniqueOrThrow({ where: { number: 5 } }),
+      tx.stage.findUniqueOrThrow({ where: { number: 6 } }),
+    ]);
+
+    await tx.projectStageStatus.update({
+      where: { projectId_stageId: { projectId, stageId: specialistReviewStage.id } },
+      data: { status: "COMPLETE", completedAt: new Date() },
+    });
+    await tx.projectStageStatus.upsert({
+      where: { projectId_stageId: { projectId, stageId: estimationKickOffStage.id } },
+      update: { status: "IN_PROGRESS" },
+      create: {
+        projectId,
+        stageId: estimationKickOffStage.id,
+        status: "IN_PROGRESS",
+        startedAt: new Date(),
+      },
+    });
+
+    await tx.project.update({ where: { id: projectId }, data: { currentStageNumber: 6 } });
+  });
+
+  revalidatePath(`/projects/${projectId}`);
+}
+
+const OtherLabelSchema = z.object({
+  otherLabel: z.string().trim().min(1, { error: "Label can't be empty." }),
+});
+
+export async function updateOtherServiceLabelAction(
+  projectId: string,
+  _prevState: ActionState | undefined,
+  formData: FormData
+): Promise<ActionState | undefined> {
+  const parsed = OtherLabelSchema.safeParse({ otherLabel: formData.get("otherLabel") });
+  if (!parsed.success) {
+    return {
+      message: z.flattenError(parsed.error).fieldErrors.otherLabel?.[0] ?? "Invalid label.",
+    };
+  }
+
+  const document = await prisma.document.findUnique({
+    where: { projectId_type: { projectId, type: "DELIVERABLES_SERVICES_DOCUMENT" } },
+    include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
+  });
+  const latestVersion = document?.versions[0];
+  const currentContent = DeliverablesServicesDocumentSchema.safeParse(latestVersion?.content);
+
+  if (!document || !latestVersion || !currentContent.success) {
+    return { message: "No Deliverables + Services Document found to update." };
+  }
+
+  // In-place edit, not a new version — this is a label correction, not a
+  // stage-transition artifact (CLAUDE.md: version at stage transitions).
+  await prisma.documentVersion.update({
+    where: { id: latestVersion.id },
+    data: {
+      content: {
+        ...currentContent.data,
+        services: {
+          ...currentContent.data.services,
+          other: { ...currentContent.data.services.other, label: parsed.data.otherLabel },
+        },
+      },
+    },
   });
 
   revalidatePath(`/projects/${projectId}`);

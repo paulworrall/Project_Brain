@@ -1,10 +1,10 @@
 # Project Brain — Progress
 
 ## Current Status
-- **Active Task**: 6.0 Specialist Review Capture & Deliverables + Services
-- **Last Completed**: 5.0 Clarification Capture & Triage Agent (plus an ad-hoc project summary bar — see notes below)
+- **Active Task**: 7.0 Outputs Library, Stage Tracker & Version History
+- **Last Completed**: 6.0 Specialist Review Capture & Deliverables + Services
 - **Blocked**: None
-- **Last Updated**: 2026-08-07T12:15:00Z
+- **Last Updated**: 2026-08-07T17:45:00Z
 
 ## Task Status
 | Task | Status | Completed At |
@@ -14,7 +14,7 @@
 | 3.0 Core UI Shell, Navigation & Auth | ✅ Complete | 2026-08-06T21:05:00Z |
 | 4.0 Intake Agent & Brief Ingestion | ✅ Complete | 2026-08-06T22:10:00Z |
 | 5.0 Clarification Capture & Triage Agent | ✅ Complete | 2026-08-07T10:20:00Z |
-| 6.0 Specialist Review Capture & Deliverables + Services | ⏳ Not Started | — |
+| 6.0 Specialist Review Capture & Deliverables + Services | ✅ Complete | 2026-08-07T17:45:00Z |
 | 7.0 Outputs Library, Stage Tracker & Version History | ⏳ Not Started | — |
 | 8.0 Ad-hoc Knowledge Upload & Chatbot | ⏳ Not Started | — |
 | 9.0 Polish, Testing, QA & Deployment Prep | ⏳ Not Started | — |
@@ -102,3 +102,14 @@
 - **New toolchain gotcha discovered and documented**: switching between WSL (`npm install`, needed for the migration/seed workaround) and native Windows (`npm install`, needed for everything else) **does** clobber the other platform's optional-dependency native binaries — contradicts what task 2.0's notes assumed ("both binaries now coexist... switching back and forth is safe"). Hit this twice in a row today: first `tsx`/`esbuild` broke on the WSL side (needed `npm install` from WSL to restore), then `vitest`'s `rolldown` bundler broke on the Windows side afterward (needed a second `npm install`, this time from Windows, to restore). **Going forward: after ANY `npm install` from WSL, immediately run `npm install` again from native Windows before doing anything else** (build, test, dev) — don't assume the previous session's binaries survived. The earlier assumption in the task 2.0 notes was wrong; corrected here.
 - **UI**: `ProjectSummaryBar.tsx` — a view/edit toggle card (not a separate page/modal) rendered between the breadcrumb and the step list. View mode shows a status badge (`ACTIVE`/`COMPLETE`, computed server-side from whether every stage's `ProjectStageStatus` is `COMPLETE`) plus the four fields with "Not yet set" fallbacks, matching the existing fallback convention from the Position Document view. Edit mode swaps in a form (text input, two date inputs, a `<select>` of `DELIVERY`-role Users only — matching this project's role semantics, `am@projectbrain.test`/Alex Morgan is `CLIENT_ENGAGEMENT` and intentionally excluded from the PM dropdown) bound to a new `updateProjectSummaryAction`, closing back to view mode on successful save.
 - Verified end-to-end in the browser against the real Neon database: seeded data displays correctly on "Fizzy Summer Launch", "Not yet set" fallbacks display correctly on "Loyalty App Relaunch" (no summary data), edited and saved a job code change and confirmed it persisted and re-rendered, checked at mobile width (wraps cleanly via `flex-wrap`). Test suite grew from 39 to 43 (`tests/components/ProjectSummaryBar.test.tsx`, mocking the actions module same as `ProjectWorkflow.test.tsx`). Typecheck, lint, full build all clean.
+
+### Task 6.0 notes
+
+- **Confirmed the file-structure naming decides the shape**: CLAUDE.md names this file `specialist-review-extraction.ts` (an *extraction step*, like `clarification-extraction.ts`), not `specialist-review-agent.ts`. That naming is the actual design signal — Stage 5 is a **single combined action** (paste feedback → extraction runs immediately → document produced → stage completes), matching Stage 3's pattern, *not* Stage 4's two-step "submit notes, then separately click Run Agent" split. Correctly anticipated this in the previous checkpoint's "next up" note before writing any code.
+- **Services table modeled as a fixed object, not an array**: `services: { experienceCreative, business, architecture, techAndData, orchestration, other }`, each `{ involvement: string }` (`other` also carries `label: string`). Considered `services: ServiceRow[]` with a `capability` enum first, but structured-output JSON Schema doesn't support an exact-length array constraint (`z.array(...).length(6)` gets validated client-side only, not enforced on the model) — a fixed object with named keys is enforced by the schema itself (every key is required) and renders as a deterministic 6-row table via `SERVICE_ROWS` (a plain array of `{key, label}` pairs, iterated in the view) without needing to trust the model's array ordering.
+- **Every one of the 5 fixed non-"Other" capabilities is always present, explicitly marked "Not required" when unneeded** — this was prompted deliberately (`extractDeliverablesAndServices`'s prompt spells out "write 'Not required' if a capability isn't needed") and confirmed working in the live smoke test (Architecture correctly came back "Not required" for a pure marketing campaign with no build work).
+- **The "Other" label is genuinely editable now**, not deferred like the Set-Up Checklist tick-boxes — task 6.3 called this out explicitly, unlike task 4.0/5.0's general "interactive editing lands later" pattern. `EditableOtherLabel.tsx` is a small click-to-edit component (button → text input + Save/Cancel) bound to a new `updateOtherServiceLabelAction`. **This is an in-place `documentVersion.update()`, not a new version** — per CLAUDE.md's "version at stage transitions, not on every edit," a label correction isn't a stage-transition artifact.
+- **Stage 5→6 unlocks Stage 6 (Estimation Kick Off) as `IN_PROGRESS`**, continuing the same pattern every prior stage completion has followed, even though Stage 6 itself is Level 3/post-MVP and still renders a placeholder. Kept the workflow visually honest about how far the pipeline has actually progressed rather than freezing the unlock chain at Stage 5.
+- Smoke-tested `extractDeliverablesAndServices` against the real Claude API before writing any UI (same discipline as tasks 4.0/5.0) — output correctly resolved capability-by-capability from freeform feedback, invented a sensible combined "Other" label ("Media, Production, and Legal & Compliance") when multiple leftover concerns didn't fit the fixed five, and correctly carried forward only the gaps the feedback didn't address.
+- **Full flow verified end-to-end in the browser against the real Claude API and real Neon database**: on "Loyalty App Relaunch" (already at Stage 5 from task 5.0's testing), pasted realistic specialist feedback (Design/Engineering/Legal input, explicitly ruling out a dedicated architecture specialist) → confirmed Stage 5 completed, the Deliverables + Services Document rendered with all 6 service rows (Architecture correctly "Not required"), Open Questions/Risks and Outstanding Gaps Carried Forward both populated sensibly → confirmed Stage 6 unlocked on both the project page and the taxonomy browser ("Stage 6") → clicked "Edit label" on the AI-generated "Legal & Data Privacy" row, changed it to "Legal & Compliance", saved, confirmed it persisted after re-render.
+- Test suite grew from 43 to 51 (3 `specialist-review-extraction` agent tests, 2 new `ProjectWorkflow` Step 5 tests, 3 `EditableOtherLabel` tests). Typecheck, lint, and production build all clean.
