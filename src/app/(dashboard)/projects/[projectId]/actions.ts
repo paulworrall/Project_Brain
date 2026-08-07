@@ -15,6 +15,47 @@ export interface ActionState {
   message?: string;
 }
 
+const ProjectSummarySchema = z.object({
+  jobCode: z.string().trim().optional(),
+  kickOffDate: z.string().trim().optional(),
+  targetCompletionDate: z.string().trim().optional(),
+  projectManagerId: z.string().trim().optional(),
+});
+
+function emptyToNull(value: string | undefined): string | null {
+  return value ? value : null;
+}
+
+export async function updateProjectSummaryAction(
+  projectId: string,
+  _prevState: ActionState | undefined,
+  formData: FormData
+): Promise<ActionState | undefined> {
+  const parsed = ProjectSummarySchema.safeParse({
+    jobCode: formData.get("jobCode"),
+    kickOffDate: formData.get("kickOffDate"),
+    targetCompletionDate: formData.get("targetCompletionDate"),
+    projectManagerId: formData.get("projectManagerId"),
+  });
+  if (!parsed.success) {
+    return { message: "Invalid project details." };
+  }
+
+  await prisma.project.update({
+    where: { id: projectId },
+    data: {
+      jobCode: emptyToNull(parsed.data.jobCode),
+      kickOffDate: parsed.data.kickOffDate ? new Date(parsed.data.kickOffDate) : null,
+      targetCompletionDate: parsed.data.targetCompletionDate
+        ? new Date(parsed.data.targetCompletionDate)
+        : null,
+      projectManagerId: emptyToNull(parsed.data.projectManagerId),
+    },
+  });
+
+  revalidatePath(`/projects/${projectId}`);
+}
+
 const NotesSchema = z.object({
   notes: z.string().trim().min(1, { error: "Paste the client's reply before submitting." }),
 });

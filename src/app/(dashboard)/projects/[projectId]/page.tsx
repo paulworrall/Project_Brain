@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { ProjectWorkflow } from "@/components/features/ProjectWorkflow";
+import { ProjectSummaryBar } from "@/components/features/ProjectSummaryBar";
 import {
   ClarificationEmailSchema,
   PositionDocumentFieldsSchema,
@@ -41,6 +42,7 @@ export default async function ProjectDetailPage({
         orderBy: { createdAt: "desc" },
         take: 1,
       },
+      projectManager: true,
     },
   });
 
@@ -48,14 +50,20 @@ export default async function ProjectDetailPage({
     notFound();
   }
 
-  const stages = await prisma.stage.findMany({
-    orderBy: { number: "asc" },
-    include: {
-      stageStatuses: {
-        where: { projectId },
+  const [stages, projectManagerOptions] = await Promise.all([
+    prisma.stage.findMany({
+      orderBy: { number: "asc" },
+      include: {
+        stageStatuses: {
+          where: { projectId },
+        },
       },
-    },
-  });
+    }),
+    prisma.user.findMany({
+      where: { role: "DELIVERY" },
+      orderBy: { name: "asc" },
+    }),
+  ]);
 
   const { workstream, documents, checklistItems, touchpointNotes } = project;
   const { client } = workstream;
@@ -75,6 +83,10 @@ export default async function ProjectDetailPage({
   const positionDocument = PositionDocumentFieldsSchema.safeParse(positionDocumentContent);
   const draftScopeDocument = DraftScopeDocumentSchema.safeParse(draftScopeDocumentContent);
 
+  const projectStatus = stages.every((stage) => stage.stageStatuses[0]?.status === "COMPLETE")
+    ? "COMPLETE"
+    : "ACTIVE";
+
   return (
     <div className="space-y-6">
       <div>
@@ -89,6 +101,16 @@ export default async function ProjectDetailPage({
         </nav>
         <h1 className="mt-1 text-xl font-semibold text-foreground">{project.name}</h1>
       </div>
+
+      <ProjectSummaryBar
+        projectId={project.id}
+        status={projectStatus}
+        jobCode={project.jobCode}
+        kickOffDate={project.kickOffDate}
+        targetCompletionDate={project.targetCompletionDate}
+        projectManager={project.projectManager}
+        projectManagerOptions={projectManagerOptions}
+      />
 
       <ProjectWorkflow
         projectId={project.id}

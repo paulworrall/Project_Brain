@@ -72,6 +72,30 @@ async function main() {
     (w) => w.name === CLIENT_WORKSTREAMS.Fizzy
   )!;
 
+  const passwordHash = await bcrypt.hash("password123", 10);
+
+  await prisma.user.upsert({
+    where: { email: "am@projectbrain.test" },
+    update: {},
+    create: {
+      name: "Alex Morgan",
+      email: "am@projectbrain.test",
+      passwordHash,
+      role: "CLIENT_ENGAGEMENT",
+    },
+  });
+
+  const projectManager = await prisma.user.upsert({
+    where: { email: "pm@projectbrain.test" },
+    update: {},
+    create: {
+      name: "Priya Mehta",
+      email: "pm@projectbrain.test",
+      passwordHash,
+      role: "DELIVERY",
+    },
+  });
+
   const demoProject = await prisma.project.upsert({
     where: {
       workstreamId_name: {
@@ -79,7 +103,12 @@ async function main() {
         name: "Fizzy Summer Launch",
       },
     },
-    update: {},
+    update: {
+      jobCode: "FIZ-2026-014",
+      kickOffDate: new Date("2026-06-01"),
+      targetCompletionDate: new Date("2026-09-15"),
+      projectManagerId: projectManager.id,
+    },
     create: {
       name: "Fizzy Summer Launch",
       workstreamId: fizzyWorkstream.id,
@@ -88,6 +117,10 @@ async function main() {
       briefFileName: "fizzy-summer-brief.txt",
       briefFileType: "text/plain",
       currentStageNumber: 1,
+      jobCode: "FIZ-2026-014",
+      kickOffDate: new Date("2026-06-01"),
+      targetCompletionDate: new Date("2026-09-15"),
+      projectManagerId: projectManager.id,
     },
   });
 
@@ -105,30 +138,6 @@ async function main() {
       stageId: intakeStage.id,
       status: "IN_PROGRESS",
       startedAt: new Date(),
-    },
-  });
-
-  const passwordHash = await bcrypt.hash("password123", 10);
-
-  await prisma.user.upsert({
-    where: { email: "am@projectbrain.test" },
-    update: {},
-    create: {
-      name: "Alex Morgan",
-      email: "am@projectbrain.test",
-      passwordHash,
-      role: "CLIENT_ENGAGEMENT",
-    },
-  });
-
-  await prisma.user.upsert({
-    where: { email: "pm@projectbrain.test" },
-    update: {},
-    create: {
-      name: "Priya Mehta",
-      email: "pm@projectbrain.test",
-      passwordHash,
-      role: "DELIVERY",
     },
   });
 

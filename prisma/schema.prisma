@@ -64,10 +64,19 @@ model Project {
   // source of truth for per-stage state is still ProjectStageStatus.
   currentStageNumber Int @default(1)
 
+  // Project summary details, shown on the project page header. Set via the
+  // summary edit form, independent of the Set-Up Checklist's tick-boxes
+  // (task 7.4) — not populated by any agent.
+  jobCode              String?
+  kickOffDate          DateTime?
+  targetCompletionDate DateTime?
+  projectManagerId     String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   workstream      Workstream           @relation(fields: [workstreamId], references: [id], onDelete: Cascade)
+  projectManager  User?                @relation(fields: [projectManagerId], references: [id], onDelete: SetNull)
   stageStatuses   ProjectStageStatus[]
   documents       Document[]
   checklistItems  ChecklistItem[]
@@ -243,4 +252,5 @@ model User {
   documentVersions DocumentVersion[]
   touchpointNotes  TouchpointNote[]
   knowledgeItems   KnowledgeItem[]
+  projectsManaged  Project[]
 }
