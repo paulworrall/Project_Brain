@@ -99,17 +99,25 @@ export default async function ProjectDetailPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground">
-          <Link href="/" className="hover:underline">
-            {hub.name}
-          </Link>
-          {" / "}
-          <span>{client.name}</span>
-          {" / "}
-          <span>{workstream.name}</span>
-        </nav>
-        <h1 className="mt-1 text-xl font-semibold text-foreground">{project.name}</h1>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground">
+            <Link href="/" className="hover:underline">
+              {hub.name}
+            </Link>
+            {" / "}
+            <span>{client.name}</span>
+            {" / "}
+            <span>{workstream.name}</span>
+          </nav>
+          <h1 className="mt-1 text-xl font-semibold text-foreground">{project.name}</h1>
+        </div>
+        <Link
+          href={`/projects/${project.id}/outputs`}
+          className="shrink-0 text-sm font-medium text-primary hover:underline"
+        >
+          Outputs Library →
+        </Link>
       </div>
 
       <ProjectSummaryBar

@@ -11,7 +11,7 @@ export function ChecklistView({ items }: { items: ChecklistItemView[] }) {
     <Card className="p-5">
       <h3 className="text-sm font-semibold text-foreground">Project Set-Up Checklist</h3>
       <p className="mt-1 text-xs text-muted-foreground">
-        Tick-box persistence lands in a later task — shown read-only for now.
+        Generated at Stage 1 — see the project page for the live, tickable checklist.
       </p>
       {items.length === 0 ? (
         <p className="mt-2 text-sm text-muted-foreground">No checklist items yet.</p>

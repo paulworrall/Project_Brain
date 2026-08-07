@@ -6,9 +6,11 @@ import { EditableOtherLabel } from "./EditableOtherLabel";
 export function DeliverablesServicesDocumentView({
   projectId,
   document,
+  readOnly = false,
 }: {
   projectId: string;
   document: DeliverablesServicesDocument;
+  readOnly?: boolean;
 }) {
   return (
     <div className="space-y-4">
@@ -31,7 +33,11 @@ export function DeliverablesServicesDocumentView({
             </div>
           ))}
           <div>
-            <EditableOtherLabel projectId={projectId} label={document.services.other.label} />
+            {readOnly ? (
+              <p className="text-sm font-semibold text-foreground">{document.services.other.label}</p>
+            ) : (
+              <EditableOtherLabel projectId={projectId} label={document.services.other.label} />
+            )}
             <p className="text-sm text-muted-foreground">{document.services.other.involvement}</p>
           </div>
         </div>

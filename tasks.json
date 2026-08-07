@@ -119,14 +119,14 @@
     {
       "parent_id": 7.0,
       "parent_task": "Outputs Library, Stage Tracker & Version History",
-      "status": "pending",
+      "status": "completed",
       "subtasks": [
-        {"task_id": 7.1, "description": "Build Stage Tracker component showing current-stage status per project (Stages 1-5 active, 6-10 shown as placeholders)", "status": "pending"},
-        {"task_id": 7.2, "description": "Build Outputs Library view listing all Documents generated for a project, grouped by type", "status": "pending"},
-        {"task_id": 7.3, "description": "Build Version History view for browsing prior Document versions with stage-transition timestamps", "status": "pending"},
-        {"task_id": 7.4, "description": "Wire manual checklist tick-box persistence (mark items complete/incomplete)", "status": "pending"},
-        {"task_id": 7.5, "description": "TESTING: Component tests for Stage Tracker, Outputs Library, and Version History", "status": "pending"},
-        {"task_id": 7.6, "description": "CHECKPOINT: Update progress.md and agent.md, commit", "status": "pending"}
+        {"task_id": 7.1, "description": "Build Stage Tracker component showing current-stage status per project (Stages 1-5 active, 6-10 shown as placeholders)", "status": "completed"},
+        {"task_id": 7.2, "description": "Build Outputs Library view listing all Documents generated for a project, grouped by type", "status": "completed"},
+        {"task_id": 7.3, "description": "Build Version History view for browsing prior Document versions with stage-transition timestamps", "status": "completed"},
+        {"task_id": 7.4, "description": "Wire manual checklist tick-box persistence (mark items complete/incomplete)", "status": "completed"},
+        {"task_id": 7.5, "description": "TESTING: Component tests for Stage Tracker, Outputs Library, and Version History", "status": "completed"},
+        {"task_id": 7.6, "description": "CHECKPOINT: Update progress.md and agent.md, commit", "status": "completed"}
       ]
     },
     {

@@ -78,12 +78,12 @@
 * [x] 6.6 **CHECKPOINT:** Update `progress.md` and `agent.md`, commit
 
 ### 7.0 Outputs Library, Stage Tracker & Version History
-* [ ] 7.1 Build Stage Tracker component (Stages 1-5 active, 6-10 as placeholders)
-* [ ] 7.2 Build Outputs Library view (all Documents per project, grouped by type)
-* [ ] 7.3 Build Version History view (prior versions with stage-transition timestamps)
-* [ ] 7.4 Wire manual checklist tick-box persistence
-* [ ] 7.5 **TESTING:** Component tests for Stage Tracker, Outputs Library, Version History
-* [ ] 7.6 **CHECKPOINT:** Update `progress.md` and `agent.md`, commit
+* [x] 7.1 Build Stage Tracker component (Stages 1-5 active, 6-10 as placeholders)
+* [x] 7.2 Build Outputs Library view (all Documents per project, grouped by type)
+* [x] 7.3 Build Version History view (prior versions with stage-transition timestamps)
+* [x] 7.4 Wire manual checklist tick-box persistence
+* [x] 7.5 **TESTING:** Component tests for Stage Tracker, Outputs Library, Version History
+* [x] 7.6 **CHECKPOINT:** Update `progress.md` and `agent.md`, commit
 
 ### 8.0 Ad-hoc Knowledge Upload & Project Brain Chatbot
 * [ ] 8.1 Implement KnowledgeItem upload UI (available anytime, any Stage)

@@ -58,9 +58,10 @@ export const ClarificationEmailSchema = z.object({
 });
 export type ClarificationEmail = z.infer<typeof ClarificationEmailSchema>;
 
-export interface SetupChecklist {
-  items: string[];
-}
+export const SetupChecklistSchema = z.object({
+  items: z.array(z.string()),
+});
+export type SetupChecklist = z.infer<typeof SetupChecklistSchema>;
 
 export const DEFAULT_SETUP_CHECKLIST_ITEMS: readonly string[] = [
   "Set up Workbook entry",

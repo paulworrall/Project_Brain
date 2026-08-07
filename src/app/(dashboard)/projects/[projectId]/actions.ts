@@ -332,6 +332,26 @@ export async function submitSpecialistFeedbackAction(
   revalidatePath(`/projects/${projectId}`);
 }
 
+export async function toggleChecklistItemAction(
+  projectId: string,
+  itemId: string,
+  _prevState: ActionState | undefined,
+  formData: FormData
+): Promise<ActionState | undefined> {
+  const isComplete = formData.get("isComplete") === "on";
+
+  const result = await prisma.checklistItem.updateMany({
+    where: { id: itemId, projectId },
+    data: { isComplete, completedAt: isComplete ? new Date() : null },
+  });
+
+  if (result.count === 0) {
+    return { message: "Checklist item not found." };
+  }
+
+  revalidatePath(`/projects/${projectId}`);
+}
+
 const OtherLabelSchema = z.object({
   otherLabel: z.string().trim().min(1, { error: "Label can't be empty." }),
 });

@@ -4,10 +4,12 @@ import type { DraftScopeDocument } from "@/types/triage";
 import type { DeliverablesServicesDocument } from "@/types/deliverables-services";
 import type { WorkflowStep } from "@/types/workflow";
 import { WorkflowStepList, type WorkflowStepData } from "./WorkflowStepList";
+import { StageTracker } from "./StageTracker";
 import { ChatPanel } from "./ChatPanel";
 import { ClarificationEmailView } from "./ClarificationEmailView";
 import { PositionDocumentView } from "./PositionDocumentView";
-import { ChecklistView, type ChecklistItemView } from "./ChecklistView";
+import type { ChecklistItemView } from "./ChecklistView";
+import { EditableChecklist } from "./EditableChecklist";
 import { ClarificationNotesForm } from "./ClarificationNotesForm";
 import { RunTriageAgentButton } from "./RunTriageAgentButton";
 import { DraftScopeDocumentView } from "./DraftScopeDocumentView";
@@ -36,10 +38,12 @@ function PlaceholderStepContent({
 }
 
 function IntakeStepContent({
+  projectId,
   briefFileName,
   positionDocument,
   checklistItems,
 }: {
+  projectId: string;
   briefFileName: string | null;
   positionDocument: PositionDocumentFields | null;
   checklistItems: ChecklistItemView[];
@@ -64,7 +68,7 @@ function IntakeStepContent({
           ) : (
             <p className="text-sm text-muted-foreground">Not generated yet.</p>
           )}
-          <ChecklistView items={checklistItems} />
+          <EditableChecklist projectId={projectId} items={checklistItems} />
         </div>
       </div>
     </div>
@@ -203,6 +207,7 @@ export function ProjectWorkflow({
   const contentByStage: Record<number, ReactNode> = {
     1: (
       <IntakeStepContent
+        projectId={projectId}
         briefFileName={briefFileName}
         positionDocument={positionDocument}
         checklistItems={checklistItems}
@@ -254,10 +259,13 @@ export function ProjectWorkflow({
   }));
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
-      <WorkflowStepList steps={steps} />
-      <div className="lg:sticky lg:top-6 lg:self-start">
-        <ChatPanel projectName={projectName} />
+    <div className="space-y-6">
+      <StageTracker stages={stages} />
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
+        <WorkflowStepList steps={steps} />
+        <div className="lg:sticky lg:top-6 lg:self-start">
+          <ChatPanel projectName={projectName} />
+        </div>
       </div>
     </div>
   );
