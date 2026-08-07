@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { ProjectDetailTabs } from "@/components/features/ProjectDetailTabs";
+import { ProjectWorkflow } from "@/components/features/ProjectWorkflow";
 import {
   ClarificationEmailSchema,
   PositionDocumentFieldsSchema,
@@ -42,6 +42,15 @@ export default async function ProjectDetailPage({
     notFound();
   }
 
+  const stages = await prisma.stage.findMany({
+    orderBy: { number: "asc" },
+    include: {
+      stageStatuses: {
+        where: { projectId },
+      },
+    },
+  });
+
   const { workstream, documents, checklistItems } = project;
   const { client } = workstream;
   const { hub } = client;
@@ -71,7 +80,14 @@ export default async function ProjectDetailPage({
         <h1 className="mt-1 text-xl font-semibold text-foreground">{project.name}</h1>
       </div>
 
-      <ProjectDetailTabs
+      <ProjectWorkflow
+        projectName={project.name}
+        briefFileName={project.briefFileName}
+        stages={stages.map((stage) => ({
+          stageNumber: stage.number,
+          name: stage.name,
+          status: stage.stageStatuses[0]?.status ?? "NOT_STARTED",
+        }))}
         clarificationEmail={clarificationEmail.success ? clarificationEmail.data : null}
         positionDocument={positionDocument.success ? positionDocument.data : null}
         checklistItems={checklistItems.map((item) => ({
