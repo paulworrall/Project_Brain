@@ -2,6 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ChecklistItemView } from "@/components/features/ChecklistView";
 
 const toggleChecklistItemAction = vi.fn(async () => undefined);
 
@@ -44,5 +45,23 @@ describe("EditableChecklist", () => {
     render(<EditableChecklist projectId="proj_1" items={[]} />);
 
     expect(screen.getByText("No checklist items yet.")).toBeInTheDocument();
+  });
+
+  it("re-syncs to a prop update, so a second rendered copy reflects a toggle made elsewhere", () => {
+    // This checklist renders in two places (Step 1 and the sidebar) bound to
+    // the same server data. A re-render with a changed `isComplete` prop is
+    // what a `revalidatePath()` refresh looks like from the other copy's toggle.
+    const withItemComplete = (isComplete: boolean): ChecklistItemView[] => [
+      { id: "item_1", label: "Set up Workbook entry", isComplete },
+    ];
+
+    const { rerender } = render(
+      <EditableChecklist projectId="proj_1" items={withItemComplete(false)} />
+    );
+    expect(screen.getByRole("checkbox", { name: "Set up Workbook entry" })).not.toBeChecked();
+
+    rerender(<EditableChecklist projectId="proj_1" items={withItemComplete(true)} />);
+
+    expect(screen.getByRole("checkbox", { name: "Set up Workbook entry" })).toBeChecked();
   });
 });

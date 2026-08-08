@@ -263,8 +263,9 @@ export function ProjectWorkflow({
       <StageTracker stages={stages} />
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
         <WorkflowStepList steps={steps} />
-        <div className="lg:sticky lg:top-6 lg:self-start">
+        <div className="space-y-4 lg:sticky lg:top-6 lg:self-start">
           <ChatPanel projectName={projectName} />
+          <EditableChecklist projectId={projectId} items={checklistItems} />
         </div>
       </div>
     </div>

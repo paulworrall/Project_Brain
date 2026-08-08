@@ -7,6 +7,7 @@ vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
   runTriageAgentAction: vi.fn(),
   submitSpecialistFeedbackAction: vi.fn(),
   updateOtherServiceLabelAction: vi.fn(),
+  toggleChecklistItemAction: vi.fn(),
 }));
 
 const { ProjectWorkflow } = await import("@/components/features/ProjectWorkflow");
@@ -155,6 +156,30 @@ describe("ProjectWorkflow", () => {
     expect(
       screen.getByPlaceholderText(/Paste the specialist leads' feedback/)
     ).toBeInTheDocument();
+  });
+
+  it("shows the checklist in the sidebar regardless of which step is expanded", () => {
+    render(
+      <ProjectWorkflow
+        {...baseProps()}
+        stages={stagesUpTo(4, "IN_PROGRESS")}
+        checklistItems={[{ id: "item_1", label: "Assign job code", isComplete: false }]}
+      />
+    );
+
+    expect(screen.getByText("Assign job code")).toBeInTheDocument();
+  });
+
+  it("also shows the checklist on Step 1 itself when Step 1 is expanded", () => {
+    render(
+      <ProjectWorkflow
+        {...baseProps()}
+        stages={stagesUpTo(1, "IN_PROGRESS")}
+        checklistItems={[{ id: "item_1", label: "Assign job code", isComplete: false }]}
+      />
+    );
+
+    expect(screen.getAllByRole("checkbox", { name: "Assign job code" })).toHaveLength(2);
   });
 
   it("shows submitted specialist feedback read-only and the Deliverables + Services Document", () => {

@@ -28,13 +28,15 @@ function EditableChecklistItem({
         <input
           type="checkbox"
           name="isComplete"
-          defaultChecked={item.isComplete}
+          checked={item.isComplete}
           disabled={pending}
           onChange={() => formRef.current?.requestSubmit()}
           aria-label={item.label}
         />
       </form>
-      <span className={item.isComplete ? "text-muted-foreground line-through" : "text-foreground"}>
+      <span
+        className={item.isComplete ? "text-muted-foreground line-through" : "text-foreground"}
+      >
         {item.label}
       </span>
       {state?.message && <span className="text-xs text-danger">{state.message}</span>}
@@ -58,7 +60,19 @@ export function EditableChecklist({
       ) : (
         <ul className="mt-3 space-y-2">
           {items.map((item) => (
-            <EditableChecklistItem key={item.id} projectId={projectId} item={item} />
+            // Keying on isComplete (not just id) forces a full remount when
+            // the item's completion flips — from either this instance's own
+            // toggle or another instance's, since this checklist renders in
+            // two places at once (Step 1 and the sidebar) bound to the same
+            // server data. Without it, a component clicked mid-flight can
+            // hold onto its own useActionState pending/checked timing and
+            // end up showing stale state relative to the copy that didn't
+            // trigger the action, even after the shared props have updated.
+            <EditableChecklistItem
+              key={`${item.id}-${item.isComplete}`}
+              projectId={projectId}
+              item={item}
+            />
           ))}
         </ul>
       )}
