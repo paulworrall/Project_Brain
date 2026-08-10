@@ -40,7 +40,12 @@ export function KnowledgeUpload({
       </p>
 
       <form action={formAction} className="mt-3 space-y-2">
-        <Input name="title" placeholder="Title, e.g. Client call notes — 12 Aug" required />
+        <Input
+          name="title"
+          aria-label="Title"
+          placeholder="Title, e.g. Client call notes — 12 Aug"
+          required
+        />
 
         <div className="flex gap-4 text-xs text-foreground">
           <label className="flex items-center gap-1.5">
@@ -66,6 +71,7 @@ export function KnowledgeUpload({
         {mode === "paste" ? (
           <textarea
             name="content"
+            aria-label="Notes"
             rows={3}
             placeholder="Paste meeting notes or other context…"
             className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
@@ -74,6 +80,7 @@ export function KnowledgeUpload({
           <input
             name="file"
             type="file"
+            aria-label="File"
             accept=".docx,.pdf,.pptx,.txt"
             className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground"
           />

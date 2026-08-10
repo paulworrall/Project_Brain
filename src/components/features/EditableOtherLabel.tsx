@@ -32,6 +32,7 @@ export function EditableOtherLabel({
         <input
           name="otherLabel"
           type="text"
+          aria-label="Other service label"
           defaultValue={label}
           className="rounded-md border border-border bg-surface px-2 py-1 text-sm font-semibold text-foreground"
         />

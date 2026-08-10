@@ -47,7 +47,7 @@ export function NewProjectForm({
       </div>
 
       <div>
-        <Label>Brief</Label>
+        <Label htmlFor="brief">Brief</Label>
         <div className="mb-2 flex gap-4 text-sm">
           <label className="flex items-center gap-1.5">
             <input
@@ -71,6 +71,7 @@ export function NewProjectForm({
 
         {briefMode === "paste" ? (
           <textarea
+            id="brief"
             name="briefText"
             rows={8}
             placeholder="Paste the client brief here…"
@@ -78,6 +79,7 @@ export function NewProjectForm({
           />
         ) : (
           <input
+            id="brief"
             name="briefFile"
             type="file"
             accept=".docx,.pdf,.pptx,.txt"

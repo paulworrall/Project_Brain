@@ -4,6 +4,10 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  // Vercel sets this automatically via its VERCEL env var, but any other
+  // production host (or `next start` locally) needs it explicit — we already
+  // control NEXTAUTH_URL, so trusting the configured host is safe.
+  trustHost: true,
   providers: [
     Credentials({
       credentials: {

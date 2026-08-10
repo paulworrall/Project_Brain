@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import {
@@ -21,22 +21,21 @@ export function ChatPanel({ projectId, projectName }: { projectId: string; proje
   );
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const formRef = useRef<HTMLFormElement>(null);
-  // Tracks the last `state` object we've already reacted to, by reference —
-  // not by content — so a repeated identical answer/error still only gets
-  // appended once, and an unrelated re-render elsewhere on the page (which
-  // leaves this same state object in place) never re-appends anything.
-  const lastHandledStateRef = useRef<ChatbotActionState | undefined>(undefined);
-
-  useEffect(() => {
-    if (!state || state === lastHandledStateRef.current) return;
-    lastHandledStateRef.current = state;
-
-    if (state.answer) {
+  // Adjusts state during render (React's recommended alternative to an
+  // effect here — see "Adjusting state when a prop changes") rather than in
+  // a useEffect: comparing `state` to the last-seen object by reference, not
+  // content, so a repeated identical answer/error still only gets appended
+  // once, and an unrelated re-render elsewhere on the page (which leaves this
+  // same state object in place) never re-appends anything.
+  const [lastHandledState, setLastHandledState] = useState(state);
+  if (state !== lastHandledState) {
+    setLastHandledState(state);
+    if (state?.answer) {
       setMessages((prev) => [...prev, { role: "assistant", content: state.answer! }]);
-    } else if (state.message) {
+    } else if (state?.message) {
       setMessages((prev) => [...prev, { role: "assistant", content: `⚠ ${state.message}` }]);
     }
-  }, [state]);
+  }
 
   return (
     <Card className="flex h-full flex-col p-4">
@@ -45,7 +44,10 @@ export function ChatPanel({ projectId, projectName }: { projectId: string; proje
         <p className="text-xs text-muted-foreground">Ask anything about {projectName}</p>
       </div>
 
-      <div className="mt-4 flex-1 space-y-3 overflow-y-auto rounded-md bg-surface-muted p-3 text-sm">
+      <div
+        aria-live="polite"
+        className="mt-4 flex-1 space-y-3 overflow-y-auto rounded-md bg-surface-muted p-3 text-sm"
+      >
         {messages.length === 0 ? (
           <p className="text-muted-foreground">
             Answers are grounded strictly in this project&apos;s own documents and knowledge
@@ -84,6 +86,7 @@ export function ChatPanel({ projectId, projectName }: { projectId: string; proje
         <input
           name="question"
           type="text"
+          aria-label="Question"
           disabled={pending}
           placeholder="Ask about scope, risks, estimates, documents…"
           className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
