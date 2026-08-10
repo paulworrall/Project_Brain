@@ -8,6 +8,8 @@ vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
   submitSpecialistFeedbackAction: vi.fn(),
   updateOtherServiceLabelAction: vi.fn(),
   toggleChecklistItemAction: vi.fn(),
+  uploadKnowledgeItemAction: vi.fn(),
+  askChatbotAction: vi.fn(),
 }));
 
 const { ProjectWorkflow } = await import("@/components/features/ProjectWorkflow");
@@ -96,6 +98,7 @@ function baseProps() {
     draftScopeDocument: null as typeof draftScope | null,
     specialistFeedback: null as string | null,
     deliverablesServicesDocument: null as typeof deliverablesServices | null,
+    knowledgeItems: [],
   };
 }
 

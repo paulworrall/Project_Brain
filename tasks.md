@@ -86,13 +86,13 @@
 * [x] 7.6 **CHECKPOINT:** Update `progress.md` and `agent.md`, commit
 
 ### 8.0 Ad-hoc Knowledge Upload & Project Brain Chatbot
-* [ ] 8.1 Implement KnowledgeItem upload UI (available anytime, any Stage)
-* [ ] 8.2 Implement KnowledgeItem storage/parsing (reuse 4.2 utilities)
-* [ ] 8.3 Build the per-project chatbot UI
-* [ ] 8.4 Implement chatbot backend: context assembly strictly filtered by `project_id`, then Claude call
-* [ ] 8.5 Implement explicit cross-project isolation check
-* [ ] 8.6 **TESTING:** Unit + integration tests for context assembly and isolation
-* [ ] 8.7 **CHECKPOINT:** Update `progress.md` and `agent.md`, commit
+* [x] 8.1 Implement KnowledgeItem upload UI (available anytime, any Stage)
+* [x] 8.2 Implement KnowledgeItem storage/parsing (reuse 4.2 utilities)
+* [x] 8.3 Build the per-project chatbot UI
+* [x] 8.4 Implement chatbot backend: context assembly strictly filtered by `project_id`, then Claude call
+* [x] 8.5 Implement explicit cross-project isolation check
+* [x] 8.6 **TESTING:** Unit + integration tests for context assembly and isolation
+* [x] 8.7 **CHECKPOINT:** Update `progress.md` and `agent.md`, commit
 
 ### 9.0 Polish, Testing, QA & Deployment Prep
 * [ ] 9.1 Responsive pass across breakpoints

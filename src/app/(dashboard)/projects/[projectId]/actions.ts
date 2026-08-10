@@ -13,6 +13,8 @@ import {
   SpecialistReviewExtractionError,
   extractDeliverablesAndServices,
 } from "@/services/agents/specialist-review-extraction";
+import { ChatbotError, answerProjectQuestion } from "@/services/agents/chatbot";
+import { parseDocumentToText, UnsupportedBriefFormatError } from "@/services/parsing";
 import { PositionDocumentFieldsSchema } from "@/types/intake";
 import { DraftScopeDocumentSchema } from "@/types/triage";
 import { DeliverablesServicesDocumentSchema } from "@/types/deliverables-services";
@@ -395,4 +397,105 @@ export async function updateOtherServiceLabelAction(
   });
 
   revalidatePath(`/projects/${projectId}`);
+}
+
+const KnowledgeItemSchema = z.object({
+  title: z.string().trim().min(1, { error: "Give this item a short title." }),
+  content: z.string().trim().optional(),
+});
+
+export async function uploadKnowledgeItemAction(
+  projectId: string,
+  _prevState: ActionState | undefined,
+  formData: FormData
+): Promise<ActionState | undefined> {
+  const parsed = KnowledgeItemSchema.safeParse({
+    title: formData.get("title"),
+    content: formData.get("content"),
+  });
+  if (!parsed.success) {
+    return {
+      message: z.flattenError(parsed.error).fieldErrors.title?.[0] ?? "Invalid knowledge item.",
+    };
+  }
+
+  const file = formData.get("file");
+  const hasFile = file instanceof File && file.size > 0;
+  const hasPastedText = !!parsed.data.content;
+
+  if (!hasFile && !hasPastedText) {
+    return { message: "Paste some notes or upload a file." };
+  }
+  if (hasFile && hasPastedText) {
+    return { message: "Provide either pasted notes or a file, not both." };
+  }
+
+  const session = await auth();
+
+  let content: string;
+  let originalFileName: string | null = null;
+
+  if (hasFile && file instanceof File) {
+    originalFileName = file.name;
+    try {
+      const buffer = Buffer.from(await file.arrayBuffer());
+      content = await parseDocumentToText(buffer, file.name);
+    } catch (error) {
+      if (error instanceof UnsupportedBriefFormatError) {
+        return { message: error.message };
+      }
+      return { message: "Couldn't read that file. Try pasting the notes instead." };
+    }
+  } else {
+    content = parsed.data.content!;
+  }
+
+  if (content.trim().length === 0) {
+    return { message: "That upload appears to be empty." };
+  }
+
+  await prisma.knowledgeItem.create({
+    data: {
+      projectId,
+      type: hasFile ? "DOCUMENT" : "NOTE",
+      title: parsed.data.title,
+      content,
+      originalFileName,
+      uploadedById: session?.user?.id,
+    },
+  });
+
+  revalidatePath(`/projects/${projectId}`);
+}
+
+const QuestionSchema = z.object({
+  question: z.string().trim().min(1, { error: "Ask a question before submitting." }),
+});
+
+export interface ChatbotActionState {
+  answer?: string;
+  message?: string;
+}
+
+export async function askChatbotAction(
+  projectId: string,
+  _prevState: ChatbotActionState | undefined,
+  formData: FormData
+): Promise<ChatbotActionState> {
+  const parsed = QuestionSchema.safeParse({ question: formData.get("question") });
+  if (!parsed.success) {
+    return {
+      message: z.flattenError(parsed.error).fieldErrors.question?.[0] ?? "Invalid question.",
+    };
+  }
+
+  try {
+    const answer = await answerProjectQuestion(projectId, parsed.data.question);
+    return { answer };
+  } catch (error) {
+    if (error instanceof ChatbotError) {
+      return { message: error.message };
+    }
+    throw error;
+  }
 }

@@ -41,6 +41,9 @@ export default async function ProjectDetailPage({
       touchpointNotes: {
         orderBy: { createdAt: "desc" },
       },
+      knowledgeItems: {
+        orderBy: { uploadedAt: "desc" },
+      },
       projectManager: true,
     },
   });
@@ -64,7 +67,7 @@ export default async function ProjectDetailPage({
     }),
   ]);
 
-  const { workstream, documents, checklistItems, touchpointNotes } = project;
+  const { workstream, documents, checklistItems, touchpointNotes, knowledgeItems } = project;
   const { client } = workstream;
   const { hub } = client;
 
@@ -152,6 +155,12 @@ export default async function ProjectDetailPage({
         deliverablesServicesDocument={
           deliverablesServicesDocument.success ? deliverablesServicesDocument.data : null
         }
+        knowledgeItems={knowledgeItems.map((item) => ({
+          id: item.id,
+          type: item.type,
+          title: item.title,
+          originalFileName: item.originalFileName,
+        }))}
       />
     </div>
   );

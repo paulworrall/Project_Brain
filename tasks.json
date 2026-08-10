@@ -132,15 +132,15 @@
     {
       "parent_id": 8.0,
       "parent_task": "Ad-hoc Knowledge Upload & Project Brain Chatbot",
-      "status": "pending",
+      "status": "completed",
       "subtasks": [
-        {"task_id": 8.1, "description": "Implement KnowledgeItem upload UI (file upload + freeform note entry), available from any Project view regardless of current Stage", "status": "pending"},
-        {"task_id": 8.2, "description": "Implement KnowledgeItem storage and parsing, reusing the document parsing utilities from Task 4.2", "status": "pending"},
-        {"task_id": 8.3, "description": "Build the per-project chatbot UI (chat panel within the Project Detail page)", "status": "pending"},
-        {"task_id": 8.4, "description": "Implement chatbot backend: assemble context strictly filtered by project_id (Stage Documents + ChecklistItems + TouchpointNotes + KnowledgeItems), then call Claude with the question and assembled context", "status": "pending"},
-        {"task_id": 8.5, "description": "Implement an explicit cross-project isolation check: verify a query against Project A never returns or includes Project B's data, even under the same Client", "status": "pending"},
-        {"task_id": 8.6, "description": "TESTING: Unit and integration tests for chatbot context assembly and cross-project isolation", "status": "pending"},
-        {"task_id": 8.7, "description": "CHECKPOINT: Update progress.md and agent.md, commit", "status": "pending"}
+        {"task_id": 8.1, "description": "Implement KnowledgeItem upload UI (file upload + freeform note entry), available from any Project view regardless of current Stage", "status": "completed"},
+        {"task_id": 8.2, "description": "Implement KnowledgeItem storage and parsing, reusing the document parsing utilities from Task 4.2", "status": "completed"},
+        {"task_id": 8.3, "description": "Build the per-project chatbot UI (chat panel within the Project Detail page)", "status": "completed"},
+        {"task_id": 8.4, "description": "Implement chatbot backend: assemble context strictly filtered by project_id (Stage Documents + ChecklistItems + TouchpointNotes + KnowledgeItems), then call Claude with the question and assembled context", "status": "completed"},
+        {"task_id": 8.5, "description": "Implement an explicit cross-project isolation check: verify a query against Project A never returns or includes Project B's data, even under the same Client", "status": "completed"},
+        {"task_id": 8.6, "description": "TESTING: Unit and integration tests for chatbot context assembly and cross-project isolation", "status": "completed"},
+        {"task_id": 8.7, "description": "CHECKPOINT: Update progress.md and agent.md, commit", "status": "completed"}
       ]
     },
     {

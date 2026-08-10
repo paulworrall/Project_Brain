@@ -6,6 +6,7 @@ import type { WorkflowStep } from "@/types/workflow";
 import { WorkflowStepList, type WorkflowStepData } from "./WorkflowStepList";
 import { StageTracker } from "./StageTracker";
 import { ChatPanel } from "./ChatPanel";
+import { KnowledgeUpload, type KnowledgeItemView } from "./KnowledgeUpload";
 import { ClarificationEmailView } from "./ClarificationEmailView";
 import { PositionDocumentView } from "./PositionDocumentView";
 import type { ChecklistItemView } from "./ChecklistView";
@@ -187,6 +188,7 @@ interface ProjectWorkflowProps {
   draftScopeDocument: DraftScopeDocument | null;
   specialistFeedback: string | null;
   deliverablesServicesDocument: DeliverablesServicesDocument | null;
+  knowledgeItems: KnowledgeItemView[];
 }
 
 export function ProjectWorkflow({
@@ -201,6 +203,7 @@ export function ProjectWorkflow({
   draftScopeDocument,
   specialistFeedback,
   deliverablesServicesDocument,
+  knowledgeItems,
 }: ProjectWorkflowProps) {
   const triageStageStatus = stages.find((s) => s.stageNumber === 4)?.status ?? "NOT_STARTED";
 
@@ -264,7 +267,8 @@ export function ProjectWorkflow({
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
         <WorkflowStepList steps={steps} />
         <div className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-          <ChatPanel projectName={projectName} />
+          <ChatPanel projectId={projectId} projectName={projectName} />
+          <KnowledgeUpload projectId={projectId} items={knowledgeItems} />
           <EditableChecklist projectId={projectId} items={checklistItems} />
         </div>
       </div>
