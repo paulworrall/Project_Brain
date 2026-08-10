@@ -146,16 +146,16 @@
     {
       "parent_id": 9.0,
       "parent_task": "Polish, Testing, QA & Deployment Prep",
-      "status": "pending",
+      "status": "completed",
       "subtasks": [
         {"task_id": 9.1, "description": "Responsive pass: verify desktop-first layouts degrade gracefully on mobile/tablet breakpoints", "status": "completed"},
         {"task_id": 9.2, "description": "Accessibility pass: keyboard navigation, ARIA labels, color contrast", "status": "completed"},
         {"task_id": 9.3, "description": "TESTING: End-to-end test of the full Stage 1-5 happy path (upload brief through to Deliverables + Services Document)", "status": "completed"},
         {"task_id": 9.4, "description": "Verify no hardcoded secrets anywhere in the codebase; confirm .env.local is gitignored and .env.local.example is accurate", "status": "completed"},
         {"task_id": 9.5, "description": "Production build verification (npm run build); resolve any TypeScript or lint errors", "status": "completed"},
-        {"task_id": 9.6, "description": "Deploy to Vercel; set environment variables in the Vercel dashboard; verify the live URL end-to-end", "status": "pending"},
-        {"task_id": 9.7, "description": "CHECKPOINT: Final progress.md and agent.md update, commit", "status": "pending"},
-        {"task_id": 9.8, "description": "Tag release: v0.1.0-mvp", "status": "pending"}
+        {"task_id": 9.6, "description": "Deploy to Vercel; set environment variables in the Vercel dashboard; verify the live URL end-to-end", "status": "completed"},
+        {"task_id": 9.7, "description": "CHECKPOINT: Final progress.md and agent.md update, commit", "status": "completed"},
+        {"task_id": 9.8, "description": "Tag release: v0.1.0-mvp", "status": "completed"}
       ]
     }
   ]
