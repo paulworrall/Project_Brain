@@ -95,11 +95,11 @@
 * [x] 8.7 **CHECKPOINT:** Update `progress.md` and `agent.md`, commit
 
 ### 9.0 Polish, Testing, QA & Deployment Prep
-* [ ] 9.1 Responsive pass across breakpoints
-* [ ] 9.2 Accessibility pass (keyboard nav, ARIA, contrast)
-* [ ] 9.3 **TESTING:** End-to-end test of the full Stage 1-5 happy path
-* [ ] 9.4 Verify no hardcoded secrets; confirm `.env.local` is gitignored
-* [ ] 9.5 Production build verification (`npm run build`); fix TypeScript/lint errors
+* [x] 9.1 Responsive pass across breakpoints
+* [x] 9.2 Accessibility pass (keyboard nav, ARIA, contrast)
+* [x] 9.3 **TESTING:** End-to-end test of the full Stage 1-5 happy path
+* [x] 9.4 Verify no hardcoded secrets; confirm `.env.local` is gitignored
+* [x] 9.5 Production build verification (`npm run build`); fix TypeScript/lint errors
 * [ ] 9.6 Deploy to Vercel; set environment variables; verify live URL end-to-end
 * [ ] 9.7 **CHECKPOINT:** Final `progress.md`/`agent.md` update, commit
 * [ ] 9.8 Tag release: `v0.1.0-mvp`
