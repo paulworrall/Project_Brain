@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { Card } from "@/components/ui/Card";
+import { ClientWorkstreamCard } from "@/components/features/ClientWorkstreamCard";
 
 export default async function TaxonomyBrowserPage() {
   const hubs = await prisma.hub.findMany({
@@ -9,9 +9,9 @@ export default async function TaxonomyBrowserPage() {
       clients: {
         orderBy: { name: "asc" },
         include: {
-          _count: { select: { workstreams: true } },
           workstreams: {
-            select: { _count: { select: { projects: true } } },
+            orderBy: { name: "asc" },
+            select: { id: true, name: true, _count: { select: { projects: true } } },
           },
         },
       },
@@ -44,25 +44,20 @@ export default async function TaxonomyBrowserPage() {
           </h2>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {hub.clients.map((client) => {
-              const projectCount = client.workstreams.reduce(
-                (sum, ws) => sum + ws._count.projects,
-                0
-              );
-              const workstreamCount = client._count.workstreams;
-
-              return (
-                <Link key={client.id} href={`/clients/${client.id}`} className="block">
-                  <Card className="p-4 transition-colors hover:border-primary">
-                    <h3 className="font-semibold text-foreground">{client.name}</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {workstreamCount} workstream{workstreamCount === 1 ? "" : "s"} ·{" "}
-                      {projectCount} project{projectCount === 1 ? "" : "s"}
-                    </p>
-                  </Card>
-                </Link>
-              );
-            })}
+            {hub.clients.map((client) => (
+              <ClientWorkstreamCard
+                key={client.id}
+                client={{
+                  id: client.id,
+                  name: client.name,
+                  workstreams: client.workstreams.map((workstream) => ({
+                    id: workstream.id,
+                    name: workstream.name,
+                    projectCount: workstream._count.projects,
+                  })),
+                }}
+              />
+            ))}
           </div>
 
           {hub.clients.length === 0 && (
