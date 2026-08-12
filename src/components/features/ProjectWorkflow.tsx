@@ -3,7 +3,7 @@ import type { ClarificationEmail, PositionDocumentFields } from "@/types/intake"
 import type { DraftScopeDocument } from "@/types/triage";
 import type { DeliverablesServicesDocument } from "@/types/deliverables-services";
 import type { WorkflowStep } from "@/types/workflow";
-import { WorkflowStepList, type WorkflowStepData } from "./WorkflowStepList";
+import type { WorkflowStepData } from "./WorkflowStepList";
 import { StageTracker } from "./StageTracker";
 import { ChatPanel } from "./ChatPanel";
 import { KnowledgeUpload, type KnowledgeItemView } from "./KnowledgeUpload";
@@ -262,15 +262,12 @@ export function ProjectWorkflow({
   }));
 
   return (
-    <div className="space-y-6">
-      <StageTracker stages={stages} />
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
-        <WorkflowStepList steps={steps} />
-        <div className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-          <ChatPanel projectId={projectId} projectName={projectName} />
-          <KnowledgeUpload projectId={projectId} items={knowledgeItems} />
-          <EditableChecklist projectId={projectId} items={checklistItems} />
-        </div>
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
+      <StageTracker steps={steps} />
+      <div className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+        <ChatPanel projectId={projectId} projectName={projectName} />
+        <KnowledgeUpload projectId={projectId} items={knowledgeItems} />
+        <EditableChecklist projectId={projectId} items={checklistItems} />
       </div>
     </div>
   );
