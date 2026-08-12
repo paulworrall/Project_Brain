@@ -9,13 +9,9 @@ export default async function TaxonomyBrowserPage() {
       clients: {
         orderBy: { name: "asc" },
         include: {
+          _count: { select: { workstreams: true } },
           workstreams: {
-            orderBy: { name: "asc" },
-            include: {
-              projects: {
-                orderBy: { name: "asc" },
-              },
-            },
+            select: { _count: { select: { projects: true } } },
           },
         },
       },
@@ -28,7 +24,7 @@ export default async function TaxonomyBrowserPage() {
         <div>
           <h1 className="text-xl font-semibold text-foreground">All Projects</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Browse by Hub → Client → Workstream → Project.
+            Browse by Hub → Client → Workstream → Project, or search above.
           </p>
         </div>
         <Link
@@ -39,9 +35,7 @@ export default async function TaxonomyBrowserPage() {
         </Link>
       </div>
 
-      {hubs.length === 0 && (
-        <p className="text-sm text-muted-foreground">No Hubs yet.</p>
-      )}
+      {hubs.length === 0 && <p className="text-sm text-muted-foreground">No Hubs yet.</p>}
 
       {hubs.map((hub) => (
         <section key={hub.id} className="space-y-4">
@@ -50,42 +44,30 @@ export default async function TaxonomyBrowserPage() {
           </h2>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {hub.clients.map((client) => (
-              <Card key={client.id} className="p-4">
-                <h3 className="font-semibold text-foreground">{client.name}</h3>
+            {hub.clients.map((client) => {
+              const projectCount = client.workstreams.reduce(
+                (sum, ws) => sum + ws._count.projects,
+                0
+              );
+              const workstreamCount = client._count.workstreams;
 
-                <div className="mt-3 space-y-3">
-                  {client.workstreams.map((workstream) => (
-                    <div key={workstream.id}>
-                      <p className="text-xs font-medium text-muted-foreground">
-                        {workstream.name}
-                      </p>
-                      <ul className="mt-1 space-y-1">
-                        {workstream.projects.map((project) => (
-                          <li key={project.id}>
-                            <Link
-                              href={`/projects/${project.id}`}
-                              className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm text-foreground hover:bg-surface-muted"
-                            >
-                              <span>{project.name}</span>
-                              <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground">
-                                Stage {project.currentStageNumber}
-                              </span>
-                            </Link>
-                          </li>
-                        ))}
-                        {workstream.projects.length === 0 && (
-                          <li className="px-2 py-1.5 text-sm text-muted-foreground">
-                            No projects yet
-                          </li>
-                        )}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            ))}
+              return (
+                <Link key={client.id} href={`/clients/${client.id}`} className="block">
+                  <Card className="p-4 transition-colors hover:border-primary">
+                    <h3 className="font-semibold text-foreground">{client.name}</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {workstreamCount} workstream{workstreamCount === 1 ? "" : "s"} ·{" "}
+                      {projectCount} project{projectCount === 1 ? "" : "s"}
+                    </p>
+                  </Card>
+                </Link>
+              );
+            })}
           </div>
+
+          {hub.clients.length === 0 && (
+            <p className="text-sm text-muted-foreground">No Clients yet under this Hub.</p>
+          )}
         </section>
       ))}
     </div>

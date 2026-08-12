@@ -55,9 +55,13 @@ export default async function OutputsLibraryPage({
             {hub.name}
           </Link>
           {" / "}
-          <span>{client.name}</span>
+          <Link href={`/clients/${client.id}`} className="hover:underline">
+            {client.name}
+          </Link>
           {" / "}
-          <span>{workstream.name}</span>
+          <Link href={`/workstreams/${workstream.id}`} className="hover:underline">
+            {workstream.name}
+          </Link>
           {" / "}
           <Link href={`/projects/${project.id}`} className="hover:underline">
             {project.name}
