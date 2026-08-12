@@ -32,3 +32,19 @@ export const PHASES: Phase[] = [
 // recurs continuously through delivery rather than completing once, so it's
 // modeled as a separate, ongoing "Delivery Monitoring" indicator.
 export const DELIVERY_MONITORING_STAGE_NUMBER = 10;
+
+/**
+ * Phase-scoped step label (e.g. "1.3" for the 3rd stage of the 1st Phase) —
+ * helps the mental model of "which phase am I in, how far through it" more
+ * than a flat 1-10 stage number does. Falls back to the plain stage number
+ * for a stage that isn't in any Phase (currently just Delivery Monitoring).
+ */
+export function getStepLabel(stageNumber: number): string {
+  for (let phaseIndex = 0; phaseIndex < PHASES.length; phaseIndex++) {
+    const stepIndex = PHASES[phaseIndex].stageNumbers.indexOf(stageNumber);
+    if (stepIndex !== -1) {
+      return `${phaseIndex + 1}.${stepIndex + 1}`;
+    }
+  }
+  return String(stageNumber);
+}

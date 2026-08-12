@@ -1,5 +1,5 @@
 import type { StepStatus } from "@/types/workflow";
-import { DELIVERY_MONITORING_STAGE_NUMBER, PHASES } from "@/lib/phases";
+import { DELIVERY_MONITORING_STAGE_NUMBER, PHASES, getStepLabel } from "@/lib/phases";
 import { WorkflowStepList, type WorkflowStepData } from "./WorkflowStepList";
 
 const PHASE_BADGE_CLASS: Record<StepStatus, string> = {
@@ -30,7 +30,8 @@ export function StageTracker({ steps }: { steps: WorkflowStepData[] }) {
   const phaseSummaries = PHASES.map((phase) => {
     const phaseSteps = phase.stageNumbers
       .map((n) => stepByNumber.get(n))
-      .filter((s): s is WorkflowStepData => s !== undefined);
+      .filter((s): s is WorkflowStepData => s !== undefined)
+      .map((step) => ({ ...step, label: getStepLabel(step.stageNumber) }));
     return { phase, steps: phaseSteps, status: derivePhaseStatus(phaseSteps) };
   });
 

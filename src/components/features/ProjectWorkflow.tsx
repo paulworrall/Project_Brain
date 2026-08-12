@@ -5,6 +5,7 @@ import type { DeliverablesServicesDocument } from "@/types/deliverables-services
 import type { WorkflowStep } from "@/types/workflow";
 import type { WorkflowStepData } from "./WorkflowStepList";
 import { StageTracker } from "./StageTracker";
+import { getStepLabel } from "@/lib/phases";
 import { ChatPanel } from "./ChatPanel";
 import { KnowledgeUpload, type KnowledgeItemView } from "./KnowledgeUpload";
 import { ClarificationEmailView } from "./ClarificationEmailView";
@@ -135,7 +136,11 @@ function TriageStepContent({
     return <RunTriageAgentButton projectId={projectId} />;
   }
 
-  return <p className="text-sm text-muted-foreground">Waiting on Step 3 to complete.</p>;
+  return (
+    <p className="text-sm text-muted-foreground">
+      Waiting on Step {getStepLabel(3)} to complete.
+    </p>
+  );
 }
 
 function SpecialistReviewStepContent({

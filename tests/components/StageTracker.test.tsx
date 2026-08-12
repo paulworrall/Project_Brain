@@ -80,25 +80,47 @@ describe("StageTracker", () => {
     render(<StageTracker steps={steps} />);
 
     const clarifying = getPhaseDetails("Clarifying the brief and scope");
-    expect(clarifying).toHaveTextContent("Step 1 — Intake");
-    expect(clarifying).toHaveTextContent("Step 4 — Triage");
+    expect(clarifying).toHaveTextContent("Step 1.1 — Intake");
+    expect(clarifying).toHaveTextContent("Step 1.4 — Triage");
     expect(clarifying).not.toHaveTextContent("Estimation Kick Off");
 
     const estimation = getPhaseDetails("Estimation and team planning");
-    expect(estimation).toHaveTextContent("Step 5 — Review with Specialist Leads");
-    expect(estimation).toHaveTextContent("Step 7 — Estimation Session");
+    expect(estimation).toHaveTextContent("Step 2.1 — Review with Specialist Leads");
+    expect(estimation).toHaveTextContent("Step 2.3 — Estimation Session");
     expect(estimation).not.toHaveTextContent("Commercials & SOW");
 
     const sow = getPhaseDetails("Statement of work and delivery setup");
-    expect(sow).toHaveTextContent("Step 8 — Commercials & SOW");
-    expect(sow).toHaveTextContent("Step 9 — Planning & Capability Briefing");
+    expect(sow).toHaveTextContent("Step 3.1 — Commercials & SOW");
+    expect(sow).toHaveTextContent("Step 3.2 — Planning & Capability Briefing");
 
     // No duplication: every phased stage's step card renders exactly once on
     // the page. Stage 10 is deliberately excluded — it's not part of any
     // Phase, and only ever appears in the separate Delivery Monitoring block.
-    for (const step of steps.filter((s) => s.stageNumber !== 10)) {
-      expect(screen.getAllByText(`Step ${step.stageNumber} — ${step.name}`)).toHaveLength(1);
-    }
+    const phaseScopedLabels = [
+      "1.1", "1.2", "1.3", "1.4", "2.1", "2.2", "2.3", "3.1", "3.2",
+    ];
+    steps
+      .filter((s) => s.stageNumber !== 10)
+      .forEach((step, i) => {
+        expect(
+          screen.getAllByText(`Step ${phaseScopedLabels[i]} — ${step.name}`)
+        ).toHaveLength(1);
+      });
+  });
+
+  it("labels each step with a Phase-scoped number (P.N), not the flat 1-10 stage number", () => {
+    render(<StageTracker steps={steps} />);
+
+    // The small status-icon circle also shows the Phase-scoped label, not
+    // the plain stage number, for the not-yet-complete steps.
+    expect(screen.getByText("1.3")).toBeInTheDocument(); // Get Clarifications, IN_PROGRESS
+    expect(screen.getByText("2.2")).toBeInTheDocument(); // Estimation Kick Off, NOT_STARTED
+    // Old flat stage numbering is gone from step circles (bare "6"/"7"/"9"
+    // would only ever have appeared there — the 3 Phase-header badges only
+    // ever render "1"/"2"/"3", so those aren't safe to assert absence of).
+    expect(screen.queryByText("6")).not.toBeInTheDocument();
+    expect(screen.queryByText("7")).not.toBeInTheDocument();
+    expect(screen.queryByText("9")).not.toBeInTheDocument();
   });
 
   it("shows each step's real status badge and agent/human-input kind, not a plain numbered dot", () => {

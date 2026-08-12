@@ -128,7 +128,7 @@ describe("ProjectWorkflow", () => {
   it("shows a waiting message on Step 4 when Step 3 has not completed", () => {
     render(<ProjectWorkflow {...baseProps()} stages={stagesUpTo(4, "NOT_STARTED")} />);
 
-    expect(screen.getByText(/Waiting on Step 3 to complete/)).toBeInTheDocument();
+    expect(screen.getByText(/Waiting on Step 1\.3 to complete/)).toBeInTheDocument();
   });
 
   it("shows the Run Triage Agent action once Step 4 is unlocked", () => {

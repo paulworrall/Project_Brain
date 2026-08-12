@@ -1,10 +1,10 @@
 # Project Brain — Progress
 
 ## Current Status
-- **Active Task**: None — MVP complete, Phase-grouped Stage Tracker consolidated (no more duplicate step lists), Client/Workstream/search feature committed, all pushed and live
-- **Last Completed**: Stage Tracker duplication fix — real step cards now nested inside each Phase card, the separate flat step list removed
+- **Active Task**: None — MVP complete, Phase-grouped Stage Tracker consolidated with Phase-scoped step numbering (1.1, 1.2, 2.1, ...), Client/Workstream/search feature committed, all pushed and live
+- **Last Completed**: Phase-scoped step numbering (`getStepLabel` in `src/lib/phases.ts`) — Step headers/badges now read "1.1", "1.2", "2.1" etc. instead of the flat 1-10 stage number
 - **Blocked**: None
-- **Last Updated**: 2026-08-12T12:00:00Z
+- **Last Updated**: 2026-08-12T13:00:00Z
 
 ## Task Status
 | Task | Status | Completed At |
@@ -196,3 +196,13 @@
 - **`StageTracker.test.tsx` rewritten** for the new nested structure: switched its fixture from `WorkflowStep[]` to `WorkflowStepData[]` (adding a `content` node per stage), and added an explicit no-duplication assertion — every phased stage's `"Step N — Name"` text appears in the document exactly once (Stage 10 is correctly excluded from this check, since by design it never gets a step card — only the separate Delivery Monitoring block, which is untouched). Also asserts real status badges ("Complete"/"In Progress") and kind labels ("AI Agent"/"Human Input") now render inside the Phase cards, not a plain numbered dot.
 - **Verified visually in the browser** on "Loyalty App Relaunch": Phase 2 ("Estimation and team planning", the active phase) renders open by default showing the real Step 5/6/7 cards including Step 6's live "Coming in task Level 3 (post-MVP)." content and Run Agent button; manually forced Phase 1 open via a real DOM click on its `<summary>` and confirmed Step 1's full real content (INPUT/OUTPUTS, Position Document) renders inside the Phase card, not a plain dot; confirmed via `get_page_text` that no second copy of any step's detail exists anywhere else on the page.
 - Full suite grew from 89 to 90 (one net new StageTracker test); typecheck, lint, and production build all clean.
+
+### Phase-scoped step numbering (2026-08-12)
+
+- **User request**: label steps within each Phase relative to that Phase (1.1, 1.2, 1.3... for "Clarifying the brief and scope", 2.1, 2.2... for "Estimation and team planning", 3.1, 3.2... for "Statement of work and delivery setup") instead of the flat 1-10 stage number, to better match the user's mental model of "which phase, how far through it."
+- **New `getStepLabel(stageNumber)` in `src/lib/phases.ts`**: the single source of truth for the P.N mapping — looks up which Phase a stage belongs to and its 1-based position within that Phase's `stageNumbers` array, returning e.g. `"1.3"`. Falls back to the plain stage number for a stage not in any Phase (Stage 10 — never hit in practice, since Stage 10 never gets a step card, but kept safe/general rather than assuming). Deliberately a function derived from `PHASES`, not a second hardcoded table, so the two can never drift apart.
+- **`WorkflowStepList.tsx`**: added an optional `label?: string` field to `WorkflowStepData` — the header text and the small status-icon circle both now render `step.label ?? String(step.stageNumber)`. Optional and defaulting to the old plain-number behavior means the component itself stays generic/reusable and its own existing test (`WorkflowStepList.test.tsx`, which doesn't set `label`) needed zero changes.
+- **`StageTracker.tsx`**: computes `label: getStepLabel(step.stageNumber)` for each step before handing it to the nested `WorkflowStepList` per Phase — this is the only caller that sets `label`, since it's the only place with Phase context.
+- **Found and fixed one real inconsistency this surfaced**: `ProjectWorkflow.tsx`'s Triage step had a hardcoded literal `"Waiting on Step 3 to complete."` — now `` `Waiting on Step ${getStepLabel(3)} to complete.` `` (renders "Waiting on Step 1.3 to complete."), so this message can't drift out of sync with the header label a user actually sees for that same stage.
+- **Verified in the browser** on "Loyalty App Relaunch": Phase 2's cards read "Step 2.1 — Review with Specialist Leads", "Step 2.2 — Estimation Kick Off" (with the small status circle also showing "2.2", not "6"), "Step 2.3 — Estimation Session"; manually opened Phase 1 and confirmed "Step 1.1 — Intake".
+- **Tests updated**: `StageTracker.test.tsx`'s grouping assertions switched from flat numbers to Phase-scoped labels, plus a new dedicated test asserting the status-icon circles show "1.3"/"2.2" and that the old bare flat numbers ("6", "7", "9") no longer appear anywhere (deliberately not asserting bare "1"/"2"/"3" are absent, since the Phase-header badges themselves legitimately render those). `ProjectWorkflow.test.tsx`'s one affected assertion updated to match the new "Waiting on Step 1.3..." text. Full suite grew from 90 to 91; typecheck, lint, and production build all clean.

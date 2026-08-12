@@ -9,6 +9,8 @@ export interface WorkflowStepData {
   name: string;
   status: StepStatus;
   content: ReactNode;
+  /** Display label shown after "Step " — e.g. a Phase-scoped "1.3". Falls back to the plain stageNumber when absent. */
+  label?: string;
 }
 
 const STATUS_LABEL: Record<StepStatus, string> = {
@@ -23,7 +25,7 @@ const STATUS_BADGE_CLASS: Record<StepStatus, string> = {
   COMPLETE: "bg-success-bg text-success",
 };
 
-function StepIcon({ status, stageNumber }: { status: StepStatus; stageNumber: number }) {
+function StepIcon({ status, label }: { status: StepStatus; label: string }) {
   if (status === "COMPLETE") {
     return (
       <span
@@ -40,7 +42,7 @@ function StepIcon({ status, stageNumber }: { status: StepStatus; stageNumber: nu
         aria-hidden
         className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-primary bg-accent text-sm font-semibold text-primary"
       >
-        {stageNumber}
+        {label}
       </span>
     );
   }
@@ -49,7 +51,7 @@ function StepIcon({ status, stageNumber }: { status: StepStatus; stageNumber: nu
       aria-hidden
       className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border text-sm font-medium text-muted-foreground"
     >
-      {stageNumber}
+      {label}
     </span>
   );
 }
@@ -69,6 +71,7 @@ export function WorkflowStepList({ steps }: { steps: WorkflowStepData[] }) {
       {steps.map((step) => {
         const isExpanded = expandedStage === step.stageNumber;
         const kind = STEP_KIND_BY_STAGE[step.stageNumber];
+        const label = step.label ?? String(step.stageNumber);
 
         return (
           <li key={step.stageNumber}>
@@ -81,10 +84,10 @@ export function WorkflowStepList({ steps }: { steps: WorkflowStepData[] }) {
                 }
                 className="flex w-full items-center gap-3 px-4 py-3 text-left"
               >
-                <StepIcon status={step.status} stageNumber={step.stageNumber} />
+                <StepIcon status={step.status} label={label} />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-foreground">
-                    Step {step.stageNumber} — {step.name}
+                    Step {label} — {step.name}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {kind === "AGENT" ? "AI Agent" : "Human Input"}
