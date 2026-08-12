@@ -35,6 +35,13 @@ Project Brain is an internal platform that makes the delivery, management, and c
 ### Data Flow
 A `Project` sits under `Hub → Client → Workstream → Project`. It moves through `Stage`s (1-5 active for MVP; 6-10 modeled but not built yet). Each Stage transition can produce a `Document` (versioned via `DocumentVersion`), can require a `TouchpointNote` (freeform human input), and updates `ProjectStageStatus`. `KnowledgeItem`s and the chatbot sit alongside this pipeline, scoped to the `Project` but independent of its current Stage.
 
+### Phase Presentation Layer (added after initial build started — additive, not a schema change)
+Stages remain the source of truth for tracking/versioning — nothing above changes. But the Stage Tracker UI must NOT show 10 flat, individually-named stages by default — that reads as an engineering decomposition, not how a user thinks about the work. Instead:
+- A static config file (`src/lib/phases.ts`) groups Stages into 3 Phases: **"Clarifying the brief and scope"** (Stages 1-4), **"Estimation and team planning"** (Stages 5-7), **"Statement of work and delivery setup"** (Stages 8-9)
+- Stage 10 (Commercial Status) is explicitly **not** part of any Phase — model it as a separate **"Delivery Monitoring"** indicator, since it recurs continuously rather than completing once
+- This is a plain TypeScript config object, NOT a new Prisma model or migration — do not add a `Phase` database table
+- The Stage Tracker component reads this config to render 3 expandable Phase cards (collapsed by default except the active one) instead of a flat list of 10 stages
+
 ### Authentication Flow
 Email/password via NextAuth. Two roles: `ClientEngagement`, `Delivery`. For MVP, both roles see the same views — do not build restrictive permissions yet, just record the role on `User`.
 

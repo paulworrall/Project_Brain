@@ -121,12 +121,13 @@
       "parent_task": "Outputs Library, Stage Tracker & Version History",
       "status": "completed",
       "subtasks": [
-        {"task_id": 7.1, "description": "Build Stage Tracker component showing current-stage status per project (Stages 1-5 active, 6-10 shown as placeholders)", "status": "completed"},
-        {"task_id": 7.2, "description": "Build Outputs Library view listing all Documents generated for a project, grouped by type", "status": "completed"},
-        {"task_id": 7.3, "description": "Build Version History view for browsing prior Document versions with stage-transition timestamps", "status": "completed"},
-        {"task_id": 7.4, "description": "Wire manual checklist tick-box persistence (mark items complete/incomplete)", "status": "completed"},
-        {"task_id": 7.5, "description": "TESTING: Component tests for Stage Tracker, Outputs Library, and Version History", "status": "completed"},
-        {"task_id": 7.6, "description": "CHECKPOINT: Update progress.md and agent.md, commit", "status": "completed"}
+        {"task_id": 7.1, "description": "Define Phase grouping config (src/lib/phases.ts): Phase 1 'Clarifying the brief and scope' (Stages 1-4), Phase 2 'Estimation and team planning' (Stages 5-7), Phase 3 'Statement of work and delivery setup' (Stages 8-9). Stage 10 (Commercial Status) is explicitly NOT a Phase - model it separately as an ongoing 'Delivery Monitoring' indicator. Static config only, no new database table.", "status": "completed"},
+        {"task_id": 7.2, "description": "Build Stage Tracker component using the Phase config: 3 expandable Phase cards (collapsed by default except the active one) revealing granular Stage-level detail on expand, plus a separate persistent Delivery Monitoring element beneath them (inactive placeholder for MVP, since Stages 8-10 aren't built yet)", "status": "completed"},
+        {"task_id": 7.3, "description": "Build Outputs Library view listing all Documents generated for a project, grouped by type", "status": "completed"},
+        {"task_id": 7.4, "description": "Build Version History view for browsing prior Document versions with stage-transition timestamps", "status": "completed"},
+        {"task_id": 7.5, "description": "Wire manual checklist tick-box persistence (mark items complete/incomplete)", "status": "completed"},
+        {"task_id": 7.6, "description": "TESTING: Component tests for Stage Tracker (including phase expand/collapse and correct stage-to-phase grouping), Outputs Library, and Version History", "status": "completed"},
+        {"task_id": 7.7, "description": "CHECKPOINT: Update progress.md and agent.md, commit", "status": "completed"}
       ]
     },
     {

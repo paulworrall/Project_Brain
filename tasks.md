@@ -78,12 +78,13 @@
 * [x] 6.6 **CHECKPOINT:** Update `progress.md` and `agent.md`, commit
 
 ### 7.0 Outputs Library, Stage Tracker & Version History
-* [x] 7.1 Build Stage Tracker component (Stages 1-5 active, 6-10 as placeholders)
-* [x] 7.2 Build Outputs Library view (all Documents per project, grouped by type)
-* [x] 7.3 Build Version History view (prior versions with stage-transition timestamps)
-* [x] 7.4 Wire manual checklist tick-box persistence
-* [x] 7.5 **TESTING:** Component tests for Stage Tracker, Outputs Library, Version History
-* [x] 7.6 **CHECKPOINT:** Update `progress.md` and `agent.md`, commit
+* [x] 7.1 Define Phase grouping config (`src/lib/phases.ts`) — Phase 1 "Clarifying the brief and scope" (Stages 1-4), Phase 2 "Estimation and team planning" (Stages 5-7), Phase 3 "Statement of work and delivery setup" (Stages 8-9). Stage 10 is explicitly **not** a Phase — model separately as an ongoing "Delivery Monitoring" indicator. Static config, no new database table.
+* [x] 7.2 Build Stage Tracker component using the Phase config: 3 expandable Phase cards (collapsed by default except the active one), revealing Stage-level detail on expand, plus a separate persistent Delivery Monitoring element beneath (inactive placeholder for MVP)
+* [x] 7.3 Build Outputs Library view (all Documents per project, grouped by type)
+* [x] 7.4 Build Version History view (prior versions with stage-transition timestamps)
+* [x] 7.5 Wire manual checklist tick-box persistence
+* [x] 7.6 **TESTING:** Component tests for Stage Tracker (including phase expand/collapse and stage-to-phase grouping correctness), Outputs Library, Version History
+* [x] 7.7 **CHECKPOINT:** Update `progress.md` and `agent.md`, commit
 
 ### 8.0 Ad-hoc Knowledge Upload & Project Brain Chatbot
 * [x] 8.1 Implement KnowledgeItem upload UI (available anytime, any Stage)

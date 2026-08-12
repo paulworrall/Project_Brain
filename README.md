@@ -18,7 +18,7 @@ This is a real internal pilot, not a demo, currently scoped to Stages 1-5 of a 1
 - **Clarification capture**: Paste the client's reply as freeform notes; the platform updates the Position Document, separating genuine gaps from things the client themselves flagged as "still deciding"
 - **Triage Agent**: Produces a Draft Scope Document, proceeding even with open gaps — but flagging them clearly for specialists
 - **Specialist review capture**: Paste specialist feedback; the platform generates a Deliverables + Services breakdown
-- **Stage Tracker**: See exactly which stage each project is in
+- **Stage Tracker**: See which of the 3 phases (Clarifying the Brief and Scope / Estimation and Team Planning / Statement of Work and Delivery Setup) each project is in, expandable to granular stage detail — plus a separate Delivery Monitoring indicator once a project reaches delivery
 - **Outputs Library & Version History**: Every generated document, kept and versioned at each stage transition
 - **Hub → Client → Workstream → Project taxonomy**
 - **Ad-hoc Knowledge Upload**: Add documents or meeting notes to a project at any time, independent of its current stage

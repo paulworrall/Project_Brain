@@ -46,6 +46,23 @@
         ]
       }
     },
+    "stage_and_phase_model": {
+      "description": "Phase is a presentation-layer grouping over the existing 10-stage pipeline - not a replacement for Stage tracking, versioning, or artifacts, which remain unchanged",
+      "rationale": "10 individually-named, engineering-flavored stages reads as an internal decomposition, not how an AM or PM thinks about their week. Grouping into 3 phases matches how the work is actually discussed, without losing the granular record each Stage provides.",
+      "phases": [
+        {"phase": 1, "name": "Clarifying the brief and scope", "stages": [1, 2, 3, 4], "mvp_status": "Fully in scope"},
+        {"phase": 2, "name": "Estimation and team planning", "stages": [5, 6, 7], "mvp_status": "Stage 5 in scope; 6-7 shown as placeholders"},
+        {"phase": 3, "name": "Statement of work and delivery setup", "stages": [8, 9], "mvp_status": "Placeholder only (Level 3 scope)"}
+      ],
+      "delivery_monitoring": {
+        "description": "Stage 10 (Commercial Status) is NOT a Phase - it is a separate, ongoing indicator, since it recurs continuously through delivery rather than completing once",
+        "stage": 10,
+        "mvp_status": "Placeholder only, rendered as a distinct element beneath the Phases"
+      },
+      "implementation_approach": "Phase is a static configuration mapping (e.g. src/lib/phases.ts listing which Stage IDs belong to which Phase), NOT a new database table. Stages remain exactly as already modeled. This is additive to the Stage Tracker's presentation only.",
+      "ui_behavior": "Stage Tracker shows the 3 Phases by default, collapsed except the active one, each expandable to reveal underlying Stage-level detail. Delivery Monitoring renders separately beneath the Phases, inactive until Stage 8-9 work exists.",
+      "no_change_to_agent_architecture": "Each Stage's action remains its own small, dedicated agent/extraction-step regardless of Phase grouping. Phase grouping changes how progress is displayed, not how the work is computed."
+    },
     "ai_agent_architecture": {
       "description": "How each 'Agent' named in the workflow is actually built - not autonomous/free-roaming bots, but narrow, single-purpose functions with fixed inputs and structured outputs",
       "principles": [

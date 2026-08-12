@@ -38,6 +38,27 @@
 
 ---
 
+## Stage & Phase Model
+
+The 10-stage pipeline is the source of truth for tracking, versioning, and artifacts — that doesn't change. But 10 individually-named, engineering-flavored stages ("Triage Agent," "Estimation Kick Off Agent") is the wrong thing to show a user by default; it reads as an internal decomposition, not how an AM or PM actually thinks about their week.
+
+**Fix: add "Phase" as a presentation-layer grouping over the existing Stages — not a replacement for them.**
+
+| Phase | Stages | Status for MVP |
+|---|---|---|
+| **1. Clarifying the brief and scope** | 1–4 (Client Brief, Intake, Get Clarifications, Triage) | Fully in scope |
+| **2. Estimation and team planning** | 5–7 (Review with Specialist Leads, Estimation Kick Off, Estimation Session) | Stage 5 in scope; 6–7 shown as placeholders |
+| **3. Statement of work and delivery setup** | 8–9 (Commercials Builder/SOW, Planning + Capability Briefing) | Placeholder only (Level 3 scope) |
+| **Delivery Monitoring** *(not a Phase — separate, ongoing)* | 10 (Commercial Status) | Placeholder only — shown as a distinct indicator, not a phase step, since it recurs continuously through delivery rather than completing once |
+
+**Implementation approach:** Phase is a **static configuration mapping** (e.g. `src/lib/phases.ts` listing which Stage IDs belong to which Phase), not a new database table. Stages remain exactly as already modeled — this is additive to the Stage Tracker's presentation, not a schema change, and doesn't touch anything already built.
+
+**UI behavior:** The Stage Tracker shows the 3 Phases by default (collapsed except the active one), each expandable to reveal its underlying Stage-level detail. Delivery Monitoring renders as a separate, visually distinct element beneath the Phases, inactive until Stage 8-9 work exists.
+
+**No change to the AI Agent Architecture above** — each Stage's action is still its own small, dedicated agent/extraction-step regardless of which Phase it's grouped under. Phase grouping is purely how progress is *displayed*; it doesn't change how the work is *computed*.
+
+---
+
 ## AI Agent Architecture
 
 Each "Agent" named in the workflow is **not** an autonomous, free-roaming bot — it's a narrow, single-purpose function with a fixed input and a structured output. That's a deliberately simpler (and more reliable) kind of AI system:
