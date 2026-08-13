@@ -2,6 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui/Card";
+import { auth } from "@/lib/auth";
+import { isClientEngagement } from "@/lib/permissions";
+import { MasterServiceAgreementsPanel } from "@/components/features/MasterServiceAgreementsPanel";
+import { RateCardsPanel } from "@/components/features/RateCardsPanel";
 
 export default async function ClientDetailPage({
   params,
@@ -10,22 +14,28 @@ export default async function ClientDetailPage({
 }) {
   const { clientId } = await params;
 
-  const client = await prisma.client.findUnique({
-    where: { id: clientId },
-    include: {
-      hub: true,
-      workstreams: {
-        orderBy: { name: "asc" },
-        include: { _count: { select: { projects: true } } },
+  const [client, session] = await Promise.all([
+    prisma.client.findUnique({
+      where: { id: clientId },
+      include: {
+        hub: true,
+        workstreams: {
+          orderBy: { name: "asc" },
+          include: { _count: { select: { projects: true } } },
+        },
+        masterServiceAgreements: { orderBy: { uploadedAt: "desc" } },
+        rateCards: { orderBy: { uploadedAt: "desc" } },
       },
-    },
-  });
+    }),
+    auth(),
+  ]);
 
   if (!client) {
     notFound();
   }
 
-  const { hub, workstreams } = client;
+  const { hub, workstreams, masterServiceAgreements, rateCards } = client;
+  const canManageCommercialDocuments = isClientEngagement(session);
 
   return (
     <div className="space-y-6">
@@ -60,6 +70,24 @@ export default async function ClientDetailPage({
       {workstreams.length === 0 && (
         <p className="text-sm text-muted-foreground">No Workstreams yet under this Client.</p>
       )}
+
+      <div>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Contracts & Rates
+        </h2>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <MasterServiceAgreementsPanel
+            clientId={client.id}
+            agreements={masterServiceAgreements}
+            canManage={canManageCommercialDocuments}
+          />
+          <RateCardsPanel
+            clientId={client.id}
+            rateCards={rateCards}
+            canManage={canManageCommercialDocuments}
+          />
+        </div>
+      </div>
     </div>
   );
 }

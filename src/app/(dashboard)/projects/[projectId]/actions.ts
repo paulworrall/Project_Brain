@@ -28,6 +28,7 @@ const ProjectSummarySchema = z.object({
   kickOffDate: z.string().trim().optional(),
   targetCompletionDate: z.string().trim().optional(),
   projectManagerId: z.string().trim().optional(),
+  rateCardId: z.string().trim().optional(),
 });
 
 function emptyToNull(value: string | undefined): string | null {
@@ -44,9 +45,35 @@ export async function updateProjectSummaryAction(
     kickOffDate: formData.get("kickOffDate"),
     targetCompletionDate: formData.get("targetCompletionDate"),
     projectManagerId: formData.get("projectManagerId"),
+    rateCardId: formData.get("rateCardId"),
   });
   if (!parsed.success) {
     return { message: "Invalid project details." };
+  }
+
+  // Re-validate server-side that a submitted Rate Card actually belongs to
+  // this Project's own Client — the edit form's dropdown is already scoped,
+  // but this is the real enforcement point, not the dropdown's contents.
+  let rateCardId: string | null = null;
+  if (parsed.data.rateCardId) {
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { workstream: { select: { clientId: true } } },
+    });
+    const validRateCard = project
+      ? await prisma.rateCard.findFirst({
+          where: {
+            id: parsed.data.rateCardId,
+            clientId: project.workstream.clientId,
+            status: "ACTIVE",
+          },
+          select: { id: true },
+        })
+      : null;
+    if (!validRateCard) {
+      return { message: "Selected rate card is not valid for this client." };
+    }
+    rateCardId = validRateCard.id;
   }
 
   await prisma.project.update({
@@ -58,6 +85,7 @@ export async function updateProjectSummaryAction(
         ? new Date(parsed.data.targetCompletionDate)
         : null,
       projectManagerId: emptyToNull(parsed.data.projectManagerId),
+      rateCardId,
     },
   });
 

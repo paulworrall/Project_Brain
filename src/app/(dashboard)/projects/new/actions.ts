@@ -15,7 +15,46 @@ const CreateProjectSchema = z.object({
   workstreamId: z.string().min(1, { error: "Select a workstream." }),
   name: z.string().trim().min(2, { error: "Project name must be at least 2 characters." }),
   briefText: z.string().trim().optional(),
+  // .nullish(), not .optional() — a disabled <select> (no Rate Card options
+  // yet) is omitted from FormData entirely on submit, so formData.get()
+  // returns null here, not undefined.
+  rateCardId: z.string().trim().nullish(),
 });
+
+export interface RateCardOption {
+  id: string;
+  name: string;
+  currency: string;
+}
+
+/**
+ * Client-scoped Rate Card lookup for the "New Project" form's dropdown —
+ * the actual isolation boundary (CLAUDE.md's project_id-filter pattern,
+ * applied here to clientId): resolves the Workstream's own Client first,
+ * then queries only that Client's Rate Cards. A different Client's Rate
+ * Cards are never fetched, not just hidden from the rendered options.
+ */
+export async function getRateCardsForWorkstreamAction(
+  workstreamId: string
+): Promise<RateCardOption[]> {
+  if (!workstreamId) {
+    return [];
+  }
+
+  const workstream = await prisma.workstream.findUnique({
+    where: { id: workstreamId },
+    select: { clientId: true },
+  });
+  if (!workstream) {
+    return [];
+  }
+
+  return prisma.rateCard.findMany({
+    where: { clientId: workstream.clientId, status: "ACTIVE" },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, currency: true },
+  });
+}
 
 export type CreateProjectState =
   | {
@@ -36,10 +75,31 @@ export async function createProjectAction(
     workstreamId: formData.get("workstreamId"),
     name: formData.get("name"),
     briefText: formData.get("briefText"),
+    rateCardId: formData.get("rateCardId"),
   });
 
   if (!parsed.success) {
     return { errors: z.flattenError(parsed.error).fieldErrors };
+  }
+
+  // Re-validate server-side even though the dropdown was already scoped —
+  // never trust a submitted id belongs to the right Client without checking.
+  let rateCardId: string | null = null;
+  if (parsed.data.rateCardId) {
+    const workstream = await prisma.workstream.findUnique({
+      where: { id: parsed.data.workstreamId },
+      select: { clientId: true },
+    });
+    const validRateCard = workstream
+      ? await prisma.rateCard.findFirst({
+          where: { id: parsed.data.rateCardId, clientId: workstream.clientId, status: "ACTIVE" },
+          select: { id: true },
+        })
+      : null;
+    if (!validRateCard) {
+      return { message: "Selected rate card is not valid for this client." };
+    }
+    rateCardId = validRateCard.id;
   }
 
   const briefFile = formData.get("briefFile");
@@ -96,6 +156,7 @@ export async function createProjectAction(
         briefFileName,
         briefFileType,
         currentStageNumber: 2,
+        rateCardId,
       },
     });
 

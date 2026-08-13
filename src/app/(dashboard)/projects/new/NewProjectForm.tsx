@@ -1,11 +1,11 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { FormError } from "@/components/ui/FormError";
-import { createProjectAction } from "./actions";
+import { createProjectAction, getRateCardsForWorkstreamAction, type RateCardOption } from "./actions";
 
 type BriefInputMode = "paste" | "upload";
 
@@ -16,6 +16,20 @@ export function NewProjectForm({
 }) {
   const [state, formAction, pending] = useActionState(createProjectAction, undefined);
   const [briefMode, setBriefMode] = useState<BriefInputMode>("paste");
+  const [workstreamId, setWorkstreamId] = useState("");
+  const [rateCardOptions, setRateCardOptions] = useState<RateCardOption[]>([]);
+  const [, startRateCardFetch] = useTransition();
+
+  function handleWorkstreamChange(value: string) {
+    setWorkstreamId(value);
+    setRateCardOptions([]);
+    if (!value) return;
+
+    startRateCardFetch(async () => {
+      const options = await getRateCardsForWorkstreamAction(value);
+      setRateCardOptions(options);
+    });
+  }
 
   return (
     <form action={formAction} className="space-y-5">
@@ -24,7 +38,8 @@ export function NewProjectForm({
         <select
           id="workstreamId"
           name="workstreamId"
-          defaultValue=""
+          value={workstreamId}
+          onChange={(e) => handleWorkstreamChange(e.target.value)}
           required
           className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
         >
@@ -44,6 +59,30 @@ export function NewProjectForm({
         <Label htmlFor="name">Project name</Label>
         <Input id="name" name="name" type="text" required />
         <FormError>{state?.errors?.name}</FormError>
+      </div>
+
+      <div>
+        <Label htmlFor="rateCardId">Rate card (optional)</Label>
+        <select
+          id="rateCardId"
+          name="rateCardId"
+          defaultValue=""
+          disabled={rateCardOptions.length === 0}
+          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring disabled:opacity-60"
+        >
+          <option value="">
+            {workstreamId
+              ? rateCardOptions.length === 0
+                ? "No rate cards for this client"
+                : "No rate card"
+              : "Select a workstream first"}
+          </option>
+          {rateCardOptions.map((rc) => (
+            <option key={rc.id} value={rc.id}>
+              {rc.name} ({rc.currency})
+            </option>
+          ))}
+        </select>
       </div>
 
       <div>

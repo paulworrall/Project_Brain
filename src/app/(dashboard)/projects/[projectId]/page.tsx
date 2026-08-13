@@ -23,10 +23,14 @@ export default async function ProjectDetailPage({
       workstream: {
         include: {
           client: {
-            include: { hub: true },
+            include: {
+              hub: true,
+              rateCards: { where: { status: "ACTIVE" }, orderBy: { name: "asc" } },
+            },
           },
         },
       },
+      rateCard: true,
       documents: {
         include: {
           versions: {
@@ -135,6 +139,16 @@ export default async function ProjectDetailPage({
         targetCompletionDate={project.targetCompletionDate}
         projectManager={project.projectManager}
         projectManagerOptions={projectManagerOptions}
+        rateCard={
+          project.rateCard
+            ? { id: project.rateCard.id, name: project.rateCard.name, currency: project.rateCard.currency }
+            : null
+        }
+        rateCardOptions={client.rateCards.map((rc) => ({
+          id: rc.id,
+          name: rc.name,
+          currency: rc.currency,
+        }))}
       />
 
       <ProjectWorkflow

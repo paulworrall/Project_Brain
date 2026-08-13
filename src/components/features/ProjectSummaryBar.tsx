@@ -26,6 +26,12 @@ export interface ProjectManagerOption {
   name: string;
 }
 
+export interface RateCardOption {
+  id: string;
+  name: string;
+  currency: string;
+}
+
 interface ProjectSummaryBarProps {
   projectId: string;
   status: "ACTIVE" | "COMPLETE";
@@ -34,6 +40,8 @@ interface ProjectSummaryBarProps {
   targetCompletionDate: Date | null;
   projectManager: ProjectManagerOption | null;
   projectManagerOptions: ProjectManagerOption[];
+  rateCard: RateCardOption | null;
+  rateCardOptions: RateCardOption[];
 }
 
 export function ProjectSummaryBar({
@@ -44,6 +52,8 @@ export function ProjectSummaryBar({
   targetCompletionDate,
   projectManager,
   projectManagerOptions,
+  rateCard,
+  rateCardOptions,
 }: ProjectSummaryBarProps) {
   const [isEditing, setIsEditing] = useState(false);
   const action = updateProjectSummaryAction.bind(null, projectId);
@@ -122,6 +132,24 @@ export function ProjectSummaryBar({
               ))}
             </select>
           </div>
+          <div>
+            <label htmlFor="rateCardId" className="block text-xs font-medium text-muted-foreground">
+              Rate Card
+            </label>
+            <select
+              id="rateCardId"
+              name="rateCardId"
+              defaultValue={rateCard?.id ?? ""}
+              className="mt-1 rounded-md border border-border bg-surface px-2 py-1 text-sm text-foreground"
+            >
+              <option value="">No rate card</option>
+              {rateCardOptions.map((rc) => (
+                <option key={rc.id} value={rc.id}>
+                  {rc.name} ({rc.currency})
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="flex gap-2">
             <Button type="submit" disabled={pending}>
               {pending ? "Saving…" : "Save"}
@@ -151,6 +179,10 @@ export function ProjectSummaryBar({
           <SummaryField label="Kick-off" value={formatDate(kickOffDate)} />
           <SummaryField label="Target Completion" value={formatDate(targetCompletionDate)} />
           <SummaryField label="PM" value={projectManager?.name ?? NOT_SET} />
+          <SummaryField
+            label="Rate Card"
+            value={rateCard ? `${rateCard.name} (${rateCard.currency})` : NOT_SET}
+          />
         </div>
         <button
           type="button"

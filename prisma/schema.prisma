@@ -30,8 +30,10 @@ model Client {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  hub         Hub          @relation(fields: [hubId], references: [id], onDelete: Cascade)
-  workstreams Workstream[]
+  hub                     Hub                      @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  workstreams             Workstream[]
+  masterServiceAgreements MasterServiceAgreement[]
+  rateCards               RateCard[]
 
   @@unique([hubId, name])
 }
@@ -72,11 +74,17 @@ model Project {
   targetCompletionDate DateTime?
   projectManagerId     String?
 
+  // Optional Rate Card selection (task: "Client-scoped selection at project
+  // creation"). Must always belong to this Project's own Workstream's Client
+  // — enforced in the Server Actions that set it, not just by this FK.
+  rateCardId String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   workstream      Workstream           @relation(fields: [workstreamId], references: [id], onDelete: Cascade)
   projectManager  User?                @relation(fields: [projectManagerId], references: [id], onDelete: SetNull)
+  rateCard        RateCard?            @relation(fields: [rateCardId], references: [id], onDelete: SetNull)
   stageStatuses   ProjectStageStatus[]
   documents       Document[]
   checklistItems  ChecklistItem[]
@@ -84,6 +92,58 @@ model Project {
   knowledgeItems  KnowledgeItem[]
 
   @@unique([workstreamId, name])
+}
+
+// ---------------------------------------------------------------------------
+// Client-level commercial documents (MSAs, Rate Cards) — write access
+// restricted to the ClientEngagement role, enforced in the Server Actions
+// that mutate them (src/app/(dashboard)/clients/[clientId]/actions.ts), not
+// just in the UI. Scoped to Client, independent of any Project/Stage.
+// ---------------------------------------------------------------------------
+
+enum MasterServiceAgreementStatus {
+  ACTIVE
+  SUPERSEDED
+}
+
+model MasterServiceAgreement {
+  id            String                       @id @default(cuid())
+  clientId      String
+  fileName      String
+  fileBytes     Bytes
+  extractedText String
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  status        MasterServiceAgreementStatus @default(ACTIVE)
+  uploadedById  String?
+  uploadedAt    DateTime                     @default(now())
+
+  client     Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  uploadedBy User?  @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+}
+
+enum RateCardStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model RateCard {
+  id            String         @id @default(cuid())
+  clientId      String
+  name          String
+  currency      String
+  fileName      String
+  fileBytes     Bytes
+  extractedText String
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  status        RateCardStatus @default(ACTIVE)
+  uploadedById  String?
+  uploadedAt    DateTime       @default(now())
+
+  client     Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  uploadedBy User?     @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  projects   Project[]
 }
 
 // ---------------------------------------------------------------------------
@@ -249,8 +309,10 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  documentVersions DocumentVersion[]
-  touchpointNotes  TouchpointNote[]
-  knowledgeItems   KnowledgeItem[]
-  projectsManaged  Project[]
+  documentVersions        DocumentVersion[]
+  touchpointNotes         TouchpointNote[]
+  knowledgeItems          KnowledgeItem[]
+  projectsManaged         Project[]
+  masterServiceAgreements MasterServiceAgreement[]
+  rateCards               RateCard[]
 }
