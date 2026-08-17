@@ -155,14 +155,20 @@ export async function createProjectAction(
         briefRawText,
         briefFileName,
         briefFileType,
-        currentStageNumber: 2,
+        currentStageNumber: 3,
         rateCardId,
       },
     });
 
-    const [intakeStage, clarificationStage] = await Promise.all([
+    // Stage 2 (Clarification Email Sent) completes immediately alongside
+    // Intake — the email is generated as part of this same Intake Agent run,
+    // not a separate pipeline step with its own status (Phase 1 rework).
+    // Stage 3 (Get Clarifications) opens straight away as the fluid,
+    // repeatable client-update workspace.
+    const [intakeStage, clarificationEmailStage, getClarificationsStage] = await Promise.all([
       tx.stage.findUniqueOrThrow({ where: { number: 1 } }),
       tx.stage.findUniqueOrThrow({ where: { number: 2 } }),
+      tx.stage.findUniqueOrThrow({ where: { number: 3 } }),
     ]);
 
     await tx.projectStageStatus.create({
@@ -177,7 +183,16 @@ export async function createProjectAction(
     await tx.projectStageStatus.create({
       data: {
         projectId: project.id,
-        stageId: clarificationStage.id,
+        stageId: clarificationEmailStage.id,
+        status: "COMPLETE",
+        startedAt: new Date(),
+        completedAt: new Date(),
+      },
+    });
+    await tx.projectStageStatus.create({
+      data: {
+        projectId: project.id,
+        stageId: getClarificationsStage.id,
         status: "IN_PROGRESS",
         startedAt: new Date(),
       },

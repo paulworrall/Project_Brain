@@ -238,6 +238,9 @@ model ChecklistItem {
   projectId   String
   label       String
   isComplete  Boolean   @default(false)
+  // Freeform detail (e.g. job code, folder URL) — always editable regardless
+  // of isComplete; someone may know the value before ticking the box.
+  detailText  String?
   order       Int       @default(0)
   completedAt DateTime?
   createdAt   DateTime  @default(now())

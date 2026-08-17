@@ -3,8 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
-  submitClarificationNotesAction: vi.fn(),
-  runTriageAgentAction: vi.fn(),
+  submitClientUpdateAction: vi.fn(),
+  generateDraftScopeDocumentAction: vi.fn(),
+  updateChecklistItemDetailAction: vi.fn(),
   submitSpecialistFeedbackAction: vi.fn(),
   updateOtherServiceLabelAction: vi.fn(),
   toggleChecklistItemAction: vi.fn(),
@@ -65,9 +66,9 @@ const deliverablesServices = {
 };
 
 /**
- * WorkflowStepList auto-expands only the first non-COMPLETE step (and keeps
- * that as local state thereafter), so each test must mark every earlier
- * stage COMPLETE for the stage under test to actually render its content.
+ * WorkflowStepList (used by Phase 2/3) auto-expands only the first
+ * non-COMPLETE step, so each test must mark every earlier stage COMPLETE for
+ * the stage under test to actually render its content.
  */
 function stagesUpTo(currentStageNumber: number, currentStatus: "NOT_STARTED" | "IN_PROGRESS") {
   return STAGE_NAMES.map((name, i) => {
@@ -89,13 +90,21 @@ function baseProps() {
   return {
     projectId: "proj_1",
     projectName: "Test Project",
-    briefFileName: "brief.txt",
-    stages: stagesUpTo(3, "IN_PROGRESS"),
+    // Stages 1-4 complete by default — Phase 1's own content no longer
+    // depends on per-stage gating (it's a fluid workspace), only Phase 2's
+    // Stage 5 step does.
+    stages: stagesUpTo(5, "IN_PROGRESS"),
     clarificationEmail,
     positionDocument,
-    checklistItems: [],
-    clarificationNotes: null as string | null,
+    clientUpdates: [] as { id: string; content: string; createdAt: Date; createdByName: string | null }[],
+    checklistItems: [] as {
+      id: string;
+      label: string;
+      isComplete: boolean;
+      detailText: string | null;
+    }[],
     draftScopeDocument: null as typeof draftScope | null,
+    draftScopeDocumentMeta: null as { versionNumber: number; createdAt: Date } | null,
     specialistFeedback: null as string | null,
     deliverablesServicesDocument: null as typeof deliverablesServices | null,
     knowledgeItems: [],
@@ -103,54 +112,47 @@ function baseProps() {
 }
 
 describe("ProjectWorkflow", () => {
-  it("shows the clarification notes form on Step 3 when no notes have been submitted yet", () => {
+  it("renders the Phase 1 workspace with the live Position Document instead of step cards", () => {
     render(<ProjectWorkflow {...baseProps()} />);
 
-    expect(
-      screen.getByPlaceholderText(/Paste the client's clarification reply here/)
-    ).toBeInTheDocument();
+    expect(screen.getByText("Refresh the campaign.")).toBeInTheDocument();
+    expect(screen.getByText("Target audience")).toBeInTheDocument();
+    expect(screen.queryByText("Step 1.1")).not.toBeInTheDocument();
   });
 
-  it("shows the submitted notes read-only and the updated Position Document once notes exist", () => {
+  it("shows past client updates in the log", () => {
     render(
       <ProjectWorkflow
         {...baseProps()}
-        clarificationNotes="The client confirmed the budget at 250k."
+        clientUpdates={[
+          {
+            id: "note_1",
+            content: "The referral feature is confirmed in scope after all.",
+            createdAt: new Date("2026-08-01T10:00:00Z"),
+            createdByName: "Alex Morgan",
+          },
+        ]}
       />
     );
 
-    expect(screen.getByText("The client confirmed the budget at 250k.")).toBeInTheDocument();
     expect(
-      screen.queryByPlaceholderText(/Paste the client's clarification reply here/)
-    ).not.toBeInTheDocument();
+      screen.getByText("The referral feature is confirmed in scope after all.")
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Alex Morgan/)).toBeInTheDocument();
   });
 
-  it("shows a waiting message on Step 4 when Step 3 has not completed", () => {
-    render(<ProjectWorkflow {...baseProps()} stages={stagesUpTo(4, "NOT_STARTED")} />);
-
-    expect(screen.getByText(/Waiting on Step 1\.3 to complete/)).toBeInTheDocument();
-  });
-
-  it("shows the Run Triage Agent action once Step 4 is unlocked", () => {
-    render(<ProjectWorkflow {...baseProps()} stages={stagesUpTo(4, "IN_PROGRESS")} />);
-
-    expect(screen.getByRole("button", { name: "Run Triage Agent" })).toBeInTheDocument();
-  });
-
-  it("shows the Draft Scope Document with flagged gaps once it exists", () => {
+  it("shows the Draft Scope Document with flagged gaps once it has been generated", () => {
     render(
       <ProjectWorkflow
         {...baseProps()}
-        stages={stagesUpTo(4, "IN_PROGRESS")}
         draftScopeDocument={draftScope}
+        draftScopeDocumentMeta={{ versionNumber: 1, createdAt: new Date("2026-08-01T10:00:00Z") }}
       />
     );
 
     expect(screen.getByText("⚠ Gaps Carried Forward for Specialists")).toBeInTheDocument();
     expect(screen.getByText("Target audience still unknown")).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Run Triage Agent" })
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Regenerate" })).toBeInTheDocument();
   });
 
   it("shows the specialist feedback form on Step 5 when no feedback has been submitted yet", () => {
@@ -161,24 +163,13 @@ describe("ProjectWorkflow", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the checklist in the sidebar regardless of which step is expanded", () => {
+  it("shows the checklist in both the sidebar and the Phase 1 workspace, kept in sync", () => {
     render(
       <ProjectWorkflow
         {...baseProps()}
-        stages={stagesUpTo(4, "IN_PROGRESS")}
-        checklistItems={[{ id: "item_1", label: "Assign job code", isComplete: false }]}
-      />
-    );
-
-    expect(screen.getByText("Assign job code")).toBeInTheDocument();
-  });
-
-  it("also shows the checklist on Step 1 itself when Step 1 is expanded", () => {
-    render(
-      <ProjectWorkflow
-        {...baseProps()}
-        stages={stagesUpTo(1, "IN_PROGRESS")}
-        checklistItems={[{ id: "item_1", label: "Assign job code", isComplete: false }]}
+        checklistItems={[
+          { id: "item_1", label: "Assign job code", isComplete: false, detailText: null },
+        ]}
       />
     );
 

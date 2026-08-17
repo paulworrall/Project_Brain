@@ -4,6 +4,7 @@ export interface ChecklistItemView {
   id: string;
   label: string;
   isComplete: boolean;
+  detailText: string | null;
 }
 
 export function ChecklistView({ items }: { items: ChecklistItemView[] }) {
@@ -23,6 +24,9 @@ export function ChecklistView({ items }: { items: ChecklistItemView[] }) {
               <span className={item.isComplete ? "text-muted-foreground line-through" : "text-foreground"}>
                 {item.label}
               </span>
+              {item.detailText && (
+                <span className="text-xs text-muted-foreground">— {item.detailText}</span>
+              )}
             </li>
           ))}
         </ul>

@@ -93,17 +93,26 @@ export async function updateProjectSummaryAction(
 }
 
 const NotesSchema = z.object({
-  notes: z.string().trim().min(1, { error: "Paste the client's reply before submitting." }),
+  notes: z.string().trim().min(1, { error: "Add some detail before submitting." }),
 });
 
-export async function submitClarificationNotesAction(
+/**
+ * "Add a client update" — usable at any time in Phase 1, not gated behind a
+ * single one-time step. Each submission re-runs the clarification extraction
+ * against the Position Document's current state, appends a new version, and
+ * leaves a timestamped TouchpointNote in the log. Never marks anything
+ * "complete" — Phase 1 doesn't have a discrete step here to complete; the
+ * Position Document just keeps evolving until Draft Scope Document
+ * generation is triggered (see generateDraftScopeDocumentAction).
+ */
+export async function submitClientUpdateAction(
   projectId: string,
   _prevState: ActionState | undefined,
   formData: FormData
 ): Promise<ActionState | undefined> {
   const parsed = NotesSchema.safeParse({ notes: formData.get("notes") });
   if (!parsed.success) {
-    return { message: z.flattenError(parsed.error).fieldErrors.notes?.[0] ?? "Invalid notes." };
+    return { message: z.flattenError(parsed.error).fieldErrors.notes?.[0] ?? "Invalid update." };
   }
 
   const session = await auth();
@@ -148,53 +157,22 @@ export async function submitClarificationNotesAction(
         createdById: session?.user?.id,
       },
     });
-
-    const [clarificationEmailStage, getClarificationsStage, triageStage] = await Promise.all([
-      tx.stage.findUniqueOrThrow({ where: { number: 2 } }),
-      tx.stage.findUniqueOrThrow({ where: { number: 3 } }),
-      tx.stage.findUniqueOrThrow({ where: { number: 4 } }),
-    ]);
-
-    await tx.projectStageStatus.upsert({
-      where: { projectId_stageId: { projectId, stageId: clarificationEmailStage.id } },
-      update: { status: "COMPLETE", completedAt: new Date() },
-      create: {
-        projectId,
-        stageId: clarificationEmailStage.id,
-        status: "COMPLETE",
-        startedAt: new Date(),
-        completedAt: new Date(),
-      },
-    });
-    await tx.projectStageStatus.upsert({
-      where: { projectId_stageId: { projectId, stageId: getClarificationsStage.id } },
-      update: { status: "COMPLETE", completedAt: new Date() },
-      create: {
-        projectId,
-        stageId: getClarificationsStage.id,
-        status: "COMPLETE",
-        startedAt: new Date(),
-        completedAt: new Date(),
-      },
-    });
-    await tx.projectStageStatus.upsert({
-      where: { projectId_stageId: { projectId, stageId: triageStage.id } },
-      update: { status: "IN_PROGRESS" },
-      create: {
-        projectId,
-        stageId: triageStage.id,
-        status: "IN_PROGRESS",
-        startedAt: new Date(),
-      },
-    });
-
-    await tx.project.update({ where: { id: projectId }, data: { currentStageNumber: 4 } });
   });
 
   revalidatePath(`/projects/${projectId}`);
 }
 
-export async function runTriageAgentAction(
+/**
+ * "Generate / refresh" the Draft Scope Document — an explicit action the
+ * user triggers whenever they choose, using the Position Document's current
+ * state (including whatever client updates have been submitted so far) as
+ * input. Repeatable: the first run also completes Stage 3/4 and unlocks
+ * Stage 5 for Phase 2 (mirroring the old auto-triggered behaviour once);
+ * later re-runs just append a new version without re-triggering that
+ * transition, so regenerating after specialist review has begun doesn't
+ * regress it back out of progress.
+ */
+export async function generateDraftScopeDocumentAction(
   projectId: string,
   _prevState: ActionState | undefined,
   _formData: FormData
@@ -210,7 +188,7 @@ export async function runTriageAgentAction(
   );
 
   if (!currentFields.success) {
-    return { message: "No Position Document found to triage from." };
+    return { message: "No Position Document found to generate a Draft Scope Document from." };
   }
 
   let draftScope;
@@ -224,6 +202,24 @@ export async function runTriageAgentAction(
   }
 
   await prisma.$transaction(async (tx) => {
+    const existingDocument = await tx.document.findUnique({
+      where: { projectId_type: { projectId, type: "DRAFT_SCOPE_DOCUMENT" } },
+      include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
+    });
+
+    if (existingDocument) {
+      await tx.documentVersion.create({
+        data: {
+          documentId: existingDocument.id,
+          versionNumber: (existingDocument.versions[0]?.versionNumber ?? 0) + 1,
+          stageNumber: 4,
+          content: draftScope,
+          createdById: session?.user?.id,
+        },
+      });
+      return;
+    }
+
     await tx.document.create({
       data: {
         projectId,
@@ -239,14 +235,36 @@ export async function runTriageAgentAction(
       },
     });
 
-    const [triageStage, specialistReviewStage] = await Promise.all([
+    const [getClarificationsStage, triageStage, specialistReviewStage] = await Promise.all([
+      tx.stage.findUniqueOrThrow({ where: { number: 3 } }),
       tx.stage.findUniqueOrThrow({ where: { number: 4 } }),
       tx.stage.findUniqueOrThrow({ where: { number: 5 } }),
     ]);
 
-    await tx.projectStageStatus.update({
+    // upsert, not update — a project created before this Phase 1 rework may
+    // not have a Stage 3 status row at all (it used to only appear once a
+    // clarification reply was submitted).
+    await tx.projectStageStatus.upsert({
+      where: { projectId_stageId: { projectId, stageId: getClarificationsStage.id } },
+      update: { status: "COMPLETE", completedAt: new Date() },
+      create: {
+        projectId,
+        stageId: getClarificationsStage.id,
+        status: "COMPLETE",
+        startedAt: new Date(),
+        completedAt: new Date(),
+      },
+    });
+    await tx.projectStageStatus.upsert({
       where: { projectId_stageId: { projectId, stageId: triageStage.id } },
-      data: { status: "COMPLETE", completedAt: new Date() },
+      update: { status: "COMPLETE", completedAt: new Date() },
+      create: {
+        projectId,
+        stageId: triageStage.id,
+        status: "COMPLETE",
+        startedAt: new Date(),
+        completedAt: new Date(),
+      },
     });
     await tx.projectStageStatus.upsert({
       where: { projectId_stageId: { projectId, stageId: specialistReviewStage.id } },
@@ -373,6 +391,38 @@ export async function toggleChecklistItemAction(
   const result = await prisma.checklistItem.updateMany({
     where: { id: itemId, projectId },
     data: { isComplete, completedAt: isComplete ? new Date() : null },
+  });
+
+  if (result.count === 0) {
+    return { message: "Checklist item not found." };
+  }
+
+  revalidatePath(`/projects/${projectId}`);
+}
+
+const ChecklistDetailSchema = z.object({
+  detailText: z.string().trim().optional(),
+});
+
+/**
+ * Persists a checklist item's freeform detail (e.g. job code, folder URL)
+ * independently of its isComplete checkbox — always editable regardless of
+ * completion state, via its own action so the two never interfere.
+ */
+export async function updateChecklistItemDetailAction(
+  projectId: string,
+  itemId: string,
+  _prevState: ActionState | undefined,
+  formData: FormData
+): Promise<ActionState | undefined> {
+  const parsed = ChecklistDetailSchema.safeParse({ detailText: formData.get("detailText") });
+  if (!parsed.success) {
+    return { message: "Invalid detail text." };
+  }
+
+  const result = await prisma.checklistItem.updateMany({
+    where: { id: itemId, projectId },
+    data: { detailText: parsed.data.detailText ? parsed.data.detailText : null },
   });
 
   if (result.count === 0) {

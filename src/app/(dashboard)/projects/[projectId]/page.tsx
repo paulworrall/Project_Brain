@@ -44,6 +44,7 @@ export default async function ProjectDetailPage({
       },
       touchpointNotes: {
         orderBy: { createdAt: "desc" },
+        include: { createdBy: true },
       },
       knowledgeItems: {
         orderBy: { uploadedAt: "desc" },
@@ -81,22 +82,30 @@ export default async function ProjectDetailPage({
   const positionDocumentContent = documents.find(
     (d) => d.type === "POSITION_DOCUMENT"
   )?.versions[0]?.content;
-  const draftScopeDocumentContent = documents.find(
+  const draftScopeDocumentVersion = documents.find(
     (d) => d.type === "DRAFT_SCOPE_DOCUMENT"
-  )?.versions[0]?.content;
+  )?.versions[0];
   const deliverablesServicesDocumentContent = documents.find(
     (d) => d.type === "DELIVERABLES_SERVICES_DOCUMENT"
   )?.versions[0]?.content;
 
   const clarificationEmail = ClarificationEmailSchema.safeParse(clarificationEmailContent);
   const positionDocument = PositionDocumentFieldsSchema.safeParse(positionDocumentContent);
-  const draftScopeDocument = DraftScopeDocumentSchema.safeParse(draftScopeDocumentContent);
+  const draftScopeDocument = DraftScopeDocumentSchema.safeParse(draftScopeDocumentVersion?.content);
   const deliverablesServicesDocument = DeliverablesServicesDocumentSchema.safeParse(
     deliverablesServicesDocumentContent
   );
 
-  const clarificationNotes =
-    touchpointNotes.find((n) => n.type === "CLARIFICATION_REPLY")?.content ?? null;
+  // Every past client update, newest first — Phase 1's fluid workspace shows
+  // the full timestamped log, not just the most recent one.
+  const clientUpdates = touchpointNotes
+    .filter((n) => n.type === "CLARIFICATION_REPLY")
+    .map((n) => ({
+      id: n.id,
+      content: n.content,
+      createdAt: n.createdAt,
+      createdByName: n.createdBy?.name ?? null,
+    }));
   const specialistFeedback =
     touchpointNotes.find((n) => n.type === "SPECIALIST_REVIEW")?.content ?? null;
 
@@ -154,7 +163,6 @@ export default async function ProjectDetailPage({
       <ProjectWorkflow
         projectId={project.id}
         projectName={project.name}
-        briefFileName={project.briefFileName}
         stages={stages.map((stage) => ({
           stageNumber: stage.number,
           name: stage.name,
@@ -162,13 +170,22 @@ export default async function ProjectDetailPage({
         }))}
         clarificationEmail={clarificationEmail.success ? clarificationEmail.data : null}
         positionDocument={positionDocument.success ? positionDocument.data : null}
+        clientUpdates={clientUpdates}
         checklistItems={checklistItems.map((item) => ({
           id: item.id,
           label: item.label,
           isComplete: item.isComplete,
+          detailText: item.detailText,
         }))}
-        clarificationNotes={clarificationNotes}
         draftScopeDocument={draftScopeDocument.success ? draftScopeDocument.data : null}
+        draftScopeDocumentMeta={
+          draftScopeDocument.success && draftScopeDocumentVersion
+            ? {
+                versionNumber: draftScopeDocumentVersion.versionNumber,
+                createdAt: draftScopeDocumentVersion.createdAt,
+              }
+            : null
+        }
         specialistFeedback={specialistFeedback}
         deliverablesServicesDocument={
           deliverablesServicesDocument.success ? deliverablesServicesDocument.data : null

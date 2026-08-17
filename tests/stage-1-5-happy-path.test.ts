@@ -37,8 +37,8 @@ const mockParse = anthropic.messages.parse as ReturnType<typeof vi.fn>;
 
 const { createProjectAction } = await import("@/app/(dashboard)/projects/new/actions");
 const {
-  submitClarificationNotesAction,
-  runTriageAgentAction,
+  submitClientUpdateAction,
+  generateDraftScopeDocumentAction,
   submitSpecialistFeedbackAction,
 } = await import("@/app/(dashboard)/projects/[projectId]/actions");
 
@@ -169,17 +169,17 @@ describe("Stage 1-5 happy path", () => {
       where: { workstreamId_name: { workstreamId, name: PROJECT_NAME } },
     });
 
-    // Stage 3 — Get Clarifications: extraction (1 Claude call).
+    // Stage 3 — Get Clarifications: add a client update, extraction (1 Claude call).
     mockParse.mockResolvedValueOnce({ parsed_output: positionFieldsV2 });
-    await submitClarificationNotesAction(
+    await submitClientUpdateAction(
       project.id,
       undefined,
       notesFormData("The referral feature is confirmed in scope after all.")
     );
 
-    // Stage 4 — Triage: Draft Scope Document (1 Claude call).
+    // Stage 4 — Triage: generate the Draft Scope Document (1 Claude call).
     mockParse.mockResolvedValueOnce({ parsed_output: draftScope });
-    await runTriageAgentAction(project.id, undefined, new FormData());
+    await generateDraftScopeDocumentAction(project.id, undefined, new FormData());
 
     // Stage 5 — Specialist Review: Deliverables + Services Document (1 Claude call).
     mockParse.mockResolvedValueOnce({ parsed_output: deliverablesAndServices });

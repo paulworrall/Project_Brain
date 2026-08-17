@@ -4,17 +4,14 @@ import type { DraftScopeDocument } from "@/types/triage";
 import type { DeliverablesServicesDocument } from "@/types/deliverables-services";
 import type { WorkflowStep } from "@/types/workflow";
 import type { WorkflowStepData } from "./WorkflowStepList";
-import { StageTracker } from "./StageTracker";
-import { getStepLabel } from "@/lib/phases";
+import { StageTracker, type Phase1Status } from "./StageTracker";
+import { Phase1Workspace } from "./Phase1Workspace";
+import type { ClientUpdateLogEntry } from "./ClientUpdateComposer";
+import type { DraftScopeDocumentMeta } from "./DraftScopeDocumentCard";
 import { ChatPanel } from "./ChatPanel";
 import { KnowledgeUpload, type KnowledgeItemView } from "./KnowledgeUpload";
-import { ClarificationEmailView } from "./ClarificationEmailView";
-import { PositionDocumentView } from "./PositionDocumentView";
 import type { ChecklistItemView } from "./ChecklistView";
 import { EditableChecklist } from "./EditableChecklist";
-import { ClarificationNotesForm } from "./ClarificationNotesForm";
-import { RunTriageAgentButton } from "./RunTriageAgentButton";
-import { DraftScopeDocumentView } from "./DraftScopeDocumentView";
 import { SpecialistFeedbackForm } from "./SpecialistFeedbackForm";
 import { DeliverablesServicesDocumentView } from "./DeliverablesServicesDocumentView";
 
@@ -36,110 +33,6 @@ function PlaceholderStepContent({
         {actionLabel}
       </button>
     </div>
-  );
-}
-
-function IntakeStepContent({
-  projectId,
-  briefFileName,
-  positionDocument,
-  checklistItems,
-}: {
-  projectId: string;
-  briefFileName: string | null;
-  positionDocument: PositionDocumentFields | null;
-  checklistItems: ChecklistItemView[];
-}) {
-  return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Input
-        </h3>
-        <p className="mt-1 text-sm text-foreground">
-          Brief: {briefFileName ?? "Pasted text"}
-        </p>
-      </div>
-      <div>
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Outputs
-        </h3>
-        <div className="space-y-4">
-          {positionDocument ? (
-            <PositionDocumentView fields={positionDocument} />
-          ) : (
-            <p className="text-sm text-muted-foreground">Not generated yet.</p>
-          )}
-          <EditableChecklist projectId={projectId} items={checklistItems} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function GetClarificationsStepContent({
-  projectId,
-  clarificationNotes,
-  updatedPositionDocument,
-}: {
-  projectId: string;
-  clarificationNotes: string | null;
-  updatedPositionDocument: PositionDocumentFields | null;
-}) {
-  if (clarificationNotes === null) {
-    return <ClarificationNotesForm projectId={projectId} />;
-  }
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Input
-        </h3>
-        <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{clarificationNotes}</p>
-      </div>
-      <div>
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Output — Position Document Updated
-        </h3>
-        {updatedPositionDocument ? (
-          <PositionDocumentView fields={updatedPositionDocument} />
-        ) : (
-          <p className="text-sm text-muted-foreground">Not generated yet.</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function TriageStepContent({
-  projectId,
-  stageStatus,
-  draftScopeDocument,
-}: {
-  projectId: string;
-  stageStatus: WorkflowStep["status"];
-  draftScopeDocument: DraftScopeDocument | null;
-}) {
-  if (draftScopeDocument) {
-    return (
-      <div>
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Output
-        </h3>
-        <DraftScopeDocumentView scope={draftScopeDocument} />
-      </div>
-    );
-  }
-
-  if (stageStatus === "IN_PROGRESS") {
-    return <RunTriageAgentButton projectId={projectId} />;
-  }
-
-  return (
-    <p className="text-sm text-muted-foreground">
-      Waiting on Step {getStepLabel(3)} to complete.
-    </p>
   );
 }
 
@@ -184,69 +77,56 @@ function SpecialistReviewStepContent({
 interface ProjectWorkflowProps {
   projectId: string;
   projectName: string;
-  briefFileName: string | null;
   stages: WorkflowStep[];
   clarificationEmail: ClarificationEmail | null;
   positionDocument: PositionDocumentFields | null;
+  clientUpdates: ClientUpdateLogEntry[];
   checklistItems: ChecklistItemView[];
-  clarificationNotes: string | null;
   draftScopeDocument: DraftScopeDocument | null;
+  draftScopeDocumentMeta: DraftScopeDocumentMeta | null;
   specialistFeedback: string | null;
   deliverablesServicesDocument: DeliverablesServicesDocument | null;
   knowledgeItems: KnowledgeItemView[];
 }
 
+/**
+ * Derives Phase 1's simplified badge status. Phase 1 no longer has 4
+ * discrete completable stages — it's "not started" only in the brief moment
+ * before Intake has run, "in progress" for as long as the Position Document
+ * is still being shaped by client updates, and flips to "ready for
+ * specialist review" once a Draft Scope Document has been generated at
+ * least once. This is a status flag only; the real Phase 1 -> Phase 2
+ * handoff gets designed when Phase 2 is reviewed next.
+ */
+function derivePhase1Status(
+  stages: WorkflowStep[],
+  draftScopeDocument: DraftScopeDocument | null
+): Phase1Status {
+  const intakeComplete = stages.find((s) => s.stageNumber === 1)?.status === "COMPLETE";
+  if (!intakeComplete) {
+    return "NOT_STARTED";
+  }
+  if (draftScopeDocument) {
+    return "READY_FOR_SPECIALIST_REVIEW";
+  }
+  return "IN_PROGRESS";
+}
+
 export function ProjectWorkflow({
   projectId,
   projectName,
-  briefFileName,
   stages,
   clarificationEmail,
   positionDocument,
+  clientUpdates,
   checklistItems,
-  clarificationNotes,
   draftScopeDocument,
+  draftScopeDocumentMeta,
   specialistFeedback,
   deliverablesServicesDocument,
   knowledgeItems,
 }: ProjectWorkflowProps) {
-  const triageStageStatus = stages.find((s) => s.stageNumber === 4)?.status ?? "NOT_STARTED";
-
   const contentByStage: Record<number, ReactNode> = {
-    1: (
-      <IntakeStepContent
-        projectId={projectId}
-        briefFileName={briefFileName}
-        positionDocument={positionDocument}
-        checklistItems={checklistItems}
-      />
-    ),
-    2: (
-      <div>
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Output
-        </h3>
-        {clarificationEmail ? (
-          <ClarificationEmailView email={clarificationEmail} />
-        ) : (
-          <p className="text-sm text-muted-foreground">Not generated yet.</p>
-        )}
-      </div>
-    ),
-    3: (
-      <GetClarificationsStepContent
-        projectId={projectId}
-        clarificationNotes={clarificationNotes}
-        updatedPositionDocument={positionDocument}
-      />
-    ),
-    4: (
-      <TriageStepContent
-        projectId={projectId}
-        stageStatus={triageStageStatus}
-        draftScopeDocument={draftScopeDocument}
-      />
-    ),
     5: (
       <SpecialistReviewStepContent
         projectId={projectId}
@@ -266,9 +146,25 @@ export function ProjectWorkflow({
     content: contentByStage[stage.stageNumber] ?? null,
   }));
 
+  const phase1Content = (
+    <Phase1Workspace
+      projectId={projectId}
+      positionDocument={positionDocument}
+      clientUpdates={clientUpdates}
+      clarificationEmail={clarificationEmail}
+      draftScopeDocument={draftScopeDocument}
+      draftScopeDocumentMeta={draftScopeDocumentMeta}
+      checklistItems={checklistItems}
+    />
+  );
+
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
-      <StageTracker steps={steps} />
+      <StageTracker
+        steps={steps}
+        phase1Status={derivePhase1Status(stages, draftScopeDocument)}
+        phase1Content={phase1Content}
+      />
       <div className="space-y-4 lg:sticky lg:top-6 lg:self-start">
         <ChatPanel projectId={projectId} projectName={projectName} />
         <KnowledgeUpload projectId={projectId} items={knowledgeItems} />

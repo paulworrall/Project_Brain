@@ -39,7 +39,12 @@ export function DocumentVersionContent({
       const parsed = SetupChecklistSchema.safeParse(content);
       return parsed.success ? (
         <ChecklistView
-          items={parsed.data.items.map((label, i) => ({ id: String(i), label, isComplete: false }))}
+          items={parsed.data.items.map((label, i) => ({
+            id: String(i),
+            label,
+            isComplete: false,
+            detailText: null,
+          }))}
         />
       ) : (
         <UnreadableContent />

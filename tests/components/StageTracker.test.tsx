@@ -5,21 +5,11 @@ import userEvent from "@testing-library/user-event";
 import { StageTracker } from "@/components/features/StageTracker";
 import type { WorkflowStepData } from "@/components/features/WorkflowStepList";
 
+// Phase 1 (stages 1-4) is now a fluid workspace driven by phase1Status /
+// phase1Content, not step cards built from `steps` — so `steps` here only
+// needs entries for stages 5-10 (Phase 2, Phase 3, Delivery Monitoring),
+// which render exactly as before.
 const steps: WorkflowStepData[] = [
-  { stageNumber: 1, name: "Intake", status: "COMPLETE", content: <p>Intake output</p> },
-  {
-    stageNumber: 2,
-    name: "Clarification Email Sent",
-    status: "COMPLETE",
-    content: <p>Email output</p>,
-  },
-  {
-    stageNumber: 3,
-    name: "Get Clarifications",
-    status: "IN_PROGRESS",
-    content: <p>Clarifications content</p>,
-  },
-  { stageNumber: 4, name: "Triage", status: "NOT_STARTED", content: <p>Triage content</p> },
   {
     stageNumber: 5,
     name: "Review with Specialist Leads",
@@ -66,9 +56,19 @@ function getPhaseDetails(name: string): HTMLDetailsElement {
   return details;
 }
 
+function renderTracker(overrides: { phase1Status?: "NOT_STARTED" | "IN_PROGRESS" | "READY_FOR_SPECIALIST_REVIEW" } = {}) {
+  return render(
+    <StageTracker
+      steps={steps}
+      phase1Status={overrides.phase1Status ?? "IN_PROGRESS"}
+      phase1Content={<p>Phase 1 workspace content</p>}
+    />
+  );
+}
+
 describe("StageTracker", () => {
   it("renders the 3 phases plus a separate Delivery Monitoring indicator", () => {
-    render(<StageTracker steps={steps} />);
+    renderTracker();
 
     expect(screen.getByText("Clarifying the brief and scope")).toBeInTheDocument();
     expect(screen.getByText("Estimation and team planning")).toBeInTheDocument();
@@ -76,13 +76,29 @@ describe("StageTracker", () => {
     expect(screen.getByText("Delivery Monitoring")).toBeInTheDocument();
   });
 
-  it("groups the real step cards under the correct phase, each stage appearing exactly once", () => {
-    render(<StageTracker steps={steps} />);
+  it("renders the given phase1Content inside Phase 1 instead of step cards", () => {
+    renderTracker();
 
     const clarifying = getPhaseDetails("Clarifying the brief and scope");
-    expect(clarifying).toHaveTextContent("Step 1.1 — Intake");
-    expect(clarifying).toHaveTextContent("Step 1.4 — Triage");
-    expect(clarifying).not.toHaveTextContent("Estimation Kick Off");
+    expect(clarifying).toHaveTextContent("Phase 1 workspace content");
+    expect(clarifying).not.toHaveTextContent("Step 1.1");
+  });
+
+  it("shows Phase 1's simplified status label instead of an x/N stages count", () => {
+    const notStarted = renderTracker({ phase1Status: "NOT_STARTED" });
+    expect(screen.getByText("Not started")).toBeInTheDocument();
+    notStarted.unmount();
+
+    const inProgress = renderTracker({ phase1Status: "IN_PROGRESS" });
+    expect(screen.getAllByText("In progress").length).toBeGreaterThan(0);
+    inProgress.unmount();
+
+    renderTracker({ phase1Status: "READY_FOR_SPECIALIST_REVIEW" });
+    expect(screen.getByText("Ready for specialist review")).toBeInTheDocument();
+  });
+
+  it("groups the real step cards under the correct phase for Phase 2 and Phase 3, each stage appearing exactly once", () => {
+    renderTracker();
 
     const estimation = getPhaseDetails("Estimation and team planning");
     expect(estimation).toHaveTextContent("Step 2.1 — Review with Specialist Leads");
@@ -93,12 +109,10 @@ describe("StageTracker", () => {
     expect(sow).toHaveTextContent("Step 3.1 — Commercials & SOW");
     expect(sow).toHaveTextContent("Step 3.2 — Planning & Capability Briefing");
 
-    // No duplication: every phased stage's step card renders exactly once on
-    // the page. Stage 10 is deliberately excluded — it's not part of any
-    // Phase, and only ever appears in the separate Delivery Monitoring block.
-    const phaseScopedLabels = [
-      "1.1", "1.2", "1.3", "1.4", "2.1", "2.2", "2.3", "3.1", "3.2",
-    ];
+    // No duplication: every phased stage's step card renders exactly once.
+    // Stage 10 is deliberately excluded — it only appears in the separate
+    // Delivery Monitoring block.
+    const phaseScopedLabels = ["2.1", "2.2", "2.3", "3.1", "3.2"];
     steps
       .filter((s) => s.stageNumber !== 10)
       .forEach((step, i) => {
@@ -108,43 +122,41 @@ describe("StageTracker", () => {
       });
   });
 
-  it("labels each step with a Phase-scoped number (P.N), not the flat 1-10 stage number", () => {
-    render(<StageTracker steps={steps} />);
+  it("labels each Phase 2/3 step with a Phase-scoped number (P.N), not the flat 1-10 stage number", () => {
+    renderTracker();
 
-    // The small status-icon circle also shows the Phase-scoped label, not
-    // the plain stage number, for the not-yet-complete steps.
-    expect(screen.getByText("1.3")).toBeInTheDocument(); // Get Clarifications, IN_PROGRESS
-    expect(screen.getByText("2.2")).toBeInTheDocument(); // Estimation Kick Off, NOT_STARTED
-    // Old flat stage numbering is gone from step circles (bare "6"/"7"/"9"
-    // would only ever have appeared there — the 3 Phase-header badges only
-    // ever render "1"/"2"/"3", so those aren't safe to assert absence of).
+    expect(screen.getByText("2.1")).toBeInTheDocument(); // Review with Specialist Leads, NOT_STARTED
+    expect(screen.getByText("3.1")).toBeInTheDocument(); // Commercials & SOW, NOT_STARTED
     expect(screen.queryByText("6")).not.toBeInTheDocument();
     expect(screen.queryByText("7")).not.toBeInTheDocument();
     expect(screen.queryByText("9")).not.toBeInTheDocument();
   });
 
-  it("shows each step's real status badge and agent/human-input kind, not a plain numbered dot", () => {
-    render(<StageTracker steps={steps} />);
+  it("shows each Phase 2/3 step's real status badge and agent/human-input kind, not a plain numbered dot", () => {
+    renderTracker();
 
-    expect(screen.getAllByText("Complete")).toHaveLength(2);
-    expect(screen.getByText("In Progress")).toBeInTheDocument();
     expect(screen.getAllByText("AI Agent").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Human Input").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Pending").length).toBeGreaterThan(0);
   });
 
-  it("expands only the active (non-complete) phase by default, auto-expanding its current step's content", () => {
-    render(<StageTracker steps={steps} />);
+  it("expands Phase 1 by default while it's not yet ready for specialist review", () => {
+    renderTracker({ phase1Status: "IN_PROGRESS" });
 
     expect(getPhaseDetails("Clarifying the brief and scope").open).toBe(true);
     expect(getPhaseDetails("Estimation and team planning").open).toBe(false);
     expect(getPhaseDetails("Statement of work and delivery setup").open).toBe(false);
+  });
 
-    expect(screen.getByText("Clarifications content")).toBeInTheDocument();
-    expect(screen.queryByText("Intake output")).not.toBeInTheDocument();
+  it("expands the active Phase 2/3 phase instead, once Phase 1 is ready for specialist review", () => {
+    renderTracker({ phase1Status: "READY_FOR_SPECIALIST_REVIEW" });
+
+    expect(getPhaseDetails("Clarifying the brief and scope").open).toBe(false);
+    expect(getPhaseDetails("Estimation and team planning").open).toBe(true);
   });
 
   it("lets a collapsed phase be expanded by clicking its summary", async () => {
-    render(<StageTracker steps={steps} />);
+    renderTracker();
     const user = userEvent.setup();
 
     const estimation = getPhaseDetails("Estimation and team planning");
@@ -155,8 +167,8 @@ describe("StageTracker", () => {
     expect(estimation.open).toBe(true);
   });
 
-  it("still shows the separate Delivery Monitoring indicator for stage 10, untouched by the step-card change", () => {
-    render(<StageTracker steps={steps} />);
+  it("still shows the separate Delivery Monitoring indicator for stage 10, untouched by the Phase 1 change", () => {
+    renderTracker();
 
     expect(screen.getByText(/Commercial Status Monitoring/)).toBeInTheDocument();
     expect(screen.getByText("Later")).toBeInTheDocument();

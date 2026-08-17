@@ -1,20 +1,27 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ChecklistItemView } from "@/components/features/ChecklistView";
 
 const toggleChecklistItemAction = vi.fn(async () => undefined);
+const updateChecklistItemDetailAction = vi.fn(async () => undefined);
 
 vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
   toggleChecklistItemAction,
+  updateChecklistItemDetailAction,
 }));
 
 const { EditableChecklist } = await import("@/components/features/EditableChecklist");
 
-const items = [
-  { id: "item_1", label: "Set up Workbook entry", isComplete: false },
-  { id: "item_2", label: "Assign job code", isComplete: true },
+beforeEach(() => {
+  toggleChecklistItemAction.mockClear();
+  updateChecklistItemDetailAction.mockClear();
+});
+
+const items: ChecklistItemView[] = [
+  { id: "item_1", label: "Set up Workbook entry", isComplete: false, detailText: null },
+  { id: "item_2", label: "Assign job code", isComplete: true, detailText: "FIZ-2026-014" },
 ];
 
 describe("EditableChecklist", () => {
@@ -48,11 +55,12 @@ describe("EditableChecklist", () => {
   });
 
   it("re-syncs to a prop update, so a second rendered copy reflects a toggle made elsewhere", () => {
-    // This checklist renders in two places (Step 1 and the sidebar) bound to
-    // the same server data. A re-render with a changed `isComplete` prop is
-    // what a `revalidatePath()` refresh looks like from the other copy's toggle.
+    // This checklist renders in two places (Phase 1 workspace and the
+    // sidebar) bound to the same server data. A re-render with a changed
+    // `isComplete` prop is what a `revalidatePath()` refresh looks like from
+    // the other copy's toggle.
     const withItemComplete = (isComplete: boolean): ChecklistItemView[] => [
-      { id: "item_1", label: "Set up Workbook entry", isComplete },
+      { id: "item_1", label: "Set up Workbook entry", isComplete, detailText: null },
     ];
 
     const { rerender } = render(
@@ -63,5 +71,29 @@ describe("EditableChecklist", () => {
     rerender(<EditableChecklist projectId="proj_1" items={withItemComplete(true)} />);
 
     expect(screen.getByRole("checkbox", { name: "Set up Workbook entry" })).toBeChecked();
+  });
+
+  it("shows the detail text field pre-filled, editable regardless of completion state", () => {
+    render(<EditableChecklist projectId="proj_1" items={items} />);
+
+    const notCompleteDetail = screen.getByLabelText("Set up Workbook entry detail");
+    const completeDetail = screen.getByLabelText("Assign job code detail");
+
+    expect(notCompleteDetail).not.toBeDisabled();
+    expect(notCompleteDetail).toHaveValue("");
+    expect(completeDetail).not.toBeDisabled();
+    expect(completeDetail).toHaveValue("FIZ-2026-014");
+  });
+
+  it("submits the detail action on blur, independently of the checkbox", async () => {
+    const user = userEvent.setup();
+    render(<EditableChecklist projectId="proj_1" items={items} />);
+
+    const detailField = screen.getByLabelText("Set up Workbook entry detail");
+    await user.type(detailField, "FIZ-2026-099");
+    await user.tab();
+
+    expect(updateChecklistItemDetailAction).toHaveBeenCalled();
+    expect(toggleChecklistItemAction).not.toHaveBeenCalled();
   });
 });
