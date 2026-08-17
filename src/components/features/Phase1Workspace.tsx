@@ -4,8 +4,11 @@ import { PositionDocumentView } from "./PositionDocumentView";
 import { ClientUpdateComposer, type ClientUpdateLogEntry } from "./ClientUpdateComposer";
 import { ClarificationEmailCard } from "./ClarificationEmailCard";
 import { DraftScopeDocumentCard, type DraftScopeDocumentMeta } from "./DraftScopeDocumentCard";
-import { EditableChecklist } from "./EditableChecklist";
 import type { ChecklistItemView } from "./ChecklistView";
+
+function pluralize(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
 
 /**
  * Phase 1 ("Clarifying the brief and scope") as a single fluid workspace —
@@ -34,8 +37,27 @@ export function Phase1Workspace({
   draftScopeDocumentMeta,
   checklistItems,
 }: Phase1WorkspaceProps) {
+  const confirmedDetailsCount = positionDocument?.whatWeKnow.length ?? 0;
+  const openQuestionsCount = positionDocument?.whatWeNeedToFindOut.length ?? 0;
+  const completeChecklistCount = checklistItems.filter((item) => item.isComplete).length;
+
   return (
     <div className="space-y-6">
+      <div
+        className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground"
+        aria-label="Phase 1 progress summary"
+      >
+        <span>{pluralize(confirmedDetailsCount, "confirmed detail")}</span>
+        <span aria-hidden="true">·</span>
+        <span>{pluralize(openQuestionsCount, "open question")}</span>
+        <span aria-hidden="true">·</span>
+        <span>{pluralize(clientUpdates.length, "client update")} logged</span>
+        <span aria-hidden="true">·</span>
+        <span>
+          {completeChecklistCount}/{checklistItems.length} checklist items complete
+        </span>
+      </div>
+
       <div>
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Current position
@@ -50,15 +72,13 @@ export function Phase1Workspace({
       <ClientUpdateComposer projectId={projectId} updates={clientUpdates} />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <ClarificationEmailCard email={clarificationEmail} />
+        <ClarificationEmailCard projectId={projectId} email={clarificationEmail} />
         <DraftScopeDocumentCard
           projectId={projectId}
           draftScopeDocument={draftScopeDocument}
           meta={draftScopeDocumentMeta}
         />
       </div>
-
-      <EditableChecklist projectId={projectId} items={checklistItems} />
     </div>
   );
 }

@@ -59,6 +59,18 @@ function ClientUpdateForm({ projectId }: { projectId: string }) {
   );
 }
 
+function UpdateEntry({ update }: { update: ClientUpdateLogEntry }) {
+  return (
+    <li className="text-sm">
+      <p className="text-xs text-muted-foreground">
+        {formatDateTime(update.createdAt)}
+        {update.createdByName ? ` · ${update.createdByName}` : ""}
+      </p>
+      <p className="whitespace-pre-wrap text-foreground">{update.content}</p>
+    </li>
+  );
+}
+
 export function ClientUpdateComposer({
   projectId,
   updates,
@@ -66,6 +78,8 @@ export function ClientUpdateComposer({
   projectId: string;
   updates: ClientUpdateLogEntry[];
 }) {
+  const [mostRecent, ...rest] = updates;
+
   return (
     <Card className="p-5">
       {/* Keyed on the log length so a successful submission (which grows the
@@ -73,22 +87,27 @@ export function ClientUpdateComposer({
           while a failed submission (log unchanged) preserves what was typed. */}
       <ClientUpdateForm key={updates.length} projectId={projectId} />
 
-      {updates.length > 0 && (
+      {mostRecent && (
         <div className="mt-4 border-t border-border pt-3">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Previous updates
           </h4>
           <ul className="mt-2 space-y-3">
-            {updates.map((update) => (
-              <li key={update.id} className="text-sm">
-                <p className="text-xs text-muted-foreground">
-                  {formatDateTime(update.createdAt)}
-                  {update.createdByName ? ` · ${update.createdByName}` : ""}
-                </p>
-                <p className="whitespace-pre-wrap text-foreground">{update.content}</p>
-              </li>
-            ))}
+            <UpdateEntry update={mostRecent} />
           </ul>
+
+          {rest.length > 0 && (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs font-medium text-primary">
+                View all updates ({updates.length})
+              </summary>
+              <ul className="mt-2 space-y-3">
+                {rest.map((update) => (
+                  <UpdateEntry key={update.id} update={update} />
+                ))}
+              </ul>
+            </details>
+          )}
         </div>
       )}
     </Card>

@@ -141,7 +141,7 @@ describe("ProjectWorkflow", () => {
     expect(screen.getByText(/Alex Morgan/)).toBeInTheDocument();
   });
 
-  it("shows the Draft Scope Document with flagged gaps once it has been generated", () => {
+  it("shows a compact Draft Scope Document summary — not the full content — once it has been generated", () => {
     render(
       <ProjectWorkflow
         {...baseProps()}
@@ -150,9 +150,15 @@ describe("ProjectWorkflow", () => {
       />
     );
 
-    expect(screen.getByText("⚠ Gaps Carried Forward for Specialists")).toBeInTheDocument();
-    expect(screen.getByText("Target audience still unknown")).toBeInTheDocument();
+    expect(screen.getByText(/1 gap flagged/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Regenerate" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /View full draft/ })).toHaveAttribute(
+      "href",
+      "/projects/proj_1/outputs/DRAFT_SCOPE_DOCUMENT"
+    );
+    // Full inline content (including the gaps warning) no longer renders here.
+    expect(screen.queryByText("⚠ Gaps Carried Forward for Specialists")).not.toBeInTheDocument();
+    expect(screen.queryByText("Target audience still unknown")).not.toBeInTheDocument();
   });
 
   it("shows the specialist feedback form on Step 5 when no feedback has been submitted yet", () => {
@@ -163,7 +169,7 @@ describe("ProjectWorkflow", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the checklist in both the sidebar and the Phase 1 workspace, kept in sync", () => {
+  it("shows the checklist exactly once, in the sidebar — not duplicated in the Phase 1 workspace", () => {
     render(
       <ProjectWorkflow
         {...baseProps()}
@@ -173,7 +179,8 @@ describe("ProjectWorkflow", () => {
       />
     );
 
-    expect(screen.getAllByRole("checkbox", { name: "Assign job code" })).toHaveLength(2);
+    expect(screen.getAllByRole("checkbox", { name: "Assign job code" })).toHaveLength(1);
+    expect(screen.getAllByText("Project Set-Up Checklist")).toHaveLength(1);
   });
 
   it("shows submitted specialist feedback read-only and the Deliverables + Services Document", () => {

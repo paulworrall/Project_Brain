@@ -21,18 +21,19 @@ const draftScope = {
   },
   budget: { summary: "Confirmed at £100k", isConfirmed: true },
   assumptionsAndConstraints: ["UK market only"],
-  flaggedGaps: [] as string[],
+  flaggedGaps: ["Target audience still unknown", "Budget approval pending"],
 };
 
 describe("DraftScopeDocumentCard", () => {
-  it("shows a 'not yet generated' placeholder and a Generate button when null", () => {
+  it("shows a 'not yet generated' placeholder, a Generate button, and no view-full link when null", () => {
     render(<DraftScopeDocumentCard projectId="proj_1" draftScopeDocument={null} meta={null} />);
 
     expect(screen.getByText("Not yet generated.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Generate" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /View full draft/ })).not.toBeInTheDocument();
   });
 
-  it("shows the document, its version/timestamp, and a Regenerate button once it exists", () => {
+  it("shows a compact summary — version/timestamp, section/gap counts, a Regenerate button, and a link to the full draft — once it exists", () => {
     render(
       <DraftScopeDocumentCard
         projectId="proj_1"
@@ -42,9 +43,28 @@ describe("DraftScopeDocumentCard", () => {
     );
 
     expect(screen.getByText(/Version 2/)).toBeInTheDocument();
-    expect(screen.getByText("Refresh the campaign")).toBeInTheDocument();
+    expect(screen.getByText(/6 sections/)).toBeInTheDocument();
+    expect(screen.getByText(/2 gaps flagged/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Regenerate" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Generate" })).not.toBeInTheDocument();
+    // The full document content no longer renders inline on this page.
+    expect(screen.queryByText("Refresh the campaign")).not.toBeInTheDocument();
+    expect(screen.queryByText("⚠ Gaps Carried Forward for Specialists")).not.toBeInTheDocument();
+
+    const link = screen.getByRole("link", { name: /View full draft/ });
+    expect(link).toHaveAttribute("href", "/projects/proj_1/outputs/DRAFT_SCOPE_DOCUMENT");
+  });
+
+  it("shows 'no gaps flagged' when there are none", () => {
+    render(
+      <DraftScopeDocumentCard
+        projectId="proj_1"
+        draftScopeDocument={{ ...draftScope, flaggedGaps: [] }}
+        meta={{ versionNumber: 1, createdAt: new Date("2026-08-10T09:00:00Z") }}
+      />
+    );
+
+    expect(screen.getByText(/no gaps flagged/)).toBeInTheDocument();
   });
 
   it("submits the generate action when the button is clicked", async () => {

@@ -3,6 +3,47 @@ import { Card } from "@/components/ui/Card";
 
 const NOT_SPECIFIED = "Not specified in brief";
 
+// Lists longer than this show only the first VISIBLE_ITEM_COUNT by default,
+// with a "Show N more" <details> toggle for the rest — keeps the primary
+// "what we know" narrative scannable without hiding anything permanently.
+const TRUNCATE_THRESHOLD = 6;
+const VISIBLE_ITEM_COUNT = 5;
+
+function TruncatedList({ items }: { items: string[] }) {
+  if (items.length <= TRUNCATE_THRESHOLD) {
+    return (
+      <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-foreground">
+        {items.map((item, i) => (
+          <li key={i}>{item}</li>
+        ))}
+      </ul>
+    );
+  }
+
+  const visible = items.slice(0, VISIBLE_ITEM_COUNT);
+  const rest = items.slice(VISIBLE_ITEM_COUNT);
+
+  return (
+    <>
+      <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-foreground">
+        {visible.map((item, i) => (
+          <li key={i}>{item}</li>
+        ))}
+      </ul>
+      <details className="mt-2">
+        <summary className="cursor-pointer text-xs font-medium text-primary">
+          Show {rest.length} more
+        </summary>
+        <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-foreground">
+          {rest.map((item, i) => (
+            <li key={i}>{item}</li>
+          ))}
+        </ul>
+      </details>
+    </>
+  );
+}
+
 export function PositionDocumentView({ fields }: { fields: PositionDocumentFields }) {
   return (
     <div className="space-y-4">
@@ -40,11 +81,7 @@ export function PositionDocumentView({ fields }: { fields: PositionDocumentField
         {fields.whatWeNeedToFindOut.length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground">None identified.</p>
         ) : (
-          <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-foreground">
-            {fields.whatWeNeedToFindOut.map((gap, i) => (
-              <li key={i}>{gap}</li>
-            ))}
-          </ul>
+          <TruncatedList items={fields.whatWeNeedToFindOut} />
         )}
       </Card>
 

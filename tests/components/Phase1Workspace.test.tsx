@@ -65,7 +65,7 @@ describe("Phase1Workspace", () => {
     expect(screen.getByText("Not yet generated.")).toBeInTheDocument();
   });
 
-  it("shows the checklist below the document cards", () => {
+  it("does not render the checklist — it lives only in the sidebar (ProjectWorkflow), to avoid duplication", () => {
     render(
       <Phase1Workspace
         {...baseProps()}
@@ -75,7 +75,57 @@ describe("Phase1Workspace", () => {
       />
     );
 
-    expect(screen.getByText("Project Set-Up Checklist")).toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: "Assign job code" })).toBeInTheDocument();
+    expect(screen.queryByText("Project Set-Up Checklist")).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "Assign job code" })).not.toBeInTheDocument();
+  });
+
+  it("shows a compact progress summary computed from the live data", () => {
+    render(
+      <Phase1Workspace
+        {...baseProps()}
+        clientUpdates={[
+          {
+            id: "u1",
+            content: "Confirmed budget.",
+            createdAt: new Date("2026-08-01T10:00:00Z"),
+            createdByName: null,
+          },
+        ]}
+        checklistItems={[
+          { id: "item_1", label: "Assign job code", isComplete: true, detailText: null },
+          { id: "item_2", label: "Create Teams channel", isComplete: false, detailText: null },
+        ]}
+      />
+    );
+
+    const summary = screen.getByLabelText("Phase 1 progress summary");
+    expect(summary).toHaveTextContent("1 confirmed detail");
+    expect(summary).toHaveTextContent("1 open question");
+    expect(summary).toHaveTextContent("1 client update logged");
+    expect(summary).toHaveTextContent("1/2 checklist items complete");
+  });
+
+  it("pluralizes progress summary counts correctly", () => {
+    render(
+      <Phase1Workspace
+        {...baseProps()}
+        positionDocument={{
+          ...positionDocument,
+          whatWeKnow: [
+            { topic: "Objective", detail: "Refresh the campaign." },
+            { topic: "Timeline", detail: "By end of Q3." },
+          ],
+          whatWeNeedToFindOut: [],
+        }}
+        clientUpdates={[]}
+        checklistItems={[]}
+      />
+    );
+
+    const summary = screen.getByLabelText("Phase 1 progress summary");
+    expect(summary).toHaveTextContent("2 confirmed details");
+    expect(summary).toHaveTextContent("0 open questions");
+    expect(summary).toHaveTextContent("0 client updates logged");
+    expect(summary).toHaveTextContent("0/0 checklist items complete");
   });
 });

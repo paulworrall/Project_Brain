@@ -5,23 +5,30 @@ import userEvent from "@testing-library/user-event";
 import { ClarificationEmailCard } from "@/components/features/ClarificationEmailCard";
 
 describe("ClarificationEmailCard", () => {
-  it("shows a 'not yet generated' placeholder and no download button when there's no email", () => {
-    render(<ClarificationEmailCard email={null} />);
+  it("shows a 'not yet generated' placeholder, no download button, and no view-full link when there's no email", () => {
+    render(<ClarificationEmailCard projectId="proj_1" email={null} />);
 
     expect(screen.getByText("Not yet generated.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Download" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /View full email/ })).not.toBeInTheDocument();
   });
 
-  it("shows the email content and a download button once it exists", () => {
+  it("shows a compact summary — subject, word count, download button, and a link to the full email — once it exists", () => {
     render(
       <ClarificationEmailCard
-        email={{ subject: "Quick questions", bodyText: "Hi Jamie, following up..." }}
+        projectId="proj_1"
+        email={{ subject: "Quick questions", bodyText: "Hi Jamie, following up on one item." }}
       />
     );
 
     expect(screen.getByText("Quick questions")).toBeInTheDocument();
-    expect(screen.getByText(/Hi Jamie, following up/)).toBeInTheDocument();
+    expect(screen.getByText(/7 words/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Download" })).toBeInTheDocument();
+    // The full body text no longer renders inline on this page.
+    expect(screen.queryByText(/Hi Jamie, following up/)).not.toBeInTheDocument();
+
+    const link = screen.getByRole("link", { name: /View full email/ });
+    expect(link).toHaveAttribute("href", "/projects/proj_1/outputs/CLARIFICATION_EMAIL");
   });
 
   describe("download button", () => {
@@ -42,6 +49,7 @@ describe("ClarificationEmailCard", () => {
       const user = userEvent.setup();
       render(
         <ClarificationEmailCard
+          projectId="proj_1"
           email={{ subject: "Quick questions", bodyText: "Hi Jamie, following up..." }}
         />
       );
