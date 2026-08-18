@@ -1,6 +1,9 @@
 import Link from "next/link";
 
-const NAV_ITEMS = [{ href: "/", label: "All Projects" }];
+const NAV_ITEMS = [
+  { href: "/", label: "All Projects" },
+  { href: "/sow-templates", label: "SOW Templates" },
+];
 
 export function Sidebar() {
   return (

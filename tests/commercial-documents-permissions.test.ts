@@ -16,10 +16,15 @@ const { auth } = await import("@/lib/auth");
 const mockAuth = auth as ReturnType<typeof vi.fn>;
 
 const {
-  createMasterServiceAgreementAction,
+  uploadMasterServiceAgreementVersionAction,
+  revertMasterServiceAgreementVersionAction,
   createRateCardAction,
-  archiveRateCardAction,
+  uploadRateCardVersionAction,
+  revertRateCardVersionAction,
 } = await import("@/app/(dashboard)/clients/[clientId]/actions");
+
+const { createClientSpecificSOWTemplateAction, uploadSOWTemplateVersionAction, revertSOWTemplateVersionAction } =
+  await import("@/app/(dashboard)/sow-templates/actions");
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
@@ -112,42 +117,82 @@ function rateCardFormData(overrides: Partial<Record<string, string>> = {}): Form
   return formData;
 }
 
+function sowVariantFormData(name: string): FormData {
+  const formData = new FormData();
+  formData.set("name", name);
+  formData.set("file", fakeFile("sow-template.txt"));
+  return formData;
+}
+
 describe("Master Service Agreement permissions", () => {
-  it("lets a ClientEngagement user upload the first MSA", async () => {
+  it("lets a ClientEngagement user upload the first MSA version", async () => {
     asClientEngagement();
 
-    const result = await createMasterServiceAgreementAction(clientId, undefined, msaFormData());
+    const result = await uploadMasterServiceAgreementVersionAction(clientId, undefined, msaFormData());
     expect(result?.message).toBeUndefined();
 
-    const msas = await prisma.masterServiceAgreement.findMany({ where: { clientId } });
-    expect(msas).toHaveLength(1);
-    expect(msas[0].status).toBe("ACTIVE");
-    expect(msas[0].uploadedById).toBe(clientEngagementUserId);
+    const msa = await prisma.masterServiceAgreement.findUniqueOrThrow({
+      where: { clientId },
+      include: { versions: true },
+    });
+    expect(msa.versions).toHaveLength(1);
+    expect(msa.versions[0].status).toBe("ENABLED");
+    expect(msa.versions[0].uploadedById).toBe(clientEngagementUserId);
   });
 
-  it("lets a ClientEngagement user replace the MSA, superseding the previous Active one", async () => {
+  it("lets a ClientEngagement user upload a new version, disabling the previous current one", async () => {
     asClientEngagement();
 
-    await createMasterServiceAgreementAction(clientId, undefined, msaFormData({ effectiveFrom: "2026-06-01" }));
+    await uploadMasterServiceAgreementVersionAction(
+      clientId,
+      undefined,
+      msaFormData({ effectiveFrom: "2026-06-01" })
+    );
 
-    const msas = await prisma.masterServiceAgreement.findMany({
+    const msa = await prisma.masterServiceAgreement.findUniqueOrThrow({
       where: { clientId },
-      orderBy: { uploadedAt: "asc" },
+      include: { versions: { orderBy: { versionNumber: "asc" } } },
     });
-    expect(msas).toHaveLength(2);
-    expect(msas[0].status).toBe("SUPERSEDED");
-    expect(msas[1].status).toBe("ACTIVE");
+    expect(msa.versions).toHaveLength(2);
+    expect(msa.versions[0].status).toBe("DISABLED");
+    expect(msa.versions[1].status).toBe("ENABLED");
   });
 
-  it("rejects a Delivery user attempting to upload/replace an MSA, and creates no row", async () => {
+  it("rejects a Delivery user attempting to upload an MSA version, and creates no row", async () => {
     asDelivery();
 
-    const before = await prisma.masterServiceAgreement.count({ where: { clientId } });
-    const result = await createMasterServiceAgreementAction(clientId, undefined, msaFormData());
-    const after = await prisma.masterServiceAgreement.count({ where: { clientId } });
+    const before = await prisma.masterServiceAgreementVersion.count({
+      where: { masterServiceAgreement: { clientId } },
+    });
+    const result = await uploadMasterServiceAgreementVersionAction(clientId, undefined, msaFormData());
+    const after = await prisma.masterServiceAgreementVersion.count({
+      where: { masterServiceAgreement: { clientId } },
+    });
 
     expect(result?.message).toMatch(/Client Engagement/i);
     expect(after).toBe(before);
+  });
+
+  it("rejects a Delivery user attempting to revert an MSA version, leaving status unchanged", async () => {
+    const msa = await prisma.masterServiceAgreement.findUniqueOrThrow({
+      where: { clientId },
+      include: { versions: { orderBy: { versionNumber: "asc" } } },
+    });
+    const olderVersion = msa.versions[0];
+
+    asDelivery();
+    const result = await revertMasterServiceAgreementVersionAction(
+      clientId,
+      olderVersion.id,
+      undefined,
+      new FormData()
+    );
+
+    expect(result?.message).toMatch(/Client Engagement/i);
+    const unchanged = await prisma.masterServiceAgreementVersion.findUniqueOrThrow({
+      where: { id: olderVersion.id },
+    });
+    expect(unchanged.status).toBe("DISABLED");
   });
 });
 
@@ -158,10 +203,11 @@ describe("Rate Card permissions", () => {
     const result = await createRateCardAction(clientId, undefined, rateCardFormData());
     expect(result?.message).toBeUndefined();
 
-    const rateCards = await prisma.rateCard.findMany({ where: { clientId } });
+    const rateCards = await prisma.rateCard.findMany({ where: { clientId }, include: { versions: true } });
     expect(rateCards).toHaveLength(1);
-    expect(rateCards[0].status).toBe("ACTIVE");
     expect(rateCards[0].currency).toBe("GBP");
+    expect(rateCards[0].versions).toHaveLength(1);
+    expect(rateCards[0].versions[0].status).toBe("ENABLED");
   });
 
   it("rejects a Delivery user attempting to create a Rate Card, and creates no row", async () => {
@@ -175,29 +221,92 @@ describe("Rate Card permissions", () => {
     expect(after).toBe(before);
   });
 
-  it("lets a ClientEngagement user archive a Rate Card", async () => {
-    asClientEngagement();
+  it("rejects a Delivery user attempting to upload a new Rate Card version, and creates no version", async () => {
     const rateCard = await prisma.rateCard.findFirstOrThrow({ where: { clientId } });
+    const before = await prisma.rateCardVersion.count({ where: { rateCardId: rateCard.id } });
 
-    const result = await archiveRateCardAction(clientId, rateCard.id, undefined, new FormData());
-    expect(result?.message).toBeUndefined();
+    asDelivery();
+    const result = await uploadRateCardVersionAction(clientId, rateCard.id, undefined, rateCardFormData());
+    const after = await prisma.rateCardVersion.count({ where: { rateCardId: rateCard.id } });
 
-    const updated = await prisma.rateCard.findUniqueOrThrow({ where: { id: rateCard.id } });
-    expect(updated.status).toBe("ARCHIVED");
+    expect(result?.message).toMatch(/Client Engagement/i);
+    expect(after).toBe(before);
   });
 
-  it("rejects a Delivery user attempting to archive a Rate Card, leaving its status unchanged", async () => {
-    asClientEngagement();
-    await createRateCardAction(clientId, undefined, rateCardFormData({ name: "Still Active Rates" }));
+  it("rejects a Delivery user attempting to revert a Rate Card version", async () => {
     const rateCard = await prisma.rateCard.findFirstOrThrow({
-      where: { clientId, status: "ACTIVE" },
+      where: { clientId },
+      include: { versions: true },
     });
 
     asDelivery();
-    const result = await archiveRateCardAction(clientId, rateCard.id, undefined, new FormData());
+    const result = await revertRateCardVersionAction(
+      clientId,
+      rateCard.id,
+      rateCard.versions[0].id,
+      undefined,
+      new FormData()
+    );
 
     expect(result?.message).toMatch(/Client Engagement/i);
-    const unchanged = await prisma.rateCard.findUniqueOrThrow({ where: { id: rateCard.id } });
-    expect(unchanged.status).toBe("ACTIVE");
+  });
+});
+
+describe("SOW Template permissions", () => {
+  it("rejects a Delivery user attempting to create a client-specific SOW Template variant, and creates no row", async () => {
+    asDelivery();
+
+    const before = await prisma.sOWTemplate.count({ where: { clientId } });
+    const result = await createClientSpecificSOWTemplateAction(
+      clientId,
+      undefined,
+      sowVariantFormData("Sneaky Variant")
+    );
+    const after = await prisma.sOWTemplate.count({ where: { clientId } });
+
+    expect(result?.message).toMatch(/Client Engagement/i);
+    expect(after).toBe(before);
+  });
+
+  it("lets a ClientEngagement user create a client-specific SOW Template variant", async () => {
+    asClientEngagement();
+
+    const result = await createClientSpecificSOWTemplateAction(
+      clientId,
+      undefined,
+      sowVariantFormData("Permissions Spec Variant")
+    );
+    expect(result?.message).toBeUndefined();
+
+    const variant = await prisma.sOWTemplate.findFirstOrThrow({
+      where: { clientId, name: "Permissions Spec Variant" },
+      include: { versions: true },
+    });
+    expect(variant.scope).toBe("CLIENT_SPECIFIC");
+    expect(variant.versions).toHaveLength(1);
+    expect(variant.versions[0].status).toBe("ENABLED");
+  });
+
+  it("rejects a Delivery user attempting to upload/revert a SOW Template version", async () => {
+    const variant = await prisma.sOWTemplate.findFirstOrThrow({
+      where: { clientId, name: "Permissions Spec Variant" },
+      include: { versions: true },
+    });
+
+    asDelivery();
+    const uploadResult = await uploadSOWTemplateVersionAction(
+      variant.id,
+      undefined,
+      sowVariantFormData("irrelevant")
+    );
+    const revertResult = await revertSOWTemplateVersionAction(
+      variant.id,
+      variant.versions[0].id,
+      undefined,
+      new FormData()
+    );
+
+    expect(uploadResult?.message).toMatch(/Client Engagement/i);
+    expect(revertResult?.message).toMatch(/Client Engagement/i);
   });
 });

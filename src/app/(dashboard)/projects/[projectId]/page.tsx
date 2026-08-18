@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { ProjectWorkflow } from "@/components/features/ProjectWorkflow";
 import { ProjectSummaryBar } from "@/components/features/ProjectSummaryBar";
+import { getSOWTemplatesForClientAction } from "@/app/(dashboard)/sow-templates/actions";
 import {
   ClarificationEmailSchema,
   PositionDocumentFieldsSchema,
@@ -25,12 +26,16 @@ export default async function ProjectDetailPage({
           client: {
             include: {
               hub: true,
-              rateCards: { where: { status: "ACTIVE" }, orderBy: { name: "asc" } },
+              rateCards: {
+                where: { versions: { some: { status: "ENABLED" } } },
+                orderBy: { name: "asc" },
+              },
             },
           },
         },
       },
       rateCard: true,
+      sowTemplate: true,
       documents: {
         include: {
           versions: {
@@ -57,7 +62,11 @@ export default async function ProjectDetailPage({
     notFound();
   }
 
-  const [stages, projectManagerOptions] = await Promise.all([
+  const { workstream, documents, checklistItems, touchpointNotes, knowledgeItems } = project;
+  const { client } = workstream;
+  const { hub } = client;
+
+  const [stages, projectManagerOptions, sowTemplateOptions] = await Promise.all([
     prisma.stage.findMany({
       orderBy: { number: "asc" },
       include: {
@@ -70,11 +79,8 @@ export default async function ProjectDetailPage({
       where: { role: "DELIVERY" },
       orderBy: { name: "asc" },
     }),
+    getSOWTemplatesForClientAction(client.id),
   ]);
-
-  const { workstream, documents, checklistItems, touchpointNotes, knowledgeItems } = project;
-  const { client } = workstream;
-  const { hub } = client;
 
   const clarificationEmailContent = documents.find(
     (d) => d.type === "CLARIFICATION_EMAIL"
@@ -195,6 +201,12 @@ export default async function ProjectDetailPage({
           type: item.type,
           title: item.title,
           originalFileName: item.originalFileName,
+        }))}
+        currentSowTemplate={project.sowTemplate ? { id: project.sowTemplate.id, name: project.sowTemplate.name } : null}
+        sowTemplateOptions={sowTemplateOptions.map((t) => ({
+          id: t.id,
+          name: t.name,
+          isBaseline: t.isBaseline,
         }))}
       />
     </div>

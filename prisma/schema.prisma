@@ -30,10 +30,13 @@ model Client {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  hub                     Hub                      @relation(fields: [hubId], references: [id], onDelete: Cascade)
-  workstreams             Workstream[]
-  masterServiceAgreements MasterServiceAgreement[]
-  rateCards               RateCard[]
+  hub                    Hub                     @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  workstreams            Workstream[]
+  masterServiceAgreement MasterServiceAgreement?
+  rateCards              RateCard[]
+  // Client-specific SOW Template variants only — the GLOBAL baseline has a
+  // null clientId and is not part of this relation.
+  sowTemplates           SOWTemplate[]
 
   @@unique([hubId, name])
 }
@@ -79,12 +82,20 @@ model Project {
   // — enforced in the Server Actions that set it, not just by this FK.
   rateCardId String?
 
+  // Optional SOW Template selection, set when a PM starts SOW development.
+  // Must be the global baseline or belong to this Project's own Client —
+  // enforced in the Server Action that sets it, not just by this FK. Only
+  // records the selection; the SOW-generation agent that consumes it is
+  // future/Level 3 scope.
+  sowTemplateId String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   workstream      Workstream           @relation(fields: [workstreamId], references: [id], onDelete: Cascade)
   projectManager  User?                @relation(fields: [projectManagerId], references: [id], onDelete: SetNull)
   rateCard        RateCard?            @relation(fields: [rateCardId], references: [id], onDelete: SetNull)
+  sowTemplate     SOWTemplate?         @relation(fields: [sowTemplateId], references: [id], onDelete: SetNull)
   stageStatuses   ProjectStageStatus[]
   documents       Document[]
   checklistItems  ChecklistItem[]
@@ -95,55 +106,123 @@ model Project {
 }
 
 // ---------------------------------------------------------------------------
-// Client-level commercial documents (MSAs, Rate Cards) — write access
-// restricted to the ClientEngagement role, enforced in the Server Actions
-// that mutate them (src/app/(dashboard)/clients/[clientId]/actions.ts), not
-// just in the UI. Scoped to Client, independent of any Project/Stage.
+// Client-level commercial documents (MSAs, Rate Cards, SOW Templates) — a
+// shared "named document has many Versions, exactly one current" pattern.
+// Uploading a new version disables whichever version was previously current;
+// reverting re-enables an old version and disables the current one. Nothing
+// is ever deleted. Write access (new documents, new versions, reverts) is
+// restricted to the ClientEngagement role, enforced server-side in the
+// Server Actions that mutate them, not just in the UI — see
+// src/lib/permissions.ts. PM-facing selectors only ever see/use each
+// document's current (ENABLED) version; disabled versions stay visible in
+// the admin-facing history view for the record.
 // ---------------------------------------------------------------------------
 
-enum MasterServiceAgreementStatus {
-  ACTIVE
-  SUPERSEDED
+enum VersionStatus {
+  ENABLED
+  DISABLED
 }
 
+// The MSA is a single, unnamed document per Client (there's only ever "the"
+// MSA for a Client, unlike Rate Cards or SOW Templates which can have
+// several named/variant documents) — hence the clientId unique constraint.
 model MasterServiceAgreement {
-  id            String                       @id @default(cuid())
-  clientId      String
-  fileName      String
-  fileBytes     Bytes
-  extractedText String
-  effectiveFrom DateTime
-  effectiveTo   DateTime?
-  status        MasterServiceAgreementStatus @default(ACTIVE)
-  uploadedById  String?
-  uploadedAt    DateTime                     @default(now())
+  id        String   @id @default(cuid())
+  clientId  String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  client     Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  uploadedBy User?  @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  client   Client                           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  versions MasterServiceAgreementVersion[]
 }
 
-enum RateCardStatus {
-  ACTIVE
-  ARCHIVED
+model MasterServiceAgreementVersion {
+  id                       String        @id @default(cuid())
+  masterServiceAgreementId String
+  versionNumber            Int
+  fileName                 String
+  fileBytes                Bytes
+  extractedText            String
+  effectiveFrom            DateTime
+  effectiveTo              DateTime?
+  status                   VersionStatus @default(ENABLED)
+  uploadedById             String?
+  uploadedAt               DateTime      @default(now())
+
+  masterServiceAgreement MasterServiceAgreement @relation(fields: [masterServiceAgreementId], references: [id], onDelete: Cascade)
+  uploadedBy              User?                  @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@unique([masterServiceAgreementId, versionNumber])
 }
 
 model RateCard {
-  id            String         @id @default(cuid())
-  clientId      String
-  name          String
-  currency      String
+  id        String   @id @default(cuid())
+  clientId  String
+  name      String
+  currency  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client   Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  versions RateCardVersion[]
+  projects Project[]
+}
+
+model RateCardVersion {
+  id            String        @id @default(cuid())
+  rateCardId    String
+  versionNumber Int
   fileName      String
   fileBytes     Bytes
   extractedText String
   effectiveFrom DateTime
   effectiveTo   DateTime?
-  status        RateCardStatus @default(ACTIVE)
+  status        VersionStatus @default(ENABLED)
   uploadedById  String?
-  uploadedAt    DateTime       @default(now())
+  uploadedAt    DateTime      @default(now())
 
-  client     Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  uploadedBy User?     @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
-  projects   Project[]
+  rateCard   RateCard @relation(fields: [rateCardId], references: [id], onDelete: Cascade)
+  uploadedBy User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@unique([rateCardId, versionNumber])
+}
+
+enum SOWTemplateScope {
+  GLOBAL
+  CLIENT_SPECIFIC
+}
+
+model SOWTemplate {
+  id         String           @id @default(cuid())
+  name       String
+  scope      SOWTemplateScope
+  // Null for GLOBAL templates (including the seeded baseline); required for
+  // CLIENT_SPECIFIC variants.
+  clientId   String?
+  isBaseline Boolean          @default(false)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  client   Client?               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  versions SOWTemplateVersion[]
+  projects Project[]
+}
+
+model SOWTemplateVersion {
+  id            String        @id @default(cuid())
+  sowTemplateId String
+  versionNumber Int
+  fileName      String
+  fileBytes     Bytes
+  extractedText String
+  status        VersionStatus @default(ENABLED)
+  uploadedById  String?
+  uploadedAt    DateTime      @default(now())
+
+  sowTemplate SOWTemplate @relation(fields: [sowTemplateId], references: [id], onDelete: Cascade)
+  uploadedBy  User?       @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@unique([sowTemplateId, versionNumber])
 }
 
 // ---------------------------------------------------------------------------
@@ -312,10 +391,11 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  documentVersions        DocumentVersion[]
-  touchpointNotes         TouchpointNote[]
-  knowledgeItems          KnowledgeItem[]
-  projectsManaged         Project[]
-  masterServiceAgreements MasterServiceAgreement[]
-  rateCards               RateCard[]
+  documentVersions               DocumentVersion[]
+  touchpointNotes                TouchpointNote[]
+  knowledgeItems                 KnowledgeItem[]
+  projectsManaged                Project[]
+  masterServiceAgreementVersions MasterServiceAgreementVersion[]
+  rateCardVersions               RateCardVersion[]
+  sowTemplateVersions            SOWTemplateVersion[]
 }

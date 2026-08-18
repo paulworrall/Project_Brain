@@ -124,6 +124,24 @@ async function main() {
     },
   });
 
+  // Seed the one GLOBAL baseline SOW Template — every Client can select it
+  // when starting SOW development, alongside whatever client-specific
+  // variants exist. Idempotent: findFirst-then-create rather than upsert,
+  // since SOWTemplate has no natural unique key to upsert on (a global
+  // baseline is identified by isBaseline, not by name).
+  const existingBaseline = await prisma.sOWTemplate.findFirst({
+    where: { isBaseline: true },
+  });
+  if (!existingBaseline) {
+    await prisma.sOWTemplate.create({
+      data: {
+        name: "Standard SOW Template",
+        scope: "GLOBAL",
+        isBaseline: true,
+      },
+    });
+  }
+
   const intakeStage = await prisma.stage.findUniqueOrThrow({
     where: { number: 1 },
   });

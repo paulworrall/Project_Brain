@@ -65,7 +65,7 @@ export async function updateProjectSummaryAction(
           where: {
             id: parsed.data.rateCardId,
             clientId: project.workstream.clientId,
-            status: "ACTIVE",
+            versions: { some: { status: "ENABLED" } },
           },
           select: { id: true },
         })
@@ -87,6 +87,60 @@ export async function updateProjectSummaryAction(
       projectManagerId: emptyToNull(parsed.data.projectManagerId),
       rateCardId,
     },
+  });
+
+  revalidatePath(`/projects/${projectId}`);
+}
+
+const StartSowDevelopmentSchema = z.object({
+  sowTemplateId: z.string().trim().min(1, { error: "Select a SOW Template." }),
+});
+
+/**
+ * Records which SOW Template a PM picked to start SOW development — a
+ * Project field write, not a document write, so (per CLAUDE.md's role
+ * boundary) both roles may call this; only writes to the commercial
+ * documents themselves are ClientEngagement-only. Re-validates server-side
+ * that the submitted template is either the global baseline or belongs to
+ * this Project's own Client — the same isolation pattern already used for
+ * Rate Cards, never trusting the (already-scoped) dropdown alone. The
+ * actual SOW-generation agent that consumes this selection is future/Level
+ * 3 scope — this only records the choice.
+ */
+export async function startSowDevelopmentAction(
+  projectId: string,
+  _prevState: ActionState | undefined,
+  formData: FormData
+): Promise<ActionState | undefined> {
+  const parsed = StartSowDevelopmentSchema.safeParse({
+    sowTemplateId: formData.get("sowTemplateId"),
+  });
+  if (!parsed.success) {
+    return {
+      message: z.flattenError(parsed.error).fieldErrors.sowTemplateId?.[0] ?? "Select a SOW Template.",
+    };
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { workstream: { select: { clientId: true } } },
+  });
+  const validTemplate = project
+    ? await prisma.sOWTemplate.findFirst({
+        where: {
+          id: parsed.data.sowTemplateId,
+          OR: [{ clientId: null }, { clientId: project.workstream.clientId }],
+        },
+        select: { id: true },
+      })
+    : null;
+  if (!validTemplate) {
+    return { message: "Selected SOW Template is not valid for this client." };
+  }
+
+  await prisma.project.update({
+    where: { id: projectId },
+    data: { sowTemplateId: validTemplate.id },
   });
 
   revalidatePath(`/projects/${projectId}`);

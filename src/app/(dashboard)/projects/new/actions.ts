@@ -50,7 +50,7 @@ export async function getRateCardsForWorkstreamAction(
   }
 
   return prisma.rateCard.findMany({
-    where: { clientId: workstream.clientId, status: "ACTIVE" },
+    where: { clientId: workstream.clientId, versions: { some: { status: "ENABLED" } } },
     orderBy: { name: "asc" },
     select: { id: true, name: true, currency: true },
   });
@@ -92,7 +92,11 @@ export async function createProjectAction(
     });
     const validRateCard = workstream
       ? await prisma.rateCard.findFirst({
-          where: { id: parsed.data.rateCardId, clientId: workstream.clientId, status: "ACTIVE" },
+          where: {
+            id: parsed.data.rateCardId,
+            clientId: workstream.clientId,
+            versions: { some: { status: "ENABLED" } },
+          },
           select: { id: true },
         })
       : null;

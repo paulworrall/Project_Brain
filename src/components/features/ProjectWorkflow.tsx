@@ -14,6 +14,7 @@ import type { ChecklistItemView } from "./ChecklistView";
 import { EditableChecklist } from "./EditableChecklist";
 import { SpecialistFeedbackForm } from "./SpecialistFeedbackForm";
 import { DeliverablesServicesDocumentView } from "./DeliverablesServicesDocumentView";
+import { StartSowDevelopmentPanel, type SowTemplateSelectOption } from "./StartSowDevelopmentPanel";
 
 function PlaceholderStepContent({
   taskRef,
@@ -87,6 +88,8 @@ interface ProjectWorkflowProps {
   specialistFeedback: string | null;
   deliverablesServicesDocument: DeliverablesServicesDocument | null;
   knowledgeItems: KnowledgeItemView[];
+  currentSowTemplate: { id: string; name: string } | null;
+  sowTemplateOptions: SowTemplateSelectOption[];
 }
 
 /**
@@ -125,6 +128,8 @@ export function ProjectWorkflow({
   specialistFeedback,
   deliverablesServicesDocument,
   knowledgeItems,
+  currentSowTemplate,
+  sowTemplateOptions,
 }: ProjectWorkflowProps) {
   const contentByStage: Record<number, ReactNode> = {
     5: (
@@ -136,7 +141,13 @@ export function ProjectWorkflow({
     ),
     6: <PlaceholderStepContent taskRef="Level 3 (post-MVP)" actionLabel="Run Agent" />,
     7: <PlaceholderStepContent taskRef="Level 3 (post-MVP)" actionLabel="Submit Session Notes" />,
-    8: <PlaceholderStepContent taskRef="Level 3 (post-MVP)" actionLabel="Run Agent" />,
+    8: (
+      <StartSowDevelopmentPanel
+        projectId={projectId}
+        currentTemplate={currentSowTemplate}
+        templateOptions={sowTemplateOptions}
+      />
+    ),
     9: <PlaceholderStepContent taskRef="Level 3 (post-MVP)" actionLabel="Run Agent" />,
     10: <PlaceholderStepContent taskRef="Level 3 (post-MVP)" actionLabel="Run Agent" />,
   };

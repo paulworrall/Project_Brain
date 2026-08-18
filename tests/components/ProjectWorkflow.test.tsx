@@ -11,6 +11,7 @@ vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
   toggleChecklistItemAction: vi.fn(),
   uploadKnowledgeItemAction: vi.fn(),
   askChatbotAction: vi.fn(),
+  startSowDevelopmentAction: vi.fn(),
 }));
 
 const { ProjectWorkflow } = await import("@/components/features/ProjectWorkflow");
@@ -108,6 +109,8 @@ function baseProps() {
     specialistFeedback: null as string | null,
     deliverablesServicesDocument: null as typeof deliverablesServices | null,
     knowledgeItems: [],
+    currentSowTemplate: null as { id: string; name: string } | null,
+    sowTemplateOptions: [] as { id: string; name: string; isBaseline: boolean }[],
   };
 }
 

@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { isClientEngagement } from "@/lib/permissions";
 import { MasterServiceAgreementsPanel } from "@/components/features/MasterServiceAgreementsPanel";
 import { RateCardsPanel } from "@/components/features/RateCardsPanel";
+import { ClientSowTemplatesSection } from "@/components/features/ClientSowTemplatesSection";
 
 export default async function ClientDetailPage({
   params,
@@ -14,7 +15,7 @@ export default async function ClientDetailPage({
 }) {
   const { clientId } = await params;
 
-  const [client, session] = await Promise.all([
+  const [client, baselineTemplate, session] = await Promise.all([
     prisma.client.findUnique({
       where: { id: clientId },
       include: {
@@ -23,9 +24,28 @@ export default async function ClientDetailPage({
           orderBy: { name: "asc" },
           include: { _count: { select: { projects: true } } },
         },
-        masterServiceAgreements: { orderBy: { uploadedAt: "desc" } },
-        rateCards: { orderBy: { uploadedAt: "desc" } },
+        masterServiceAgreement: {
+          include: {
+            versions: { include: { uploadedBy: true }, orderBy: { versionNumber: "desc" } },
+          },
+        },
+        rateCards: {
+          orderBy: { name: "asc" },
+          include: {
+            versions: { include: { uploadedBy: true }, orderBy: { versionNumber: "desc" } },
+          },
+        },
+        sowTemplates: {
+          orderBy: { name: "asc" },
+          include: {
+            versions: { include: { uploadedBy: true }, orderBy: { versionNumber: "desc" } },
+          },
+        },
       },
+    }),
+    prisma.sOWTemplate.findFirst({
+      where: { isBaseline: true },
+      include: { versions: { where: { status: "ENABLED" }, take: 1 } },
     }),
     auth(),
   ]);
@@ -34,7 +54,7 @@ export default async function ClientDetailPage({
     notFound();
   }
 
-  const { hub, workstreams, masterServiceAgreements, rateCards } = client;
+  const { hub, workstreams, masterServiceAgreement, rateCards, sowTemplates } = client;
   const canManageCommercialDocuments = isClientEngagement(session);
 
   return (
@@ -78,16 +98,63 @@ export default async function ClientDetailPage({
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
           <MasterServiceAgreementsPanel
             clientId={client.id}
-            agreements={masterServiceAgreements}
+            versions={
+              masterServiceAgreement?.versions.map((v) => ({
+                id: v.id,
+                versionNumber: v.versionNumber,
+                status: v.status,
+                fileName: v.fileName,
+                uploadedByName: v.uploadedBy?.name ?? null,
+                uploadedAt: v.uploadedAt,
+                effectiveFrom: v.effectiveFrom,
+                effectiveTo: v.effectiveTo,
+              })) ?? []
+            }
             canManage={canManageCommercialDocuments}
           />
           <RateCardsPanel
             clientId={client.id}
-            rateCards={rateCards}
+            rateCards={rateCards.map((rc) => ({
+              id: rc.id,
+              name: rc.name,
+              currency: rc.currency,
+              versions: rc.versions.map((v) => ({
+                id: v.id,
+                versionNumber: v.versionNumber,
+                status: v.status,
+                fileName: v.fileName,
+                uploadedByName: v.uploadedBy?.name ?? null,
+                uploadedAt: v.uploadedAt,
+                effectiveFrom: v.effectiveFrom,
+                effectiveTo: v.effectiveTo,
+              })),
+            }))}
             canManage={canManageCommercialDocuments}
           />
         </div>
       </div>
+
+      <ClientSowTemplatesSection
+        clientId={client.id}
+        clientName={client.name}
+        baseline={
+          baselineTemplate
+            ? {
+                id: baselineTemplate.id,
+                name: baselineTemplate.name,
+                isBaseline: true,
+                currentVersionFileName: baselineTemplate.versions[0]?.fileName ?? null,
+              }
+            : null
+        }
+        variants={sowTemplates.map((t) => ({
+          id: t.id,
+          name: t.name,
+          isBaseline: t.isBaseline,
+          currentVersionFileName: t.versions.find((v) => v.status === "ENABLED")?.fileName ?? null,
+        }))}
+        canManage={canManageCommercialDocuments}
+      />
     </div>
   );
 }
