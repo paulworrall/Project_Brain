@@ -1,10 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 
 vi.mock("@/app/(dashboard)/clients/[clientId]/actions", () => ({
-  createRateCardAction: vi.fn(),
   uploadRateCardVersionAction: vi.fn(),
   revertRateCardVersionAction: vi.fn(),
 }));
@@ -58,6 +56,11 @@ const rateCards = [
   },
 ];
 
+// Creating a brand-new named Rate Card lives on the Client detail page
+// (ClientRateCardsSummary) now, not here — this component only manages
+// version history for Rate Cards that already exist. See
+// ClientRateCardsSummary.test.tsx for the "Add rate card" create-form
+// coverage.
 describe("RateCardsPanel", () => {
   it("shows a 'no rate cards' message when there are none", () => {
     render(<RateCardsPanel clientId="client_1" rateCards={[]} canManage={false} />);
@@ -76,28 +79,25 @@ describe("RateCardsPanel", () => {
     expect(screen.getByText(/rates-2026-draft\.pdf/)).not.toBeVisible();
   });
 
-  it("hides the 'Add rate card' control and all Upload/Revert controls for a Delivery (non-managing) user", () => {
+  it("hides all Upload/Revert controls for a Delivery (non-managing) user", () => {
     render(<RateCardsPanel clientId="client_1" rateCards={rateCards} canManage={false} />);
 
-    expect(screen.queryByRole("button", { name: "Add rate card" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Upload/ })).not.toBeInTheDocument();
   });
 
-  it("shows 'Add rate card' for a managing user, plus an Upload control on each named rate card", () => {
+  it("shows an Upload control on each named rate card for a managing user", () => {
     render(<RateCardsPanel clientId="client_1" rateCards={rateCards} canManage={true} />);
 
-    expect(screen.getByRole("button", { name: "Add rate card" })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Upload new version" })).toHaveLength(2);
   });
 
-  it("reveals the create form (name, currency, file, effective dates) when the managing user clicks 'Add rate card'", async () => {
+  it("reveals the version-upload form (file + effective dates) when a managing user clicks Upload", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
     const user = userEvent.setup();
-    render(<RateCardsPanel clientId="client_1" rateCards={[]} canManage={true} />);
+    render(<RateCardsPanel clientId="client_1" rateCards={rateCards} canManage={true} />);
 
-    await user.click(screen.getByRole("button", { name: "Add rate card" }));
+    await user.click(screen.getAllByRole("button", { name: "Upload new version" })[0]);
 
-    expect(screen.getByLabelText("Name")).toBeInTheDocument();
-    expect(screen.getByLabelText("Currency")).toBeInTheDocument();
     expect(screen.getByLabelText("Rate card file")).toBeInTheDocument();
     expect(screen.getByLabelText("Effective from")).toBeInTheDocument();
   });

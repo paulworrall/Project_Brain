@@ -4,8 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui/Card";
 import { auth } from "@/lib/auth";
 import { isClientEngagement } from "@/lib/permissions";
-import { MasterServiceAgreementsPanel } from "@/components/features/MasterServiceAgreementsPanel";
-import { RateCardsPanel } from "@/components/features/RateCardsPanel";
+import { ClientMasterServiceAgreementSummary } from "@/components/features/ClientMasterServiceAgreementSummary";
+import { ClientRateCardsSummary } from "@/components/features/ClientRateCardsSummary";
 import { ClientSowTemplatesSection } from "@/components/features/ClientSowTemplatesSection";
 
 export default async function ClientDetailPage({
@@ -57,6 +57,8 @@ export default async function ClientDetailPage({
   const { hub, workstreams, masterServiceAgreement, rateCards, sowTemplates } = client;
   const canManageCommercialDocuments = isClientEngagement(session);
 
+  const currentMsaVersion = masterServiceAgreement?.versions.find((v) => v.status === "ENABLED");
+
   return (
     <div className="space-y-6">
       <div>
@@ -96,38 +98,18 @@ export default async function ClientDetailPage({
           Contracts & Rates
         </h2>
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
-          <MasterServiceAgreementsPanel
-            clientId={client.id}
-            versions={
-              masterServiceAgreement?.versions.map((v) => ({
-                id: v.id,
-                versionNumber: v.versionNumber,
-                status: v.status,
-                fileName: v.fileName,
-                uploadedByName: v.uploadedBy?.name ?? null,
-                uploadedAt: v.uploadedAt,
-                effectiveFrom: v.effectiveFrom,
-                effectiveTo: v.effectiveTo,
-              })) ?? []
+          <ClientMasterServiceAgreementSummary
+            current={
+              currentMsaVersion ? { id: currentMsaVersion.id, fileName: currentMsaVersion.fileName } : null
             }
-            canManage={canManageCommercialDocuments}
           />
-          <RateCardsPanel
+          <ClientRateCardsSummary
             clientId={client.id}
             rateCards={rateCards.map((rc) => ({
               id: rc.id,
               name: rc.name,
               currency: rc.currency,
-              versions: rc.versions.map((v) => ({
-                id: v.id,
-                versionNumber: v.versionNumber,
-                status: v.status,
-                fileName: v.fileName,
-                uploadedByName: v.uploadedBy?.name ?? null,
-                uploadedAt: v.uploadedAt,
-                effectiveFrom: v.effectiveFrom,
-                effectiveTo: v.effectiveTo,
-              })),
+              currentVersionFileName: rc.versions.find((v) => v.status === "ENABLED")?.fileName ?? null,
             }))}
             canManage={canManageCommercialDocuments}
           />

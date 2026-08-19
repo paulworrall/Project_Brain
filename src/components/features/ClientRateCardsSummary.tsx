@@ -5,67 +5,57 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { LibrarySummaryList, type LibrarySummaryItem } from "./LibrarySummaryList";
-import {
-  createClientSpecificSOWTemplateAction,
-  type ActionState,
-} from "@/app/(dashboard)/sow-templates/actions";
+import { EffectiveDateFields } from "./RateCardsPanel";
+import { createRateCardAction, type ActionState } from "@/app/(dashboard)/clients/[clientId]/actions";
 
-export interface SowTemplateSummary {
+export interface RateCardSummaryView {
   id: string;
   name: string;
-  isBaseline: boolean;
+  currency: string;
   currentVersionFileName: string | null;
 }
 
 /**
- * Read view of the SOW Templates available to this Client (the global
- * baseline plus this Client's own variants) — full upload/revert management
- * lives on the dedicated SOW Templates library page (/sow-templates), not
- * here, to avoid duplicating that logic. Creating a new client-specific
- * variant is the one write action offered directly from this page.
+ * Read view of this Client's Rate Cards, matching the same library-summary
+ * pattern as SOW Templates — full upload/revert management for each named
+ * Rate Card lives on the dedicated library page (/rate-cards). Creating a
+ * brand-new named Rate Card is the one write action offered directly here,
+ * mirroring exactly where SOW Template variant creation lives.
  */
-export function ClientSowTemplatesSection({
+export function ClientRateCardsSummary({
   clientId,
-  clientName,
-  baseline,
-  variants,
+  rateCards,
   canManage,
 }: {
   clientId: string;
-  clientName: string;
-  baseline: SowTemplateSummary | null;
-  variants: SowTemplateSummary[];
+  rateCards: RateCardSummaryView[];
   canManage: boolean;
 }) {
   const [isAdding, setIsAdding] = useState(false);
-  const action = createClientSpecificSOWTemplateAction.bind(null, clientId);
+  const action = createRateCardAction.bind(null, clientId);
   const [state, formAction, pending] = useActionState<ActionState | undefined, FormData>(
     action,
     undefined
   );
 
-  const items: LibrarySummaryItem[] = [
-    ...(baseline
-      ? [{ id: baseline.id, name: baseline.name, tag: "baseline", fileName: baseline.currentVersionFileName }]
-      : []),
-    ...variants.map((variant) => ({
-      id: variant.id,
-      name: variant.name,
-      fileName: variant.currentVersionFileName,
-    })),
-  ];
+  const items: LibrarySummaryItem[] = rateCards.map((rc) => ({
+    id: rc.id,
+    name: `${rc.name} (${rc.currency})`,
+    tag: "current",
+    fileName: rc.currentVersionFileName,
+  }));
 
   return (
     <LibrarySummaryList
-      title="SOW Templates available to this client"
-      manageHref="/sow-templates"
+      title="Rate Cards"
+      manageHref="/rate-cards"
       items={items}
-      emptyMessage="No SOW Templates available yet."
+      emptyMessage="No rate cards on file yet."
     >
       {canManage && (
         <div className="mt-4 border-t border-border pt-4">
           <Button type="button" variant="secondary" onClick={() => setIsAdding((prev) => !prev)}>
-            {isAdding ? "Cancel" : `Add ${clientName}-specific variant`}
+            {isAdding ? "Cancel" : "Add rate card"}
           </Button>
 
           {isAdding && (
@@ -77,13 +67,17 @@ export function ClientSowTemplatesSection({
               className="mt-3 space-y-3"
             >
               <div>
-                <Label htmlFor="variantName">Variant name</Label>
-                <Input id="variantName" name="name" type="text" required />
+                <Label htmlFor="rcName">Name</Label>
+                <Input id="rcName" name="name" type="text" required />
               </div>
               <div>
-                <Label htmlFor="variantFile">SOW Template file</Label>
+                <Label htmlFor="rcCurrency">Currency</Label>
+                <Input id="rcCurrency" name="currency" type="text" placeholder="GBP" required />
+              </div>
+              <div>
+                <Label htmlFor="rcFile">Rate card file</Label>
                 <input
-                  id="variantFile"
+                  id="rcFile"
                   name="file"
                   type="file"
                   accept=".docx,.pdf,.pptx,.txt"
@@ -91,13 +85,14 @@ export function ClientSowTemplatesSection({
                   className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground"
                 />
               </div>
+              <EffectiveDateFields />
               {state?.message && (
                 <p className="text-sm text-danger" role="alert">
                   {state.message}
                 </p>
               )}
               <Button type="submit" disabled={pending}>
-                {pending ? "Adding…" : "Add variant"}
+                {pending ? "Adding…" : "Add rate card"}
               </Button>
             </form>
           )}

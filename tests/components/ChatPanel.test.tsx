@@ -30,7 +30,9 @@ describe("ChatPanel", () => {
     );
     await user.click(screen.getByRole("button", { name: "Ask" }));
 
-    expect(screen.getByText(/You:\s*What's the budget\?/)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByText(/You:\s*What's the budget\?/)).toBeInTheDocument()
+    );
     await waitFor(() =>
       expect(screen.getByText("The budget is confirmed at £120k.")).toBeInTheDocument()
     );
