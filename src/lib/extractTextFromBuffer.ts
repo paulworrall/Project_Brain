@@ -17,6 +17,7 @@ export async function extractTextFromBuffer(
     if (error instanceof UnsupportedBriefFormatError) {
       return { message: error.message };
     }
+    console.error(`extractTextFromBuffer: failed to parse "${fileName}"`, error);
     return { message: "Couldn't read that file." };
   }
 }
