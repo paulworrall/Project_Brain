@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -44,6 +44,18 @@ export function ClientSowTemplatesSection({
     undefined
   );
 
+  // Close the form only once a submission actually finishes successfully —
+  // not merely once it settles (see VersionHistory.tsx for the same fix and
+  // the reasoning: `state` alone can't distinguish "never submitted" from
+  // "succeeded", since the action returns nothing on success).
+  const wasPending = useRef(false);
+  useEffect(() => {
+    if (wasPending.current && !pending && !state?.message) {
+      setIsAdding(false);
+    }
+    wasPending.current = pending;
+  }, [pending, state]);
+
   const items: LibrarySummaryItem[] = [
     ...(baseline
       ? [{ id: baseline.id, name: baseline.name, tag: "baseline", fileName: baseline.currentVersionFileName }]
@@ -69,13 +81,7 @@ export function ClientSowTemplatesSection({
           </Button>
 
           {isAdding && (
-            <form
-              action={async (formData) => {
-                await formAction(formData);
-                setIsAdding(false);
-              }}
-              className="mt-3 space-y-3"
-            >
+            <form action={formAction} className="mt-3 space-y-3">
               <div>
                 <Label htmlFor="variantName">Variant name</Label>
                 <Input id="variantName" name="name" type="text" required />

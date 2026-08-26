@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const createClientSpecificSOWTemplateAction = vi.fn(async () => undefined);
+const createClientSpecificSOWTemplateAction = vi.fn(
+  async (): Promise<{ message?: string } | undefined> => undefined
+);
 
 vi.mock("@/app/(dashboard)/sow-templates/actions", () => ({
   createClientSpecificSOWTemplateAction,
@@ -122,5 +124,61 @@ describe("ClientSowTemplatesSection", () => {
     fireEvent.submit(container.querySelector("form")!);
 
     await waitFor(() => expect(createClientSpecificSOWTemplateAction).toHaveBeenCalled());
+  });
+
+  it("keeps the create form open and shows the error, instead of silently closing, when the action fails", async () => {
+    createClientSpecificSOWTemplateAction.mockImplementationOnce(async () => ({
+      message: "Couldn't read that file.",
+    }));
+    const user = userEvent.setup();
+    const { container } = render(
+      <ClientSowTemplatesSection
+        clientId="client_1"
+        clientName="Fizzy"
+        baseline={baseline}
+        variants={variants}
+        canManage={true}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add Fizzy-specific variant" }));
+    await user.type(screen.getByLabelText("Variant name"), "New Variant");
+    await user.upload(
+      screen.getByLabelText("SOW Template file"),
+      new File(["contents"], "variant.docx", { type: "text/plain" })
+    );
+    fireEvent.submit(container.querySelector("form")!);
+
+    await waitFor(() => {
+      expect(screen.getByText("Couldn't read that file.")).toBeInTheDocument();
+    });
+    // The form must still be present — a failed upload must not look
+    // identical to a successful one.
+    expect(screen.getByLabelText("SOW Template file")).toBeInTheDocument();
+  });
+
+  it("closes the create form once the action actually succeeds", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <ClientSowTemplatesSection
+        clientId="client_1"
+        clientName="Fizzy"
+        baseline={baseline}
+        variants={variants}
+        canManage={true}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add Fizzy-specific variant" }));
+    await user.type(screen.getByLabelText("Variant name"), "New Variant");
+    await user.upload(
+      screen.getByLabelText("SOW Template file"),
+      new File(["contents"], "variant.docx", { type: "text/plain" })
+    );
+    fireEvent.submit(container.querySelector("form")!);
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText("SOW Template file")).not.toBeInTheDocument();
+    });
   });
 });
