@@ -89,6 +89,7 @@ interface ProjectWorkflowProps {
   deliverablesServicesDocument: DeliverablesServicesDocument | null;
   knowledgeItems: KnowledgeItemView[];
   currentSowTemplate: { id: string; name: string } | null;
+  currentSowTemplateVersion: { id: string } | null;
   sowTemplateOptions: SowTemplateSelectOption[];
 }
 
@@ -129,6 +130,7 @@ export function ProjectWorkflow({
   deliverablesServicesDocument,
   knowledgeItems,
   currentSowTemplate,
+  currentSowTemplateVersion,
   sowTemplateOptions,
 }: ProjectWorkflowProps) {
   const contentByStage: Record<number, ReactNode> = {
@@ -145,6 +147,7 @@ export function ProjectWorkflow({
       <StartSowDevelopmentPanel
         projectId={projectId}
         currentTemplate={currentSowTemplate}
+        currentTemplateVersion={currentSowTemplateVersion}
         templateOptions={sowTemplateOptions}
       />
     ),

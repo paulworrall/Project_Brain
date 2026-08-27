@@ -94,6 +94,6 @@ describe("MasterServiceAgreementsPanel", () => {
     await user.click(screen.getByText("Version history (1)"));
 
     expect(screen.getByText(/MSA_2024\.pdf/)).toBeVisible();
-    expect(screen.getAllByRole("button", { name: "Revert to this version" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Set as current version" })).toHaveLength(1);
   });
 });

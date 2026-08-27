@@ -64,6 +64,7 @@ export default async function RateCardsLibraryPage() {
                     id: rc.id,
                     name: rc.name,
                     currency: rc.currency,
+                    archivedAt: rc.archivedAt,
                     versions: rc.versions.map((v) => ({
                       id: v.id,
                       versionNumber: v.versionNumber,
