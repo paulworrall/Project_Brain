@@ -1,0 +1,12 @@
+-- Cosmetic cleanup, no data or behavior change. Pre-existing drift noticed
+-- in phase 1: the original 20260813080802_add_commercial_documents
+-- migration named this constraint
+-- "MasterServiceAgreementVersion_masterServiceAgreementId_versionNumber_key"
+-- (74 chars), which Postgres silently truncated to 63 bytes on creation
+-- ("...versionN"). Prisma's own truncation algorithm computes a different
+-- 63-byte name ("..._vers_key") for the same logical constraint, so every
+-- `prisma migrate dev` since has proposed this rename as a no-op diff —
+-- harmless, but it forced an interactive "name this migration" prompt that
+-- hangs in this non-interactive environment. Applying it once here resolves
+-- the drift for good.
+ALTER INDEX "MasterServiceAgreementVersion_masterServiceAgreementId_versionN" RENAME TO "MasterServiceAgreementVersion_masterServiceAgreementId_vers_key";

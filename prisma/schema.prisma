@@ -82,6 +82,14 @@ model Project {
   // — enforced in the Server Actions that set it, not just by this FK.
   rateCardId String?
 
+  // Pins the specific RateCardVersion in effect when it was selected, so a
+  // later version upload (which disables the previous one) can't silently
+  // change this Project's pricing. Nullable: not yet backfillable for every
+  // historical selection and not yet written by any Server Action — that's
+  // phase 2. rateCardId is kept alongside it (not replaced) since existing
+  // code still reads/writes it; phase 2 decides whether to retire it.
+  rateCardVersionId String?
+
   // Optional SOW Template selection, set when a PM starts SOW development.
   // Must be the global baseline or belong to this Project's own Client —
   // enforced in the Server Action that sets it, not just by this FK. Only
@@ -89,18 +97,32 @@ model Project {
   // future/Level 3 scope.
   sowTemplateId String?
 
+  // Pins the specific SOWTemplateVersion in effect when it was selected —
+  // same rationale/nullability as rateCardVersionId above.
+  sowTemplateVersionId String?
+
+  // Optional Master Service Agreement link. Nullable: no historical source
+  // exists to backfill which MSA a pre-existing project was created under,
+  // and no Server Action writes this yet — phase 2 makes it a required
+  // selection for new projects going forward, but the column itself stays
+  // nullable at the DB level so existing rows remain valid.
+  masterServiceAgreementId String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workstream      Workstream           @relation(fields: [workstreamId], references: [id], onDelete: Cascade)
-  projectManager  User?                @relation(fields: [projectManagerId], references: [id], onDelete: SetNull)
-  rateCard        RateCard?            @relation(fields: [rateCardId], references: [id], onDelete: SetNull)
-  sowTemplate     SOWTemplate?         @relation(fields: [sowTemplateId], references: [id], onDelete: SetNull)
-  stageStatuses   ProjectStageStatus[]
-  documents       Document[]
-  checklistItems  ChecklistItem[]
-  touchpointNotes TouchpointNote[]
-  knowledgeItems  KnowledgeItem[]
+  workstream             Workstream              @relation(fields: [workstreamId], references: [id], onDelete: Cascade)
+  projectManager         User?                   @relation(fields: [projectManagerId], references: [id], onDelete: SetNull)
+  rateCard               RateCard?               @relation(fields: [rateCardId], references: [id], onDelete: SetNull)
+  rateCardVersion        RateCardVersion?        @relation(fields: [rateCardVersionId], references: [id], onDelete: SetNull)
+  sowTemplate            SOWTemplate?            @relation(fields: [sowTemplateId], references: [id], onDelete: SetNull)
+  sowTemplateVersion     SOWTemplateVersion?     @relation(fields: [sowTemplateVersionId], references: [id], onDelete: SetNull)
+  masterServiceAgreement MasterServiceAgreement? @relation(fields: [masterServiceAgreementId], references: [id], onDelete: SetNull)
+  stageStatuses          ProjectStageStatus[]
+  documents              Document[]
+  checklistItems         ChecklistItem[]
+  touchpointNotes        TouchpointNote[]
+  knowledgeItems         KnowledgeItem[]
 
   @@unique([workstreamId, name])
 }
@@ -132,8 +154,9 @@ model MasterServiceAgreement {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  client   Client                           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client   Client                          @relation(fields: [clientId], references: [id], onDelete: Cascade)
   versions MasterServiceAgreementVersion[]
+  projects Project[]
 }
 
 model MasterServiceAgreementVersion {
@@ -150,18 +173,22 @@ model MasterServiceAgreementVersion {
   uploadedAt               DateTime      @default(now())
 
   masterServiceAgreement MasterServiceAgreement @relation(fields: [masterServiceAgreementId], references: [id], onDelete: Cascade)
-  uploadedBy              User?                  @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  uploadedBy             User?                  @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
 
   @@unique([masterServiceAgreementId, versionNumber])
 }
 
 model RateCard {
-  id        String   @id @default(cuid())
-  clientId  String
-  name      String
-  currency  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String    @id @default(cuid())
+  clientId   String
+  name       String
+  currency   String
+  // Set to retire this named Rate Card from end-user selectors without
+  // touching its version-currency (ENABLED/DISABLED) state — a distinct
+  // lever from superseding a version, per the Rule 3 audit gap.
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   client   Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
   versions RateCardVersion[]
@@ -181,8 +208,9 @@ model RateCardVersion {
   uploadedById  String?
   uploadedAt    DateTime      @default(now())
 
-  rateCard   RateCard @relation(fields: [rateCardId], references: [id], onDelete: Cascade)
-  uploadedBy User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  rateCard   RateCard  @relation(fields: [rateCardId], references: [id], onDelete: Cascade)
+  uploadedBy User?     @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  projects   Project[]
 
   @@unique([rateCardId, versionNumber])
 }
@@ -203,7 +231,7 @@ model SOWTemplate {
   createdAt  DateTime         @default(now())
   updatedAt  DateTime         @updatedAt
 
-  client   Client?               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client   Client?              @relation(fields: [clientId], references: [id], onDelete: Cascade)
   versions SOWTemplateVersion[]
   projects Project[]
 }
@@ -221,6 +249,7 @@ model SOWTemplateVersion {
 
   sowTemplate SOWTemplate @relation(fields: [sowTemplateId], references: [id], onDelete: Cascade)
   uploadedBy  User?       @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  projects    Project[]
 
   @@unique([sowTemplateId, versionNumber])
 }
