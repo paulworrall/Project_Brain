@@ -23,6 +23,8 @@ const {
   createRateCardAction,
   uploadRateCardVersionAction,
   revertRateCardVersionAction,
+  archiveRateCardAction,
+  unarchiveRateCardAction,
 } = await import("@/app/(dashboard)/clients/[clientId]/actions");
 
 const {
@@ -36,6 +38,8 @@ const { startSowDevelopmentAction } = await import(
   "@/app/(dashboard)/projects/[projectId]/actions"
 );
 
+const { getRateCardsForWorkstreamAction } = await import("@/app/(dashboard)/projects/new/actions");
+
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
 });
@@ -45,6 +49,7 @@ const TEST_HUB_NAME = "TestHub_CommercialDocsVersioningSpec";
 let hubId: string;
 let clientAId: string;
 let clientBId: string;
+let workstreamAId: string;
 let projectAId: string;
 let clientEngagementUserId: string;
 
@@ -81,6 +86,7 @@ beforeAll(async () => {
   const workstreamA = await prisma.workstream.create({
     data: { name: "VersioningSpecWorkstreamA", clientId: clientAId },
   });
+  workstreamAId = workstreamA.id;
   const projectA = await prisma.project.create({
     data: { name: "Versioning Spec Project A", workstreamId: workstreamA.id },
   });
@@ -179,7 +185,7 @@ describe("MasterServiceAgreement versioning", () => {
   });
 });
 
-describe("RateCard versioning", () => {
+describe("RateCard versioning (phase 2: versions no longer supersede — Rule 3 audit gap fix)", () => {
   let rateCardId: string;
 
   beforeEach(async () => {
@@ -199,7 +205,7 @@ describe("RateCard versioning", () => {
     }
   });
 
-  it("uploading a new version disables the previously current one", async () => {
+  it("uploading a new version does NOT disable the previous one — the new version is created DISABLED, the old one is left untouched", async () => {
     await uploadRateCardVersionAction(
       clientAId,
       rateCardId,
@@ -211,23 +217,100 @@ describe("RateCard versioning", () => {
       where: { rateCardId },
       orderBy: { versionNumber: "asc" },
     });
-    expect(versions.map((v) => v.status)).toEqual(["DISABLED", "ENABLED"]);
+    // v1 (created ENABLED by createRateCardAction) stays ENABLED; v2 is
+    // inserted DISABLED, not auto-promoted — status is no longer an
+    // exclusivity/selectability gate for this table (see
+    // uploadRateCardVersionAction's comment). Both remain fetchable.
+    expect(versions.map((v) => v.status)).toEqual(["ENABLED", "DISABLED"]);
   });
 
-  it("reverting re-enables the old version and disables the current one", async () => {
+  it("both versions remain independently selectable via getRateCardsForWorkstreamAction after two uploads", async () => {
+    await uploadRateCardVersionAction(
+      clientAId,
+      rateCardId,
+      undefined,
+      fileFormData({ effectiveFrom: "2026-09-01" }, "rates-v3.txt")
+    );
+
+    const options = await getRateCardsForWorkstreamAction(workstreamAId);
+    const rateCard = options.find((rc) => rc.id === rateCardId);
+    expect(rateCard).toBeDefined();
+    // v1, v2 (from the previous test), v3 — all present, newest first.
+    expect(rateCard!.versions.map((v) => v.fileName)).toEqual([
+      "rates-v3.txt",
+      "rates-v2.txt",
+      "rates-v1.txt",
+    ]);
+  });
+
+  it("reverting flags a specific version as ENABLED (the display default) and disables whichever was flagged before — every version stays selectable regardless", async () => {
     const versions = await prisma.rateCardVersion.findMany({
       where: { rateCardId },
       orderBy: { versionNumber: "asc" },
     });
-    const older = versions[0];
+    const target = versions[1]; // v2 — currently DISABLED, not the flagged default.
 
-    await revertRateCardVersionAction(clientAId, rateCardId, older.id, undefined, new FormData());
+    await revertRateCardVersionAction(clientAId, rateCardId, target.id, undefined, new FormData());
 
     const afterRevert = await prisma.rateCardVersion.findMany({
       where: { rateCardId },
       orderBy: { versionNumber: "asc" },
     });
-    expect(afterRevert.map((v) => v.status)).toEqual(["ENABLED", "DISABLED"]);
+    expect(afterRevert.find((v) => v.id === target.id)?.status).toBe("ENABLED");
+    expect(afterRevert.filter((v) => v.status === "ENABLED")).toHaveLength(1);
+
+    // The flag change doesn't remove anything from the selector.
+    const options = await getRateCardsForWorkstreamAction(workstreamAId);
+    const rateCard = options.find((rc) => rc.id === rateCardId);
+    expect(rateCard!.versions).toHaveLength(3);
+  });
+});
+
+describe("RateCard archiving (phase 2: a distinct lever from version status — Rule 3 audit gap fix)", () => {
+  let archivableRateCardId: string;
+
+  beforeAll(async () => {
+    await createRateCardAction(
+      clientAId,
+      undefined,
+      fileFormData(
+        { name: "Archivable Rates", currency: "GBP", effectiveFrom: "2026-01-01" },
+        "archivable-v1.txt"
+      )
+    );
+    const rateCard = await prisma.rateCard.findFirstOrThrow({
+      where: { clientId: clientAId, name: "Archivable Rates" },
+    });
+    archivableRateCardId = rateCard.id;
+  });
+
+  it("archiving hides the Rate Card from getRateCardsForWorkstreamAction but leaves the row and its versions in the database", async () => {
+    const beforeArchive = await getRateCardsForWorkstreamAction(workstreamAId);
+    expect(beforeArchive.some((rc) => rc.id === archivableRateCardId)).toBe(true);
+
+    const result = await archiveRateCardAction(clientAId, archivableRateCardId, undefined, new FormData());
+    expect(result?.message).toBeUndefined();
+
+    const afterArchive = await getRateCardsForWorkstreamAction(workstreamAId);
+    expect(afterArchive.some((rc) => rc.id === archivableRateCardId)).toBe(false);
+
+    const stillInDb = await prisma.rateCard.findUniqueOrThrow({
+      where: { id: archivableRateCardId },
+      include: { versions: true },
+    });
+    expect(stillInDb.archivedAt).not.toBeNull();
+    expect(stillInDb.versions).toHaveLength(1);
+  });
+
+  it("unarchiving restores it to the lookup", async () => {
+    const result = await unarchiveRateCardAction(clientAId, archivableRateCardId, undefined, new FormData());
+    expect(result?.message).toBeUndefined();
+
+    const rateCard = await prisma.rateCard.findUniqueOrThrow({ where: { id: archivableRateCardId } });
+    expect(rateCard.archivedAt).toBeNull();
+
+    const options = await getRateCardsForWorkstreamAction(workstreamAId);
+    expect(options.some((rc) => rc.id === archivableRateCardId)).toBe(true);
   });
 });
 
@@ -251,7 +334,7 @@ describe("SOW Template client isolation", () => {
     expect(optionsForA.some((t) => t.name === "Client B Variant")).toBe(false);
   });
 
-  it("uploading/reverting a variant's version works the same as Rate Cards/MSA", async () => {
+  it("uploading a new version does NOT disable the previous one (phase 2: Rule 2 audit gap fix) — reverting still works as a display-default flag", async () => {
     const variant = await prisma.sOWTemplate.findFirstOrThrow({
       where: { clientId: clientAId, name: "Client A Variant" },
     });
@@ -261,39 +344,76 @@ describe("SOW Template client isolation", () => {
       where: { sowTemplateId: variant.id },
       orderBy: { versionNumber: "asc" },
     });
-    expect(versions.map((v) => v.status)).toEqual(["DISABLED", "ENABLED"]);
+    // v1 stays ENABLED (untouched by upload); v2 is inserted DISABLED, not
+    // auto-promoted — same repurposing as RateCardVersion. Both remain
+    // fetchable regardless of this flag.
+    expect(versions.map((v) => v.status)).toEqual(["ENABLED", "DISABLED"]);
 
-    await revertSOWTemplateVersionAction(variant.id, versions[0].id, undefined, new FormData());
+    const optionsBeforeRevert = await getSOWTemplatesForClientAction(clientAId);
+    const templateBeforeRevert = optionsBeforeRevert.find((t) => t.id === variant.id);
+    expect(templateBeforeRevert!.versions.map((v) => v.fileName)).toEqual([
+      "variant-a-v2.txt",
+      "variant-a.txt",
+    ]);
+
+    await revertSOWTemplateVersionAction(variant.id, versions[1].id, undefined, new FormData());
     versions = await prisma.sOWTemplateVersion.findMany({
       where: { sowTemplateId: variant.id },
       orderBy: { versionNumber: "asc" },
     });
-    expect(versions.map((v) => v.status)).toEqual(["ENABLED", "DISABLED"]);
+    expect(versions.map((v) => v.status)).toEqual(["DISABLED", "ENABLED"]);
+
+    // The flag change doesn't remove anything from the selector.
+    const optionsAfterRevert = await getSOWTemplatesForClientAction(clientAId);
+    const templateAfterRevert = optionsAfterRevert.find((t) => t.id === variant.id);
+    expect(templateAfterRevert!.versions).toHaveLength(2);
   });
 });
 
 describe("startSowDevelopmentAction", () => {
   it("lets a PM (Delivery role) select the baseline or their project's own Client's variant — no role restriction, since this is a Project field write, not a document write", async () => {
-    const baseline = await prisma.sOWTemplate.findFirstOrThrow({ where: { isBaseline: true } });
+    const baseline = await prisma.sOWTemplate.findFirstOrThrow({
+      where: { isBaseline: true },
+      include: { versions: { take: 1 } },
+    });
 
     const formData = new FormData();
     formData.set("sowTemplateId", baseline.id);
+    formData.set("sowTemplateVersionId", baseline.versions[0].id);
     const result = await startSowDevelopmentAction(projectAId, undefined, formData);
 
     expect(result?.message).toBeUndefined();
     const project = await prisma.project.findUniqueOrThrow({ where: { id: projectAId } });
     expect(project.sowTemplateId).toBe(baseline.id);
+    expect(project.sowTemplateVersionId).toBe(baseline.versions[0].id);
   });
 
   it("rejects a different Client's variant, never trusting the submitted id alone", async () => {
     const clientBVariant = await prisma.sOWTemplate.findFirstOrThrow({
       where: { clientId: clientBId, name: "Client B Variant" },
+      include: { versions: { take: 1 } },
     });
 
     const formData = new FormData();
     formData.set("sowTemplateId", clientBVariant.id);
+    formData.set("sowTemplateVersionId", clientBVariant.versions[0].id);
     const result = await startSowDevelopmentAction(projectAId, undefined, formData);
 
     expect(result?.message).toMatch(/not valid for this client/i);
+  });
+
+  it("rejects a version that doesn't belong to the selected template, never trusting the submitted id alone", async () => {
+    const baseline = await prisma.sOWTemplate.findFirstOrThrow({ where: { isBaseline: true } });
+    const clientAVariant = await prisma.sOWTemplate.findFirstOrThrow({
+      where: { clientId: clientAId, name: "Client A Variant" },
+      include: { versions: { take: 1 } },
+    });
+
+    const formData = new FormData();
+    formData.set("sowTemplateId", baseline.id);
+    formData.set("sowTemplateVersionId", clientAVariant.versions[0].id);
+    const result = await startSowDevelopmentAction(projectAId, undefined, formData);
+
+    expect(result?.message).toMatch(/select a version/i);
   });
 });

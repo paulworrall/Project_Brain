@@ -54,6 +54,10 @@ export async function updateProjectSummaryAction(
   // Re-validate server-side that a submitted Rate Card actually belongs to
   // this Project's own Client — the edit form's dropdown is already scoped,
   // but this is the real enforcement point, not the dropdown's contents.
+  // Existence is "has at least one version at all," not "has an ENABLED
+  // one" — status is no longer a selectability gate for Rate Cards (see
+  // uploadRateCardVersionAction in clients/[clientId]/actions.ts); archived
+  // Rate Cards are also rejected here, matching the create-project dropdown.
   let rateCardId: string | null = null;
   if (parsed.data.rateCardId) {
     const project = await prisma.project.findUnique({
@@ -65,7 +69,8 @@ export async function updateProjectSummaryAction(
           where: {
             id: parsed.data.rateCardId,
             clientId: project.workstream.clientId,
-            versions: { some: { status: "ENABLED" } },
+            archivedAt: null,
+            versions: { some: {} },
           },
           select: { id: true },
         })
@@ -94,6 +99,7 @@ export async function updateProjectSummaryAction(
 
 const StartSowDevelopmentSchema = z.object({
   sowTemplateId: z.string().trim().min(1, { error: "Select a SOW Template." }),
+  sowTemplateVersionId: z.string().trim().min(1, { error: "Select a version of the chosen template." }),
 });
 
 /**
@@ -114,10 +120,12 @@ export async function startSowDevelopmentAction(
 ): Promise<ActionState | undefined> {
   const parsed = StartSowDevelopmentSchema.safeParse({
     sowTemplateId: formData.get("sowTemplateId"),
+    sowTemplateVersionId: formData.get("sowTemplateVersionId"),
   });
   if (!parsed.success) {
+    const errors = z.flattenError(parsed.error).fieldErrors;
     return {
-      message: z.flattenError(parsed.error).fieldErrors.sowTemplateId?.[0] ?? "Select a SOW Template.",
+      message: errors.sowTemplateId?.[0] ?? errors.sowTemplateVersionId?.[0] ?? "Select a SOW Template.",
     };
   }
 
@@ -138,9 +146,20 @@ export async function startSowDevelopmentAction(
     return { message: "Selected SOW Template is not valid for this client." };
   }
 
+  // Pins the specific SOWTemplateVersion in effect when it was selected — a
+  // later upload (which never supersedes) can't silently change which
+  // version this Project is using (Rule 2 audit gap).
+  const validTemplateVersion = await prisma.sOWTemplateVersion.findFirst({
+    where: { id: parsed.data.sowTemplateVersionId, sowTemplateId: validTemplate.id },
+    select: { id: true },
+  });
+  if (!validTemplateVersion) {
+    return { message: "Select a version of the chosen template." };
+  }
+
   await prisma.project.update({
     where: { id: projectId },
-    data: { sowTemplateId: validTemplate.id },
+    data: { sowTemplateId: validTemplate.id, sowTemplateVersionId: validTemplateVersion.id },
   });
 
   revalidatePath(`/projects/${projectId}`);

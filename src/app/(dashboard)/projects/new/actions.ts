@@ -19,12 +19,41 @@ const CreateProjectSchema = z.object({
   // yet) is omitted from FormData entirely on submit, so formData.get()
   // returns null here, not undefined.
   rateCardId: z.string().trim().nullish(),
+  // Only meaningful when rateCardId is set (validated below, not here — Zod
+  // can't easily express "required iff sibling field is set" inline).
+  rateCardVersionId: z.string().trim().nullish(),
+  // Required (audit Rule 1 gap fix) — plain .min(1), not .nullish(): every
+  // project must be created under a specific, currently-active client MSA.
+  // No UI sends this field yet (phase 3 adds the selector); until then this
+  // action rejects every submission with a clear "Select..." error rather
+  // than silently defaulting or skipping the check.
+  masterServiceAgreementId: z
+    .string({ error: "Select the client's Master Service Agreement." })
+    .trim()
+    .min(1, { error: "Select the client's Master Service Agreement." }),
 });
+
+export interface RateCardVersionOption {
+  id: string;
+  versionNumber: number;
+  fileName: string;
+  effectiveFrom: Date;
+  effectiveTo: Date | null;
+  // "Flagged as default for display" (see uploadRateCardVersionAction) — the
+  // form pre-selects whichever version has this, but every version stays
+  // pickable regardless.
+  status: "ENABLED" | "DISABLED";
+}
 
 export interface RateCardOption {
   id: string;
   name: string;
   currency: string;
+  // Every version of this Rate Card, newest first — Rule 3 (audit gap): rate
+  // cards don't supersede, so every version stays independently selectable
+  // forever, not just whichever one is flagged ENABLED. Grouped per rate
+  // card so a caller can present "Rate Card X: v1, v2, v3."
+  versions: RateCardVersionOption[];
 }
 
 /**
@@ -33,6 +62,10 @@ export interface RateCardOption {
  * applied here to clientId): resolves the Workstream's own Client first,
  * then queries only that Client's Rate Cards. A different Client's Rate
  * Cards are never fetched, not just hidden from the rendered options.
+ * Excludes archived Rate Cards (archiveRateCardAction) by default; existence
+ * is "has at least one version at all," not "has an ENABLED one" — status is
+ * no longer a selectability gate for this table (see
+ * uploadRateCardVersionAction in clients/[clientId]/actions.ts).
  */
 export async function getRateCardsForWorkstreamAction(
   workstreamId: string
@@ -50,10 +83,74 @@ export async function getRateCardsForWorkstreamAction(
   }
 
   return prisma.rateCard.findMany({
-    where: { clientId: workstream.clientId, versions: { some: { status: "ENABLED" } } },
+    where: { clientId: workstream.clientId, archivedAt: null, versions: { some: {} } },
     orderBy: { name: "asc" },
-    select: { id: true, name: true, currency: true },
+    select: {
+      id: true,
+      name: true,
+      currency: true,
+      versions: {
+        orderBy: { versionNumber: "desc" },
+        select: {
+          id: true,
+          versionNumber: true,
+          fileName: true,
+          effectiveFrom: true,
+          effectiveTo: true,
+          status: true,
+        },
+      },
+    },
   });
+}
+
+export interface MasterServiceAgreementOption {
+  id: string;
+  fileName: string;
+  effectiveFrom: Date;
+}
+
+/**
+ * Client-scoped MSA lookup for the "New Project" form's required MSA
+ * select — resolves the Workstream's own Client first, same isolation
+ * pattern as getRateCardsForWorkstreamAction. Returns the Client's MSA only
+ * if it currently has an ENABLED version (MSA exclusivity is unchanged —
+ * there is never more than one), otherwise null so the form can tell the
+ * user clearly that no active MSA exists rather than showing an empty
+ * required select with no explanation.
+ */
+export async function getMasterServiceAgreementForWorkstreamAction(
+  workstreamId: string
+): Promise<MasterServiceAgreementOption | null> {
+  if (!workstreamId) {
+    return null;
+  }
+
+  const workstream = await prisma.workstream.findUnique({
+    where: { id: workstreamId },
+    select: { clientId: true },
+  });
+  if (!workstream) {
+    return null;
+  }
+
+  const msa = await prisma.masterServiceAgreement.findUnique({
+    where: { clientId: workstream.clientId },
+    select: {
+      id: true,
+      versions: {
+        where: { status: "ENABLED" },
+        select: { fileName: true, effectiveFrom: true },
+        take: 1,
+      },
+    },
+  });
+  const currentVersion = msa?.versions[0];
+  if (!msa || !currentVersion) {
+    return null;
+  }
+
+  return { id: msa.id, fileName: currentVersion.fileName, effectiveFrom: currentVersion.effectiveFrom };
 }
 
 export type CreateProjectState =
@@ -62,6 +159,7 @@ export type CreateProjectState =
         workstreamId?: string[];
         name?: string[];
         briefText?: string[];
+        masterServiceAgreementId?: string[];
       };
       message?: string;
     }
@@ -76,34 +174,77 @@ export async function createProjectAction(
     name: formData.get("name"),
     briefText: formData.get("briefText"),
     rateCardId: formData.get("rateCardId"),
+    rateCardVersionId: formData.get("rateCardVersionId"),
+    masterServiceAgreementId: formData.get("masterServiceAgreementId"),
   });
 
   if (!parsed.success) {
     return { errors: z.flattenError(parsed.error).fieldErrors };
   }
 
+  // Resolved once, reused by both the MSA and Rate Card checks below.
+  const workstream = await prisma.workstream.findUnique({
+    where: { id: parsed.data.workstreamId },
+    select: { clientId: true },
+  });
+  if (!workstream) {
+    return { message: "Selected workstream is not valid." };
+  }
+
+  // Re-validate server-side even though the (future) selector will already
+  // be scoped — never trust a submitted id belongs to the right Client
+  // without checking. Rejects outright (no silent default/skip) if missing
+  // or invalid, per Rule 1 (audit gap): every project must be created under
+  // a specific, currently-active MSA. "Currently-active" mirrors MSA's own
+  // exclusivity semantics (unchanged elsewhere) — has an ENABLED version.
+  const validMsa = await prisma.masterServiceAgreement.findFirst({
+    where: {
+      id: parsed.data.masterServiceAgreementId,
+      clientId: workstream.clientId,
+      versions: { some: { status: "ENABLED" } },
+    },
+    select: { id: true },
+  });
+  if (!validMsa) {
+    return { message: "Select a valid, active Master Service Agreement for this client." };
+  }
+
   // Re-validate server-side even though the dropdown was already scoped —
   // never trust a submitted id belongs to the right Client without checking.
+  // Existence is "has at least one version at all," not "has an ENABLED
+  // one" — status is no longer a selectability gate for Rate Cards (see
+  // getRateCardsForWorkstreamAction above); archived Rate Cards are also
+  // rejected here, matching the dropdown. When a Rate Card is selected, a
+  // specific Version must be too — pinned on the Project so a later upload
+  // (which never supersedes) can't silently change which figures apply
+  // (Rule 3 audit gap).
   let rateCardId: string | null = null;
+  let rateCardVersionId: string | null = null;
   if (parsed.data.rateCardId) {
-    const workstream = await prisma.workstream.findUnique({
-      where: { id: parsed.data.workstreamId },
-      select: { clientId: true },
+    const validRateCard = await prisma.rateCard.findFirst({
+      where: {
+        id: parsed.data.rateCardId,
+        clientId: workstream.clientId,
+        archivedAt: null,
+        versions: { some: {} },
+      },
+      select: { id: true },
     });
-    const validRateCard = workstream
-      ? await prisma.rateCard.findFirst({
-          where: {
-            id: parsed.data.rateCardId,
-            clientId: workstream.clientId,
-            versions: { some: { status: "ENABLED" } },
-          },
-          select: { id: true },
-        })
-      : null;
     if (!validRateCard) {
       return { message: "Selected rate card is not valid for this client." };
     }
     rateCardId = validRateCard.id;
+
+    const validRateCardVersion = parsed.data.rateCardVersionId
+      ? await prisma.rateCardVersion.findFirst({
+          where: { id: parsed.data.rateCardVersionId, rateCardId },
+          select: { id: true },
+        })
+      : null;
+    if (!validRateCardVersion) {
+      return { message: "Select a version of the chosen rate card." };
+    }
+    rateCardVersionId = validRateCardVersion.id;
   }
 
   const briefFile = formData.get("briefFile");
@@ -161,6 +302,8 @@ export async function createProjectAction(
         briefFileType,
         currentStageNumber: 3,
         rateCardId,
+        rateCardVersionId,
+        masterServiceAgreementId: validMsa.id,
       },
     });
 
