@@ -8,8 +8,9 @@ import { RateCardsPanel } from "@/components/features/RateCardsPanel";
  * The Rate Cards library — every Client's named Rate Cards, grouped by
  * Client, each with its own full version history. Mirrors the SOW
  * Templates library page's structure. Creating a brand-new named Rate Card
- * happens from a Client's detail page (ClientRateCardsSummary), not here —
- * this page only manages documents that already exist.
+ * (via the shared CreateRateCardForm, rendered inside RateCardsPanel) is
+ * available here directly, for every Client, in addition to the Client
+ * detail page's quick-add (ClientRateCardsSummary) — not an either/or.
  */
 export default async function RateCardsLibraryPage() {
   const [clients, session] = await Promise.all([
@@ -20,6 +21,7 @@ export default async function RateCardsLibraryPage() {
           orderBy: { name: "asc" },
           include: {
             versions: { include: { uploadedBy: true }, orderBy: { versionNumber: "desc" } },
+            _count: { select: { projects: true } },
           },
         },
       },
@@ -41,8 +43,7 @@ export default async function RateCardsLibraryPage() {
         </nav>
         <h1 className="mt-1 text-xl font-semibold text-foreground">Rate Cards</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Every Client&apos;s Rate Cards, each with a full version history. Add a new named Rate Card
-          from a Client&apos;s detail page.
+          Every Client&apos;s Rate Cards, each with a full version history.
         </p>
       </div>
 
@@ -65,6 +66,7 @@ export default async function RateCardsLibraryPage() {
                     name: rc.name,
                     currency: rc.currency,
                     archivedAt: rc.archivedAt,
+                    liveProjectCount: rc._count.projects,
                     versions: rc.versions.map((v) => ({
                       id: v.id,
                       versionNumber: v.versionNumber,

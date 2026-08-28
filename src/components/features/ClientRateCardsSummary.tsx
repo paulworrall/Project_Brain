@@ -1,12 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Label } from "@/components/ui/Label";
 import { LibrarySummaryList, type LibrarySummaryItem } from "./LibrarySummaryList";
-import { EffectiveDateFields } from "./RateCardsPanel";
-import { createRateCardAction, type ActionState } from "@/app/(dashboard)/clients/[clientId]/actions";
+import { CreateRateCardForm } from "./CreateRateCardForm";
 
 export interface RateCardSummaryView {
   id: string;
@@ -31,25 +26,6 @@ export function ClientRateCardsSummary({
   rateCards: RateCardSummaryView[];
   canManage: boolean;
 }) {
-  const [isAdding, setIsAdding] = useState(false);
-  const action = createRateCardAction.bind(null, clientId);
-  const [state, formAction, pending] = useActionState<ActionState | undefined, FormData>(
-    action,
-    undefined
-  );
-
-  // Close the form only once a submission actually finishes successfully —
-  // not merely once it settles (see VersionHistory.tsx for the same fix and
-  // the reasoning: `state` alone can't distinguish "never submitted" from
-  // "succeeded", since the action returns nothing on success).
-  const wasPending = useRef(false);
-  useEffect(() => {
-    if (wasPending.current && !pending && !state?.message) {
-      setIsAdding(false);
-    }
-    wasPending.current = pending;
-  }, [pending, state]);
-
   const items: LibrarySummaryItem[] = rateCards.map((rc) => ({
     id: rc.id,
     name: `${rc.name} (${rc.currency})`,
@@ -66,42 +42,7 @@ export function ClientRateCardsSummary({
     >
       {canManage && (
         <div className="mt-4 border-t border-border pt-4">
-          <Button type="button" variant="secondary" onClick={() => setIsAdding((prev) => !prev)}>
-            {isAdding ? "Cancel" : "Add rate card"}
-          </Button>
-
-          {isAdding && (
-            <form action={formAction} className="mt-3 space-y-3">
-              <div>
-                <Label htmlFor="rcName">Name</Label>
-                <Input id="rcName" name="name" type="text" required />
-              </div>
-              <div>
-                <Label htmlFor="rcCurrency">Currency</Label>
-                <Input id="rcCurrency" name="currency" type="text" placeholder="GBP" required />
-              </div>
-              <div>
-                <Label htmlFor="rcFile">Rate card file</Label>
-                <input
-                  id="rcFile"
-                  name="file"
-                  type="file"
-                  accept=".docx,.pdf,.pptx,.txt"
-                  required
-                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground"
-                />
-              </div>
-              <EffectiveDateFields />
-              {state?.message && (
-                <p className="text-sm text-danger" role="alert">
-                  {state.message}
-                </p>
-              )}
-              <Button type="submit" disabled={pending}>
-                {pending ? "Adding…" : "Add rate card"}
-              </Button>
-            </form>
-          )}
+          <CreateRateCardForm clientId={clientId} />
         </div>
       )}
     </LibrarySummaryList>
