@@ -169,9 +169,11 @@ npm test -- --watch         # Watch mode
 ## Deployment
 
 ### Vercel
-The project is linked to Vercel (team: **MAP**). Pushing to `main` triggers a production deployment automatically once the project is imported in the Vercel dashboard.
+The project is linked to Vercel (team: **MAP**). Pushing to `main` triggers a production deployment automatically once the project is imported in the Vercel dashboard; pushing any other branch triggers a **Preview** deployment.
 
-Set environment variables in **Vercel → Project Settings → Environment Variables** — the same names as `.env.local`, with production values (e.g. the production Neon connection string).
+Set environment variables in **Vercel → Project Settings → Environment Variables** — the same names as `.env.local`, with production values (e.g. the production Neon connection string). Each variable must be added separately per Vercel environment (Production/Preview/Development) — adding one to Production does not make it available to Preview builds, which will otherwise fail at `prisma generate` with `Cannot resolve environment variable: DATABASE_URL`.
+
+**Known pilot-scale shortcut — revisit before a larger build:** `DATABASE_URL` (and the other three vars) currently hold the *same* value for both the Production and Preview environments, meaning every Preview deployment (i.e. every pushed branch/PR) reads and writes the **same Neon database as production**. This was an accepted tradeoff for this pilot, not an oversight. If this project grows beyond pilot scale, provision a separate database for Preview/staging (and its own Prisma migration history) before relying on Preview deployments for anything beyond a quick visual check — otherwise a preview build for an in-progress branch can silently affect production data.
 
 ## Environment Variables Reference
 
