@@ -2,9 +2,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
+const archiveRateCardAction = vi.fn();
+const unarchiveRateCardAction = vi.fn();
+
 vi.mock("@/app/(dashboard)/clients/[clientId]/actions", () => ({
   uploadRateCardVersionAction: vi.fn(),
   revertRateCardVersionAction: vi.fn(),
+  archiveRateCardAction,
+  unarchiveRateCardAction,
 }));
 
 const { RateCardsPanel } = await import("@/components/features/RateCardsPanel");
@@ -14,6 +19,7 @@ const rateCards = [
     id: "rc_1",
     name: "2025 Rates",
     currency: "GBP",
+    archivedAt: null,
     versions: [
       {
         id: "rc1v1",
@@ -31,6 +37,7 @@ const rateCards = [
     id: "rc_2",
     name: "2026 Standard Rates",
     currency: "USD",
+    archivedAt: null,
     versions: [
       {
         id: "rc2v1",
@@ -79,10 +86,11 @@ describe("RateCardsPanel", () => {
     expect(screen.getByText(/rates-2026-draft\.pdf/)).not.toBeVisible();
   });
 
-  it("hides all Upload/Revert controls for a Delivery (non-managing) user", () => {
+  it("hides all Upload/Revert/Archive controls for a Delivery (non-managing) user", () => {
     render(<RateCardsPanel clientId="client_1" rateCards={rateCards} canManage={false} />);
 
     expect(screen.queryByRole("button", { name: /Upload/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument();
   });
 
   it("shows an Upload control on each named rate card for a managing user", () => {
@@ -100,5 +108,35 @@ describe("RateCardsPanel", () => {
 
     expect(screen.getByLabelText("Rate card file")).toBeInTheDocument();
     expect(screen.getByLabelText("Effective from")).toBeInTheDocument();
+  });
+
+  it("shows an 'Archive' button (not 'Unarchive') for a managing user on a non-archived Rate Card, with no 'Archived' badge", () => {
+    render(<RateCardsPanel clientId="client_1" rateCards={rateCards} canManage={true} />);
+
+    expect(screen.getAllByRole("button", { name: "Archive" })).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "Unarchive" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Archived")).not.toBeInTheDocument();
+  });
+
+  it("shows an 'Archived' badge and an 'Unarchive' button for an archived Rate Card — it stays fully visible, not hidden", () => {
+    const archived = [{ ...rateCards[0], archivedAt: new Date("2026-01-01") }];
+    render(<RateCardsPanel clientId="client_1" rateCards={archived} canManage={true} />);
+
+    expect(screen.getByText("Archived")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Unarchive" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument();
+    // The Rate Card and its versions remain fully rendered, just marked.
+    expect(screen.getByText("2025 Rates (GBP)")).toBeInTheDocument();
+    expect(screen.getByText("rates-2025.pdf")).toBeInTheDocument();
+  });
+
+  it("calls archiveRateCardAction with the right client/rate-card ids when Archive is clicked", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup();
+    render(<RateCardsPanel clientId="client_1" rateCards={[rateCards[0]]} canManage={true} />);
+
+    await user.click(screen.getByRole("button", { name: "Archive" }));
+
+    expect(archiveRateCardAction).toHaveBeenCalledWith("client_1", "rc_1", undefined, expect.anything());
   });
 });

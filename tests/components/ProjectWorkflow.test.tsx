@@ -110,7 +110,13 @@ function baseProps() {
     deliverablesServicesDocument: null as typeof deliverablesServices | null,
     knowledgeItems: [],
     currentSowTemplate: null as { id: string; name: string } | null,
-    sowTemplateOptions: [] as { id: string; name: string; isBaseline: boolean }[],
+    currentSowTemplateVersion: null as { id: string } | null,
+    sowTemplateOptions: [] as {
+      id: string;
+      name: string;
+      isBaseline: boolean;
+      versions: { id: string; versionNumber: number; fileName: string; status: "ENABLED" | "DISABLED" }[];
+    }[],
   };
 }
 

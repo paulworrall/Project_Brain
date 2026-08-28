@@ -51,6 +51,7 @@ const PROJECT_NAME = "Happy Path Project";
 
 let hubId: string;
 let workstreamId: string;
+let msaId: string;
 
 const briefClassification = {
   briefType: "WORD_DOC" as const,
@@ -113,6 +114,7 @@ function briefFormData() {
   const formData = new FormData();
   formData.set("workstreamId", workstreamId);
   formData.set("name", PROJECT_NAME);
+  formData.set("masterServiceAgreementId", msaId);
   formData.set(
     "briefText",
     "Acme wants a refreshed loyalty app before the holidays. Budget confirmed at £100k. Referral feature TBC."
@@ -142,6 +144,27 @@ beforeAll(async () => {
     data: { name: "HappyPathSpecWorkstream", clientId: client.id },
   });
   workstreamId = workstream.id;
+
+  // createProjectAction now requires a client-scoped, currently-active MSA
+  // (phase 2 — audit Rule 1 gap fix). Created directly via Prisma, not the
+  // upload Server Action, since this file mocks @/lib/auth to always resolve
+  // null (isClientEngagement would reject every call).
+  const msa = await prisma.masterServiceAgreement.create({
+    data: {
+      clientId: client.id,
+      versions: {
+        create: {
+          versionNumber: 1,
+          fileName: "msa.txt",
+          fileBytes: Buffer.from("dummy msa contents"),
+          extractedText: "dummy msa contents",
+          effectiveFrom: new Date("2026-01-01"),
+          status: "ENABLED",
+        },
+      },
+    },
+  });
+  msaId = msa.id;
 });
 
 afterAll(async () => {

@@ -27,7 +27,13 @@ export default async function ProjectDetailPage({
             include: {
               hub: true,
               rateCards: {
-                where: { versions: { some: { status: "ENABLED" } } },
+                // Existence is "has at least one version at all," not "has
+                // an ENABLED one" — status is no longer a selectability gate
+                // for Rate Cards (Rule 3 audit gap fix), and archived Rate
+                // Cards are excluded — same pattern as
+                // getRateCardsForWorkstreamAction, not relying on the
+                // invariant that some version is always ENABLED.
+                where: { archivedAt: null, versions: { some: {} } },
                 orderBy: { name: "asc" },
               },
             },
@@ -35,7 +41,9 @@ export default async function ProjectDetailPage({
         },
       },
       rateCard: true,
+      rateCardVersion: true,
       sowTemplate: true,
+      sowTemplateVersion: true,
       documents: {
         include: {
           versions: {
@@ -203,10 +211,17 @@ export default async function ProjectDetailPage({
           originalFileName: item.originalFileName,
         }))}
         currentSowTemplate={project.sowTemplate ? { id: project.sowTemplate.id, name: project.sowTemplate.name } : null}
+        currentSowTemplateVersion={project.sowTemplateVersion ? { id: project.sowTemplateVersion.id } : null}
         sowTemplateOptions={sowTemplateOptions.map((t) => ({
           id: t.id,
           name: t.name,
           isBaseline: t.isBaseline,
+          versions: t.versions.map((v) => ({
+            id: v.id,
+            versionNumber: v.versionNumber,
+            fileName: v.fileName,
+            status: v.status,
+          })),
         }))}
       />
     </div>

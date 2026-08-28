@@ -88,7 +88,7 @@ describe("VersionHistory (shared across MSA, Rate Card, and SOW Template)", () =
     await user.click(screen.getByText("Version history (1)"));
 
     expect(screen.getByText(/template-v1\.docx/)).toBeVisible();
-    expect(screen.getByRole("button", { name: "Revert to this version" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Set as current version" })).toBeInTheDocument();
   });
 
   it("hides the Revert action for a non-managing (Delivery) user, even when expanded", async () => {
@@ -105,7 +105,7 @@ describe("VersionHistory (shared across MSA, Rate Card, and SOW Template)", () =
 
     await user.click(screen.getByText("Version history (1)"));
 
-    expect(screen.queryByRole("button", { name: "Revert to this version" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Set as current version" })).not.toBeInTheDocument();
   });
 
   it("calls makeRevertAction with the specific version's id when Revert is clicked", async () => {
@@ -122,7 +122,7 @@ describe("VersionHistory (shared across MSA, Rate Card, and SOW Template)", () =
     );
 
     await user.click(screen.getByText("Version history (1)"));
-    await user.click(screen.getByRole("button", { name: "Revert to this version" }));
+    await user.click(screen.getByRole("button", { name: "Set as current version" }));
 
     expect(makeRevertAction).toHaveBeenCalledWith("v1");
   });

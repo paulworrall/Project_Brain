@@ -205,7 +205,13 @@ export async function createRateCardAction(
   revalidatePath(`/clients/${clientId}`);
 }
 
-/** Uploads a new version to an existing named Rate Card, disabling the previous current version. */
+/**
+ * Uploads a new version to an existing named Rate Card. Rule 3 (audit gap):
+ * unlike MSA/SOW Templates, Rate Card versions must never supersede one
+ * another — every version stays independently selectable forever, so this
+ * does NOT disable the previous version. See the `status` comment on the
+ * create call below for what the field means for this table now.
+ */
 export async function uploadRateCardVersionAction(
   clientId: string,
   rateCardId: string,
@@ -246,36 +252,46 @@ export async function uploadRateCardVersionAction(
     return extracted;
   }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.rateCardVersion.updateMany({
-      where: { rateCardId, status: "ENABLED" },
-      data: { status: "DISABLED" },
-    });
+  const latest = await prisma.rateCardVersion.findFirst({
+    where: { rateCardId },
+    orderBy: { versionNumber: "desc" },
+  });
 
-    const latest = await tx.rateCardVersion.findFirst({
-      where: { rateCardId },
-      orderBy: { versionNumber: "desc" },
-    });
-
-    await tx.rateCardVersion.create({
-      data: {
-        rateCardId,
-        versionNumber: (latest?.versionNumber ?? 0) + 1,
-        fileName: file.name,
-        fileBytes: buffer,
-        extractedText: extracted.extractedText,
-        effectiveFrom: new Date(parsed.data.effectiveFrom),
-        effectiveTo: toDateOrNull(parsed.data.effectiveTo),
-        status: "ENABLED",
-        uploadedById: session!.user!.id,
-      },
-    });
+  await prisma.rateCardVersion.create({
+    data: {
+      rateCardId,
+      versionNumber: (latest?.versionNumber ?? 0) + 1,
+      fileName: file.name,
+      fileBytes: buffer,
+      extractedText: extracted.extractedText,
+      effectiveFrom: new Date(parsed.data.effectiveFrom),
+      effectiveTo: toDateOrNull(parsed.data.effectiveTo),
+      // For RateCardVersion specifically, `status` no longer gates
+      // selectability (all versions are always selectable — see
+      // getRateCardsForWorkstreamAction) and is repurposed as "flagged as
+      // the default/most-recent version for display." A freshly uploaded
+      // version is intentionally NOT auto-promoted to that flag — it stays
+      // DISABLED until an admin explicitly flags it via
+      // revertRateCardVersionAction (unchanged below), which still
+      // maintains "at most one ENABLED version per Rate Card" (the DB-level
+      // partial unique index from the version-pinning migration still
+      // enforces this; that's why this insert can't just default to
+      // ENABLED — the prior version is no longer disabled here, so a second
+      // simultaneous ENABLED row would violate that constraint).
+      status: "DISABLED",
+      uploadedById: session!.user!.id,
+    },
   });
 
   revalidatePath(`/clients/${clientId}`);
 }
 
-/** Reverts a Rate Card to a previously-disabled version. */
+/**
+ * Flags a previously-uploaded version as the Rate Card's default/current
+ * one for display — the only thing `status` still governs for this table
+ * (see uploadRateCardVersionAction). Every version remains selectable
+ * regardless of this flag; this does not hide or restore anything.
+ */
 export async function revertRateCardVersionAction(
   clientId: string,
   rateCardId: string,
@@ -306,6 +322,60 @@ export async function revertRateCardVersionAction(
       data: { status: "ENABLED" },
     });
   });
+
+  revalidatePath(`/clients/${clientId}`);
+}
+
+/**
+ * Retires a named Rate Card from end-user selectors (getRateCardsForWorkstreamAction,
+ * createProjectAction, updateProjectSummaryAction) without touching any of its
+ * versions' ENABLED/DISABLED state — a deliberately separate lever from the
+ * version-currency mechanism above (Rule 3 audit gap: archiving retires the
+ * whole named document; it must not be implemented by reusing the version
+ * status field). The RateCard row and all its versions remain in the
+ * database and stay visible in admin/library views.
+ */
+export async function archiveRateCardAction(
+  clientId: string,
+  rateCardId: string,
+  _prevState: ActionState | undefined,
+  _formData: FormData
+): Promise<ActionState | undefined> {
+  const session = await auth();
+  if (!isClientEngagement(session)) {
+    return { message: CLIENT_ENGAGEMENT_ONLY_MESSAGE };
+  }
+
+  const result = await prisma.rateCard.updateMany({
+    where: { id: rateCardId, clientId },
+    data: { archivedAt: new Date() },
+  });
+  if (result.count === 0) {
+    return { message: "Rate card not found." };
+  }
+
+  revalidatePath(`/clients/${clientId}`);
+}
+
+/** Reverses archiveRateCardAction — corrects a mistaken archive. */
+export async function unarchiveRateCardAction(
+  clientId: string,
+  rateCardId: string,
+  _prevState: ActionState | undefined,
+  _formData: FormData
+): Promise<ActionState | undefined> {
+  const session = await auth();
+  if (!isClientEngagement(session)) {
+    return { message: CLIENT_ENGAGEMENT_ONLY_MESSAGE };
+  }
+
+  const result = await prisma.rateCard.updateMany({
+    where: { id: rateCardId, clientId },
+    data: { archivedAt: null },
+  });
+  if (result.count === 0) {
+    return { message: "Rate card not found." };
+  }
 
   revalidatePath(`/clients/${clientId}`);
 }

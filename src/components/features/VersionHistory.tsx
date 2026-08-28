@@ -43,8 +43,13 @@ function RevertButton({ action }: { action: VersionAction }) {
 
   return (
     <form action={formAction} className="shrink-0">
+      {/* Uploads no longer auto-promote a new version to current (Rule 2/3
+          audit gap fix) — this is the only way to change which version is
+          flagged current, so it must read as a forward action, not a
+          rollback, even though the Server Action underneath is still named
+          "revert". */}
       <Button type="submit" variant="ghost" disabled={pending} className="text-xs">
-        {pending ? "Reverting…" : "Revert to this version"}
+        {pending ? "Setting as current…" : "Set as current version"}
       </Button>
       {state?.message && <p className="text-xs text-danger">{state.message}</p>}
     </form>

@@ -11,11 +11,27 @@ export interface ActionState {
   message?: string;
 }
 
+export interface SOWTemplateVersionOption {
+  id: string;
+  versionNumber: number;
+  fileName: string;
+  // "Flagged as default for display" (see uploadSOWTemplateVersionAction) —
+  // the form pre-selects whichever version has this, but every version
+  // stays pickable regardless.
+  status: "ENABLED" | "DISABLED";
+}
+
 export interface SOWTemplateOption {
   id: string;
   name: string;
   scope: "GLOBAL" | "CLIENT_SPECIFIC";
   isBaseline: boolean;
+  // Every version of this template, newest first — Rule 2 (audit gap): like
+  // Rate Cards, SOW Template versions don't supersede, so every version
+  // stays independently selectable, not just whichever one is flagged
+  // ENABLED. Grouped per template so a caller can present "Template X: v1,
+  // v2, v3."
+  versions: SOWTemplateVersionOption[];
 }
 
 /**
@@ -33,11 +49,28 @@ export async function getSOWTemplatesForClientAction(clientId: string): Promise<
   return prisma.sOWTemplate.findMany({
     where: { OR: [{ clientId: null }, { clientId }] },
     orderBy: [{ isBaseline: "desc" }, { name: "asc" }],
-    select: { id: true, name: true, scope: true, isBaseline: true },
+    select: {
+      id: true,
+      name: true,
+      scope: true,
+      isBaseline: true,
+      versions: {
+        orderBy: { versionNumber: "desc" },
+        select: { id: true, versionNumber: true, fileName: true, status: true },
+      },
+    },
   });
 }
 
-/** Uploads a new version to an existing SOW Template (baseline or a client-specific variant). */
+/**
+ * Uploads a new version to an existing SOW Template (baseline or a
+ * client-specific variant). Rule 2 (audit gap): SOW Template versions must
+ * never supersede one another — every version stays independently
+ * selectable forever, so this does NOT disable the previous version. See
+ * the `status` comment below for what the field means for this table now
+ * (same repurposing as RateCardVersion — see
+ * clients/[clientId]/actions.ts's uploadRateCardVersionAction).
+ */
 export async function uploadSOWTemplateVersionAction(
   sowTemplateId: string,
   _prevState: ActionState | undefined,
@@ -64,28 +97,33 @@ export async function uploadSOWTemplateVersionAction(
     return extracted;
   }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.sOWTemplateVersion.updateMany({
-      where: { sowTemplateId, status: "ENABLED" },
-      data: { status: "DISABLED" },
-    });
+  const latest = await prisma.sOWTemplateVersion.findFirst({
+    where: { sowTemplateId },
+    orderBy: { versionNumber: "desc" },
+  });
 
-    const latest = await tx.sOWTemplateVersion.findFirst({
-      where: { sowTemplateId },
-      orderBy: { versionNumber: "desc" },
-    });
-
-    await tx.sOWTemplateVersion.create({
-      data: {
-        sowTemplateId,
-        versionNumber: (latest?.versionNumber ?? 0) + 1,
-        fileName: file.name,
-        fileBytes: buffer,
-        extractedText: extracted.extractedText,
-        status: "ENABLED",
-        uploadedById: session!.user!.id,
-      },
-    });
+  await prisma.sOWTemplateVersion.create({
+    data: {
+      sowTemplateId,
+      versionNumber: (latest?.versionNumber ?? 0) + 1,
+      fileName: file.name,
+      fileBytes: buffer,
+      extractedText: extracted.extractedText,
+      // For SOWTemplateVersion specifically, `status` no longer gates
+      // selectability (all versions are always selectable — see
+      // getSOWTemplatesForClientAction) and is repurposed as "flagged as
+      // the default/most-recent version for display." A freshly uploaded
+      // version is intentionally NOT auto-promoted to that flag — it stays
+      // DISABLED until an admin explicitly flags it via
+      // revertSOWTemplateVersionAction (unchanged below), which still
+      // maintains "at most one ENABLED version per template" (the DB-level
+      // partial unique index from the version-pinning migration still
+      // enforces this; that's why this insert can't just default to
+      // ENABLED — the prior version is no longer disabled here, so a second
+      // simultaneous ENABLED row would violate that constraint).
+      status: "DISABLED",
+      uploadedById: session!.user!.id,
+    },
   });
 
   revalidatePath("/sow-templates");
