@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { VersionHistory, type VersionHistoryItem } from "@/components/features/VersionHistory";
 
@@ -179,5 +179,73 @@ describe("VersionHistory (shared across MSA, Rate Card, and SOW Template)", () =
 
     expect(screen.getByLabelText("MSA file")).toBeInTheDocument();
     expect(screen.getByLabelText("Effective from")).toBeInTheDocument();
+  });
+
+  it("keeps the upload form open and shows the error, instead of silently closing, when the action fails", async () => {
+    const user = userEvent.setup();
+    const failingUpload = vi.fn(() =>
+      Promise.resolve({ message: "Only the Client Engagement role can manage commercial documents." })
+    );
+    render(
+      <VersionHistory
+        title="Standard SOW Template"
+        versions={versions}
+        canManage={true}
+        onUpload={failingUpload}
+        makeRevertAction={() => noop}
+        fileLabel="SOW Template file"
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Upload new version" }));
+    await user.upload(
+      screen.getByLabelText("SOW Template file"),
+      new File(["contents"], "new-version.docx", { type: "text/plain" })
+    );
+    // fireEvent.submit bypasses jsdom's native file-input constraint
+    // validation gate (a jsdom limitation, not a real Browser difference)
+    // that would otherwise short-circuit before React's action runs. Scoped
+    // to the upload form specifically (via the file input) rather than
+    // `container.querySelector("form")` — `versions` includes an older,
+    // collapsed version whose own Revert <form> is still mounted earlier in
+    // the DOM (<details> content stays mounted while closed), so a bare
+    // first-form query would submit the wrong one.
+    fireEvent.submit(screen.getByLabelText("SOW Template file").closest("form")!);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Only the Client Engagement role can manage commercial documents.")
+      ).toBeInTheDocument();
+    });
+    // The form (and its file input) must still be present — a failed
+    // upload must not look identical to a successful one.
+    expect(screen.getByLabelText("SOW Template file")).toBeInTheDocument();
+  });
+
+  it("closes the upload form once the action actually succeeds", async () => {
+    const user = userEvent.setup();
+    const successfulUpload = vi.fn(() => Promise.resolve(undefined));
+    render(
+      <VersionHistory
+        title="Standard SOW Template"
+        versions={versions}
+        canManage={true}
+        onUpload={successfulUpload}
+        makeRevertAction={() => noop}
+        fileLabel="SOW Template file"
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Upload new version" }));
+    await user.upload(
+      screen.getByLabelText("SOW Template file"),
+      new File(["contents"], "new-version.docx", { type: "text/plain" })
+    );
+    fireEvent.submit(screen.getByLabelText("SOW Template file").closest("form")!);
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText("SOW Template file")).not.toBeInTheDocument();
+    });
+    expect(successfulUpload).toHaveBeenCalled();
   });
 });

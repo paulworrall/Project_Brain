@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useId, useState, type ReactNode } from "react";
+import { useActionState, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Label } from "@/components/ui/Label";
@@ -126,6 +126,20 @@ export function VersionHistory({
   );
   const fileInputId = useId();
 
+  // Close the upload form only once a submission actually finishes
+  // successfully — not merely once it settles. `state` alone can't
+  // distinguish "never submitted" from "succeeded" (both are `undefined`,
+  // since the action returns nothing on success), so track the
+  // pending→settled transition explicitly and only close when that
+  // transition didn't leave an error message behind.
+  const wasPending = useRef(false);
+  useEffect(() => {
+    if (wasPending.current && !pending && !state?.message) {
+      setIsUploading(false);
+    }
+    wasPending.current = pending;
+  }, [pending, state]);
+
   const sorted = [...versions].sort((a, b) => b.versionNumber - a.versionNumber);
   const current = sorted.find((v) => v.status === "ENABLED") ?? null;
   const olderVersions = sorted.filter((v) => v.id !== current?.id);
@@ -180,13 +194,7 @@ export function VersionHistory({
       )}
 
       {canManage && isUploading && (
-        <form
-          action={async (formData) => {
-            await formAction(formData);
-            setIsUploading(false);
-          }}
-          className="mt-4 space-y-3 border-t border-border pt-4"
-        >
+        <form action={formAction} className="mt-4 space-y-3 border-t border-border pt-4">
           <div>
             <Label htmlFor={fileInputId}>{fileLabel}</Label>
             <input

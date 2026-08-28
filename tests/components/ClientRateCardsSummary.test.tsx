@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const createRateCardAction = vi.fn(async () => undefined);
+const createRateCardAction = vi.fn(async (): Promise<{ message?: string } | undefined> => undefined);
 
 vi.mock("@/app/(dashboard)/clients/[clientId]/actions", () => ({
   createRateCardAction,
@@ -80,5 +80,49 @@ describe("ClientRateCardsSummary", () => {
     fireEvent.submit(container.querySelector("form")!);
 
     await waitFor(() => expect(createRateCardAction).toHaveBeenCalled());
+  });
+
+  it("keeps the create form open and shows the error, instead of silently closing, when the action fails", async () => {
+    createRateCardAction.mockImplementationOnce(async () => ({ message: "Couldn't read that file." }));
+    const user = userEvent.setup();
+    const { container } = render(
+      <ClientRateCardsSummary clientId="client_1" rateCards={[]} canManage={true} />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add rate card" }));
+    await user.type(screen.getByLabelText("Name"), "New Rates");
+    await user.type(screen.getByLabelText("Currency"), "GBP");
+    await user.upload(
+      screen.getByLabelText("Rate card file"),
+      new File(["contents"], "rates.docx", { type: "text/plain" })
+    );
+    fireEvent.submit(container.querySelector("form")!);
+
+    await waitFor(() => {
+      expect(screen.getByText("Couldn't read that file.")).toBeInTheDocument();
+    });
+    // The form must still be present — a failed upload must not look
+    // identical to a successful one.
+    expect(screen.getByLabelText("Rate card file")).toBeInTheDocument();
+  });
+
+  it("closes the create form once the action actually succeeds", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <ClientRateCardsSummary clientId="client_1" rateCards={[]} canManage={true} />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add rate card" }));
+    await user.type(screen.getByLabelText("Name"), "New Rates");
+    await user.type(screen.getByLabelText("Currency"), "GBP");
+    await user.upload(
+      screen.getByLabelText("Rate card file"),
+      new File(["contents"], "rates.docx", { type: "text/plain" })
+    );
+    fireEvent.submit(container.querySelector("form")!);
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText("Rate card file")).not.toBeInTheDocument();
+    });
   });
 });
