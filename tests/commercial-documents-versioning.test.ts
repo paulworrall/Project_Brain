@@ -185,6 +185,27 @@ describe("MasterServiceAgreement versioning", () => {
   });
 });
 
+describe("createRateCardAction — creation always includes a first version (feature: rate-card-page-creation-and-toggle)", () => {
+  it("rejects a submission with no file, creating no RateCard row at all — there is no way to reach a zero-version Rate Card", async () => {
+    const before = await prisma.rateCard.count({ where: { clientId: clientAId } });
+
+    const formData = new FormData();
+    formData.set("name", "No File Rates");
+    formData.set("currency", "GBP");
+    formData.set("effectiveFrom", "2026-01-01");
+    formData.set("effectiveTo", "");
+    // Deliberately no "file" entry set.
+
+    const result = await createRateCardAction(clientAId, undefined, formData);
+
+    expect(result?.message).toMatch(/upload the rate card file/i);
+    const after = await prisma.rateCard.count({ where: { clientId: clientAId } });
+    expect(after).toBe(before);
+    const found = await prisma.rateCard.findFirst({ where: { clientId: clientAId, name: "No File Rates" } });
+    expect(found).toBeNull();
+  });
+});
+
 describe("RateCard versioning (phase 2: versions no longer supersede — Rule 3 audit gap fix)", () => {
   let rateCardId: string;
 
