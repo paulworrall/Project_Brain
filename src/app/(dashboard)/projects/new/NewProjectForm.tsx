@@ -1,10 +1,14 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { FormError } from "@/components/ui/FormError";
+import { ProcessingOverlay, type ProcessingOverlayStatus } from "@/components/ui/ProcessingOverlay";
+import { useFallbackStageProgress } from "@/hooks/useFallbackStageProgress";
+import { INTAKE_PROCESSING_STAGES, INTAKE_STAGE_DURATIONS_MS } from "@/lib/intakeProcessingStages";
+import { formatRateCardLabel } from "@/lib/formatRateCardLabel";
 import {
   createProjectAction,
   getRateCardsForWorkstreamAction,
@@ -35,6 +39,14 @@ export function NewProjectForm({
   const [state, formAction, pending] = useActionState(createProjectAction, undefined);
   const [briefMode, setBriefMode] = useState<BriefInputMode>("paste");
   const [workstreamId, setWorkstreamId] = useState("");
+  // Controlled (not left uncontrolled) specifically so a failed submission
+  // doesn't lose them: React resets uncontrolled fields once a <form
+  // action> call completes, success or failure — for the brief text in
+  // particular, that would silently wipe out what the user pasted right
+  // when the processing-overlay error/retry path needs it to still be
+  // there.
+  const [name, setName] = useState("");
+  const [briefText, setBriefText] = useState("");
 
   const [rateCardOptions, setRateCardOptions] = useState<RateCardOption[]>([]);
   const [rateCardId, setRateCardId] = useState("");
@@ -49,6 +61,61 @@ export function NewProjectForm({
   );
 
   const [isCheckingClient, startClientCheck] = useTransition();
+
+  // Processing overlay — scoped to the plain-text ("paste") brief path only;
+  // file upload is broken separately (FB-002) and out of scope here. The
+  // Intake Agent call is a single blocking Server Action with no real
+  // per-stage progress signal (see intake-agent.ts), so stageIndex below
+  // comes from a time-based fallback (useFallbackStageProgress) rather than
+  // real events — swapping in real events later only means changing what
+  // feeds `stageIndex`/`isFinalHold` into ProcessingOverlay, not its props.
+  const formRef = useRef<HTMLFormElement>(null);
+  const submitButtonRef = useRef<HTMLButtonElement>(null);
+  const [overlayOpen, setOverlayOpen] = useState(false);
+  const [overlayStatus, setOverlayStatus] = useState<ProcessingOverlayStatus>("active");
+  const wasPendingRef = useRef(pending);
+
+  const fallbackActive = overlayOpen && overlayStatus === "active";
+  const { stageIndex, isFinalHold, elapsedInFinalHoldMs } = useFallbackStageProgress(
+    fallbackActive,
+    INTAKE_STAGE_DURATIONS_MS
+  );
+
+  useEffect(() => {
+    // The action always redirects on success and only ever returns (without
+    // navigating away) on failure — field-validation errors, MSA/rate-card
+    // checks, brief-parsing errors, or an IntakeAgentError all come back as
+    // `state` with the component still mounted. So any pending:true -> false
+    // transition that leaves this component mounted is, by construction, a
+    // failure — regardless of whether `state.message` is set or only
+    // per-field `state.errors` are.
+    if (wasPendingRef.current && !pending && overlayOpen && overlayStatus === "active") {
+      setOverlayStatus("error");
+    }
+    wasPendingRef.current = pending;
+  }, [pending, overlayOpen, overlayStatus]);
+
+  function handleFormSubmit() {
+    if (briefMode !== "paste") return;
+    // Set synchronously in the submit handler (not a useEffect reacting to
+    // `pending`) so the overlay appears the same frame as the click, before
+    // the Server Action round-trip even starts.
+    setOverlayOpen(true);
+    setOverlayStatus("active");
+  }
+
+  function handleRetry() {
+    // Re-clicks the real submit button rather than calling requestSubmit()
+    // or the formAction dispatcher directly — both proved unreliable at
+    // triggering a fresh dispatch in practice, whereas re-clicking the same
+    // element that started the original submission goes through the exact
+    // same native click -> submit-event path.
+    submitButtonRef.current?.click();
+  }
+
+  function handleDismissError() {
+    setOverlayOpen(false);
+  }
 
   function handleWorkstreamChange(value: string) {
     setWorkstreamId(value);
@@ -81,7 +148,7 @@ export function NewProjectForm({
   const canSubmit = !pending && !isCheckingClient && msaOption != null;
 
   return (
-    <form action={formAction} className="space-y-5">
+    <form ref={formRef} action={formAction} onSubmit={handleFormSubmit} className="space-y-5">
       <div>
         <Label htmlFor="workstreamId">Workstream</Label>
         <select
@@ -106,7 +173,14 @@ export function NewProjectForm({
 
       <div>
         <Label htmlFor="name">Project name</Label>
-        <Input id="name" name="name" type="text" required />
+        <Input
+          id="name"
+          name="name"
+          type="text"
+          required
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
         <FormError>{state?.errors?.name}</FormError>
       </div>
 
@@ -163,7 +237,7 @@ export function NewProjectForm({
           </option>
           {rateCardOptions.map((rc) => (
             <option key={rc.id} value={rc.id}>
-              {rc.name} ({rc.currency})
+              {formatRateCardLabel(rc.name, rc.currency)}
             </option>
           ))}
         </select>
@@ -221,6 +295,8 @@ export function NewProjectForm({
             name="briefText"
             rows={8}
             placeholder="Paste the client brief here…"
+            value={briefText}
+            onChange={(e) => setBriefText(e.target.value)}
             className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
           />
         ) : (
@@ -241,9 +317,22 @@ export function NewProjectForm({
         </p>
       )}
 
-      <Button type="submit" disabled={!canSubmit} className="w-full">
+      <Button ref={submitButtonRef} type="submit" disabled={!canSubmit} className="w-full">
         {pending ? "Running Intake Agent…" : "Create project"}
       </Button>
+
+      <ProcessingOverlay
+        isOpen={overlayOpen}
+        title="Setting up your project"
+        stages={[...INTAKE_PROCESSING_STAGES]}
+        stageIndex={stageIndex}
+        status={overlayStatus}
+        isFinalHold={isFinalHold}
+        elapsedInFinalHoldMs={elapsedInFinalHoldMs}
+        errorMessage={state?.message}
+        onRetry={handleRetry}
+        onDismissError={handleDismissError}
+      />
     </form>
   );
 }
