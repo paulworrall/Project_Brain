@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { StepStatus } from "@/types/workflow";
 import { DELIVERY_MONITORING_STAGE_NUMBER, PHASES, getStepLabel } from "@/lib/phases";
+import { ReadinessStrip, type ReadinessState } from "@/components/ui/ReadinessStrip";
 import { WorkflowStepList, type WorkflowStepData } from "./WorkflowStepList";
 
 const PHASE_BADGE_CLASS: Record<StepStatus, string> = {
@@ -45,14 +46,55 @@ function derivePhaseStatus(phaseSteps: WorkflowStepData[]): StepStatus {
   return "NOT_STARTED";
 }
 
+const STEP_READINESS_STATE: Record<StepStatus, ReadinessState> = {
+  COMPLETE: "confirmed",
+  IN_PROGRESS: "partial",
+  NOT_STARTED: "missing",
+};
+
+/**
+ * Every phase's header row gets the same ReadinessStrip treatment. Phase 1's
+ * strip is Foundation-Details-driven and supplied by the caller (it has no
+ * generic per-stage concept); phases with plain stages — Phase 2, 3, and any
+ * future one — get this auto-built stage-completion strip instead, so all
+ * three phases stay visually uniform without each needing bespoke wiring.
+ */
+function buildStepReadinessStrip(phaseName: string, phaseSteps: WorkflowStepData[]): ReactNode | null {
+  if (phaseSteps.length === 0) {
+    return null;
+  }
+  const completedCount = phaseSteps.filter((s) => s.status === "COMPLETE").length;
+  return (
+    <ReadinessStrip
+      segments={phaseSteps.map((step) => ({
+        key: String(step.stageNumber),
+        label: step.name,
+        state: STEP_READINESS_STATE[step.status],
+      }))}
+      headline={`${completedCount} of ${phaseSteps.length} stages complete`}
+      ariaLabel={`${phaseName} progress: ${completedCount} of ${phaseSteps.length} stages complete`}
+    />
+  );
+}
+
 export function StageTracker({
   steps,
   phase1Status,
   phase1Content,
+  headerExtraByPhaseKey,
 }: {
   steps: WorkflowStepData[];
   phase1Status: Phase1Status;
   phase1Content: ReactNode;
+  /**
+   * Extra summary content shown in a phase's header row itself, keyed by
+   * `Phase.key` — rendered whether the card is expanded or collapsed, unlike
+   * `phase1Content`. Phase 1 ("clarifying") is Foundation-Details-driven and
+   * must come from here, supplied by the caller; any other phase key you
+   * don't supply falls back to an auto-built stage-completion strip (see
+   * buildStepReadinessStrip) so every phase still gets a uniform header.
+   */
+  headerExtraByPhaseKey?: Partial<Record<string, ReactNode>>;
 }) {
   const stepByNumber = new Map(steps.map((step) => [step.stageNumber, step]));
 
@@ -76,11 +118,13 @@ export function StageTracker({
     <div className="space-y-3">
       {phaseSummaries.map(({ phase, steps: phaseSteps, status }, phaseIndex) => {
         const isPhase1 = phase.key === "clarifying";
-        const completedCount = phaseSteps.filter((s) => s.status === "COMPLETE").length;
         const badgeClass = isPhase1 ? PHASE1_BADGE_CLASS[phase1Status] : PHASE_BADGE_CLASS[status];
         const isBadgeComplete = isPhase1
           ? phase1Status === "READY_FOR_SPECIALIST_REVIEW"
           : status === "COMPLETE";
+        const headerExtra = isPhase1
+          ? (headerExtraByPhaseKey?.clarifying ?? null)
+          : (headerExtraByPhaseKey?.[phase.key] ?? buildStepReadinessStrip(phase.name, phaseSteps));
 
         return (
           <details
@@ -88,20 +132,27 @@ export function StageTracker({
             open={phase.key === activePhaseKey}
             className="rounded-lg border border-border bg-surface"
           >
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
-              <div className="flex items-center gap-3">
-                <span
-                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${badgeClass}`}
-                >
-                  {isBadgeComplete ? "✓" : phaseIndex + 1}
+            <summary className="cursor-pointer list-none px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${badgeClass}`}
+                  >
+                    {isBadgeComplete ? "✓" : phaseIndex + 1}
+                  </span>
+                  <span className="text-sm font-medium text-foreground">{phase.name}</span>
+                </div>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {isPhase1 ? PHASE1_STATUS_LABEL[phase1Status] : PHASE_STATUS_LABEL[status]}
                 </span>
-                <span className="text-sm font-medium text-foreground">{phase.name}</span>
               </div>
-              <span className="shrink-0 text-xs text-muted-foreground">
-                {isPhase1
-                  ? PHASE1_STATUS_LABEL[phase1Status]
-                  : `${PHASE_STATUS_LABEL[status]} · ${completedCount}/${phaseSteps.length} stages`}
-              </span>
+              {headerExtra ? (
+                // Always rendered — <summary> content isn't hidden by a closed
+                // <details>, only the sibling body div below is — which is
+                // exactly what keeps this visible whether the card is
+                // expanded or collapsed, uniformly across all three phases.
+                <div className="mt-2 pl-9">{headerExtra}</div>
+              ) : null}
             </summary>
 
             <div className="border-t border-border px-4 py-3">

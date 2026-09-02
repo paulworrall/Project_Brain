@@ -26,6 +26,8 @@ export interface Phase1WorkspaceProps {
   draftScopeDocument: DraftScopeDocument | null;
   draftScopeDocumentMeta: DraftScopeDocumentMeta | null;
   checklistItems: ChecklistItemView[];
+  kickOffDate: Date | null;
+  targetCompletionDate: Date | null;
 }
 
 export function Phase1Workspace({
@@ -36,6 +38,8 @@ export function Phase1Workspace({
   draftScopeDocument,
   draftScopeDocumentMeta,
   checklistItems,
+  kickOffDate,
+  targetCompletionDate,
 }: Phase1WorkspaceProps) {
   const confirmedDetailsCount = positionDocument?.whatWeKnow.length ?? 0;
   const openQuestionsCount = positionDocument?.whatWeNeedToFindOut.length ?? 0;
@@ -63,7 +67,11 @@ export function Phase1Workspace({
           Current position
         </h3>
         {positionDocument ? (
-          <PositionDocumentView fields={positionDocument} />
+          <PositionDocumentView
+            fields={positionDocument}
+            kickOffDate={kickOffDate}
+            targetCompletionDate={targetCompletionDate}
+          />
         ) : (
           <p className="text-sm text-muted-foreground">Not generated yet.</p>
         )}

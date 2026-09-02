@@ -22,11 +22,13 @@ export const PositionDocumentFieldsSchema = z.object({
   primaryContactName: z
     .string()
     .nullable()
-    .describe("The client-side contact's name, or null if not stated in the brief."),
+    .describe(
+      "The name of the person managing this project on the client side — the project's commercial/governance anchor (referred to as \"Client Name\" in the app, distinct from the client company's name). Null if not stated in the brief."
+    ),
   primaryContactEmail: z
     .string()
     .nullable()
-    .describe("The client-side contact's email, or null if not stated in the brief."),
+    .describe("That same client-side contact's email, or null if not stated in the brief."),
   whatWeKnow: z
     .array(
       z.object({

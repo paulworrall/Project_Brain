@@ -117,6 +117,8 @@ function baseProps() {
       isBaseline: boolean;
       versions: { id: string; versionNumber: number; fileName: string; status: "ENABLED" | "DISABLED" }[];
     }[],
+    kickOffDate: null as Date | null,
+    targetCompletionDate: null as Date | null,
   };
 }
 
@@ -208,5 +210,33 @@ describe("ProjectWorkflow", () => {
     expect(
       screen.queryByPlaceholderText(/Paste the specialist leads' feedback/)
     ).not.toBeInTheDocument();
+  });
+
+  it("shows the Brief Readiness strip in Phase 1's header row, derived from the live Position Document", () => {
+    render(<ProjectWorkflow {...baseProps()} />);
+
+    expect(screen.getByText(/Brief Readiness — \d of 5 confirmed/)).toBeInTheDocument();
+  });
+
+  it("keeps the Brief Readiness strip visible in the header even after Phase 1 collapses", () => {
+    render(
+      <ProjectWorkflow
+        {...baseProps()}
+        draftScopeDocument={draftScope}
+        draftScopeDocumentMeta={{ versionNumber: 1, createdAt: new Date("2026-08-01T10:00:00Z") }}
+      />
+    );
+
+    const clarifyingDetails = screen.getByText("Clarifying the brief and scope").closest("details");
+    expect(clarifyingDetails?.open).toBe(false);
+    expect(screen.getByText(/Brief Readiness — \d of 5 confirmed/)).toBeInTheDocument();
+  });
+
+  it("does not show the Brief Readiness strip once inside the expanded body — only in the header", () => {
+    render(<ProjectWorkflow {...baseProps()} />);
+
+    // Only one occurrence: the header-row version. The expanded "Current
+    // position" body no longer renders its own copy.
+    expect(screen.getAllByText(/Brief Readiness — \d of 5 confirmed/)).toHaveLength(1);
   });
 });

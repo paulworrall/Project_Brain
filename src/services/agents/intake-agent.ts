@@ -75,7 +75,7 @@ export async function extractPositionFields(
       messages: [
         {
           role: "user",
-          content: `This client brief was classified as ${briefType}. Extract everything it clearly states into "whatWeKnow" as topic/detail pairs. Separately, identify genuine gaps the brief never addresses ("whatWeNeedToFindOut") from items the client themselves flagged as still-deciding — TBC, "???", "tbd", "still deciding" — ("clientFlaggedOpenItems"). These two lists are semantically different: a genuine gap is silence; a client-flagged item is the client explicitly saying they don't know yet. Also extract the primary client-side contact's name and email if stated, otherwise null.\n\n<brief>\n${briefText}\n</brief>`,
+          content: `This client brief was classified as ${briefType}. Extract everything it clearly states into "whatWeKnow" as topic/detail pairs. Separately, identify genuine gaps the brief never addresses ("whatWeNeedToFindOut") from items the client themselves flagged as still-deciding — TBC, "???", "tbd", "still deciding" — ("clientFlaggedOpenItems"). These two lists are semantically different: a genuine gap is silence; a client-flagged item is the client explicitly saying they don't know yet. Also extract the name and email of whoever is managing this project on the client side — the project's commercial/governance anchor, referred to as "Client Name" in the app — if stated, otherwise null.\n\n<brief>\n${briefText}\n</brief>`,
         },
       ],
     });

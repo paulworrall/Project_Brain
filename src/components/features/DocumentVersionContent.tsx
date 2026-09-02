@@ -17,10 +17,14 @@ export function DocumentVersionContent({
   projectId,
   type,
   content,
+  kickOffDate,
+  targetCompletionDate,
 }: {
   projectId: string;
   type: DocumentType;
   content: unknown;
+  kickOffDate: Date | null;
+  targetCompletionDate: Date | null;
 }) {
   switch (type) {
     case "CLARIFICATION_EMAIL": {
@@ -33,7 +37,15 @@ export function DocumentVersionContent({
     }
     case "POSITION_DOCUMENT": {
       const parsed = PositionDocumentFieldsSchema.safeParse(content);
-      return parsed.success ? <PositionDocumentView fields={parsed.data} /> : <UnreadableContent />;
+      return parsed.success ? (
+        <PositionDocumentView
+          fields={parsed.data}
+          kickOffDate={kickOffDate}
+          targetCompletionDate={targetCompletionDate}
+        />
+      ) : (
+        <UnreadableContent />
+      );
     }
     case "CHECKLIST": {
       const parsed = SetupChecklistSchema.safeParse(content);

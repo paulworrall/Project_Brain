@@ -30,14 +30,16 @@ function baseProps() {
     draftScopeDocument: null,
     draftScopeDocumentMeta: null,
     checklistItems: [],
+    kickOffDate: null,
+    targetCompletionDate: null,
   };
 }
 
 describe("Phase1Workspace", () => {
-  it("shows What We Know / What We Need to Find Out prominently, straight from the Position Document", () => {
+  it("shows the Foundation Details block and What We Need to Find Out, straight from the Position Document", () => {
     render(<Phase1Workspace {...baseProps()} />);
 
-    expect(screen.getByText("What We Know")).toBeInTheDocument();
+    expect(screen.getByText("Foundation Details")).toBeInTheDocument();
     expect(screen.getByText("What We Need to Find Out")).toBeInTheDocument();
     expect(screen.getByText("Refresh the campaign.")).toBeInTheDocument();
     expect(screen.getByText("Target audience")).toBeInTheDocument();
@@ -127,5 +129,23 @@ describe("Phase1Workspace", () => {
     expect(summary).toHaveTextContent("0 open questions");
     expect(summary).toHaveTextContent("0 client updates logged");
     expect(summary).toHaveTextContent("0/0 checklist items complete");
+  });
+
+  it("passes the real Project dates into Foundation Details' Timeline category", () => {
+    render(
+      <Phase1Workspace
+        {...baseProps()}
+        kickOffDate={new Date("2026-09-01T00:00:00Z")}
+        targetCompletionDate={new Date("2026-12-01T00:00:00Z")}
+      />
+    );
+
+    expect(screen.getByText(/Start: 1 Sept 2026/)).toBeInTheDocument();
+  });
+
+  it("shows Client Name in Foundation Details as the Position Document's primary contact", () => {
+    render(<Phase1Workspace {...baseProps()} />);
+
+    expect(screen.getByText("Jamie Chen — jamie@example.com")).toBeInTheDocument();
   });
 });
