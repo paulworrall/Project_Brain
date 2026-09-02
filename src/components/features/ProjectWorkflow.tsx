@@ -6,6 +6,8 @@ import type { WorkflowStep } from "@/types/workflow";
 import type { WorkflowStepData } from "./WorkflowStepList";
 import { StageTracker, type Phase1Status } from "./StageTracker";
 import { Phase1Workspace } from "./Phase1Workspace";
+import { BriefReadinessIndicator } from "./BriefReadinessIndicator";
+import { deriveFoundationDetails } from "@/lib/foundationDetails";
 import type { ClientUpdateLogEntry } from "./ClientUpdateComposer";
 import type { DraftScopeDocumentMeta } from "./DraftScopeDocumentCard";
 import { ChatPanel } from "./ChatPanel";
@@ -91,6 +93,8 @@ interface ProjectWorkflowProps {
   currentSowTemplate: { id: string; name: string } | null;
   currentSowTemplateVersion: { id: string } | null;
   sowTemplateOptions: SowTemplateSelectOption[];
+  kickOffDate: Date | null;
+  targetCompletionDate: Date | null;
 }
 
 /**
@@ -132,6 +136,8 @@ export function ProjectWorkflow({
   currentSowTemplate,
   currentSowTemplateVersion,
   sowTemplateOptions,
+  kickOffDate,
+  targetCompletionDate,
 }: ProjectWorkflowProps) {
   const contentByStage: Record<number, ReactNode> = {
     5: (
@@ -169,8 +175,23 @@ export function ProjectWorkflow({
       draftScopeDocument={draftScopeDocument}
       draftScopeDocumentMeta={draftScopeDocumentMeta}
       checklistItems={checklistItems}
+      kickOffDate={kickOffDate}
+      targetCompletionDate={targetCompletionDate}
     />
   );
+
+  // Shown in Phase 1's step header itself (always visible, expanded or not)
+  // rather than inside Phase1Workspace's body — see StageTracker's
+  // headerExtraByPhaseKey. Phase 1 is Foundation-Details-driven so it must be
+  // supplied explicitly; Phase 2/3 have no entry here and fall back to
+  // StageTracker's own auto-built per-stage strip, keeping all three uniform.
+  const headerExtraByPhaseKey = {
+    clarifying: positionDocument ? (
+      <BriefReadinessIndicator
+        categories={deriveFoundationDetails(positionDocument, kickOffDate, targetCompletionDate).categories}
+      />
+    ) : null,
+  };
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
@@ -178,6 +199,7 @@ export function ProjectWorkflow({
         steps={steps}
         phase1Status={derivePhase1Status(stages, draftScopeDocument)}
         phase1Content={phase1Content}
+        headerExtraByPhaseKey={headerExtraByPhaseKey}
       />
       <div className="space-y-4 lg:sticky lg:top-6 lg:self-start">
         <ChatPanel projectId={projectId} projectName={projectName} />

@@ -17,6 +17,8 @@ describe("DocumentVersionContent", () => {
         projectId="proj_1"
         type="CLARIFICATION_EMAIL"
         content={{ subject: "Following up on your brief", bodyText: "Hi there," }}
+        kickOffDate={null}
+        targetCompletionDate={null}
       />
     );
 
@@ -35,6 +37,8 @@ describe("DocumentVersionContent", () => {
           whatWeNeedToFindOut: [],
           clientFlaggedOpenItems: [],
         }}
+        kickOffDate={null}
+        targetCompletionDate={null}
       />
     );
 
@@ -47,6 +51,8 @@ describe("DocumentVersionContent", () => {
         projectId="proj_1"
         type="CHECKLIST"
         content={{ items: ["Assign job code"] }}
+        kickOffDate={null}
+        targetCompletionDate={null}
       />
     );
 
@@ -72,6 +78,8 @@ describe("DocumentVersionContent", () => {
           openQuestionsRisks: [],
           outstandingGapsCarriedForward: [],
         }}
+        kickOffDate={null}
+        targetCompletionDate={null}
       />
     );
 
@@ -81,7 +89,13 @@ describe("DocumentVersionContent", () => {
 
   it("shows a friendly message when a version's content doesn't match its expected shape", () => {
     render(
-      <DocumentVersionContent projectId="proj_1" type="POSITION_DOCUMENT" content={{ bogus: true }} />
+      <DocumentVersionContent
+        projectId="proj_1"
+        type="POSITION_DOCUMENT"
+        content={{ bogus: true }}
+        kickOffDate={null}
+        targetCompletionDate={null}
+      />
     );
 
     expect(screen.getByText("This version's content couldn't be read.")).toBeInTheDocument();

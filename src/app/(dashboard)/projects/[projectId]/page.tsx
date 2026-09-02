@@ -223,6 +223,8 @@ export default async function ProjectDetailPage({
             status: v.status,
           })),
         }))}
+        kickOffDate={project.kickOffDate}
+        targetCompletionDate={project.targetCompletionDate}
       />
     </div>
   );
