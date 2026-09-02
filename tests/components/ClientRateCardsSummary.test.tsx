@@ -34,6 +34,19 @@ describe("ClientRateCardsSummary", () => {
     expect(screen.queryByText("No rate cards on file yet.")).not.toBeInTheDocument();
   });
 
+  it("omits the '(currency)' suffix entirely for a rate card with no currency set", () => {
+    render(
+      <ClientRateCardsSummary
+        clientId="client_1"
+        rateCards={[{ id: "rc_3", name: "No Currency Rates", currency: null, currentVersionFileName: "rates.pdf" }]}
+        canManage={false}
+      />
+    );
+
+    expect(screen.getByText("No Currency Rates")).toBeInTheDocument();
+    expect(screen.queryByText(/No Currency Rates \(/)).not.toBeInTheDocument();
+  });
+
   it("links 'Manage in library' to the Rate Cards library", () => {
     render(<ClientRateCardsSummary clientId="client_1" rateCards={rateCards} canManage={false} />);
 
@@ -56,7 +69,7 @@ describe("ClientRateCardsSummary", () => {
     await user.click(screen.getByRole("button", { name: "Add rate card" }));
 
     expect(screen.getByLabelText("Name")).toBeInTheDocument();
-    expect(screen.getByLabelText("Currency")).toBeInTheDocument();
+    expect(screen.getByLabelText("Currency (optional)")).toBeInTheDocument();
     expect(screen.getByLabelText("Rate card file")).toBeInTheDocument();
     expect(screen.getByLabelText("Effective from")).toBeInTheDocument();
   });
@@ -69,7 +82,7 @@ describe("ClientRateCardsSummary", () => {
 
     await user.click(screen.getByRole("button", { name: "Add rate card" }));
     await user.type(screen.getByLabelText("Name"), "New Rates");
-    await user.type(screen.getByLabelText("Currency"), "GBP");
+    await user.type(screen.getByLabelText("Currency (optional)"), "GBP");
     await user.upload(
       screen.getByLabelText("Rate card file"),
       new File(["contents"], "rates.txt", { type: "text/plain" })
@@ -91,7 +104,7 @@ describe("ClientRateCardsSummary", () => {
 
     await user.click(screen.getByRole("button", { name: "Add rate card" }));
     await user.type(screen.getByLabelText("Name"), "New Rates");
-    await user.type(screen.getByLabelText("Currency"), "GBP");
+    await user.type(screen.getByLabelText("Currency (optional)"), "GBP");
     await user.upload(
       screen.getByLabelText("Rate card file"),
       new File(["contents"], "rates.docx", { type: "text/plain" })
@@ -114,7 +127,7 @@ describe("ClientRateCardsSummary", () => {
 
     await user.click(screen.getByRole("button", { name: "Add rate card" }));
     await user.type(screen.getByLabelText("Name"), "New Rates");
-    await user.type(screen.getByLabelText("Currency"), "GBP");
+    await user.type(screen.getByLabelText("Currency (optional)"), "GBP");
     await user.upload(
       screen.getByLabelText("Rate card file"),
       new File(["contents"], "rates.docx", { type: "text/plain" })

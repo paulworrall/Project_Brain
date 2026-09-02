@@ -50,6 +50,25 @@ describe("ProjectSummaryBar", () => {
     expect(screen.getByText("2026 Standard Rates (GBP)")).toBeInTheDocument();
   });
 
+  it("omits the '(currency)' suffix entirely for a Rate Card with no currency set", () => {
+    render(
+      <ProjectSummaryBar
+        projectId="proj_1"
+        status="ACTIVE"
+        jobCode={null}
+        kickOffDate={null}
+        targetCompletionDate={null}
+        projectManager={null}
+        projectManagerOptions={[]}
+        rateCard={{ id: "rc_1", name: "No Currency Rates", currency: null }}
+        rateCardOptions={[{ id: "rc_1", name: "No Currency Rates", currency: null }]}
+      />
+    );
+
+    expect(screen.getByText("No Currency Rates")).toBeInTheDocument();
+    expect(screen.queryByText(/No Currency Rates \(/)).not.toBeInTheDocument();
+  });
+
   it("switches to an editable form with pre-filled values when Edit is clicked", async () => {
     const user = userEvent.setup();
     render(

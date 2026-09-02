@@ -104,6 +104,21 @@ describe("RateCardsPanel", () => {
     expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument();
   });
 
+  it("omits the '(currency)' suffix entirely for a rate card with no currency set — never renders '(null)' or '(undefined)'", () => {
+    render(
+      <RateCardsPanel
+        clientId="client_1"
+        rateCards={[makeRateCard({ currency: null })]}
+        canManage={false}
+      />
+    );
+
+    expect(screen.getByText("2025 Rates")).toBeInTheDocument();
+    expect(screen.queryByText(/2025 Rates \(/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/null/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/undefined/i)).not.toBeInTheDocument();
+  });
+
   it("renders one VersionHistory panel per named rate card, each showing its name/currency and current version", () => {
     render(<RateCardsPanel clientId="client_1" rateCards={rateCards} canManage={false} />);
 

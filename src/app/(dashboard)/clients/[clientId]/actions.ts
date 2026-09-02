@@ -138,7 +138,14 @@ export async function revertMasterServiceAgreementVersionAction(
 
 const CreateRateCardSchema = z.object({
   name: z.string().trim().min(1, { error: "Give this rate card a name." }),
-  currency: z.string().trim().min(1, { error: "Currency is required." }),
+  // Optional — a rate card can carry several currencies (one per role)
+  // within a single file, so it's not always meaningful to record one at
+  // upload time. `.nullish()`, not `.optional()`: a real <input> left blank
+  // still submits "" for its key (`.optional()` alone wouldn't reject that,
+  // since it's a valid string), but formData.get() returns null rather than
+  // undefined for a key that's altogether absent — `.nullish()` accepts
+  // both, and either way an empty/absent value is normalized to null below.
+  currency: z.string().trim().nullish(),
   effectiveFrom: z.string().trim().min(1, { error: "Effective from date is required." }),
   effectiveTo: z.string().trim().optional(),
 });
@@ -163,11 +170,7 @@ export async function createRateCardAction(
   if (!parsed.success) {
     const errors = z.flattenError(parsed.error).fieldErrors;
     return {
-      message:
-        errors.name?.[0] ??
-        errors.currency?.[0] ??
-        errors.effectiveFrom?.[0] ??
-        "Invalid rate card details.",
+      message: errors.name?.[0] ?? errors.effectiveFrom?.[0] ?? "Invalid rate card details.",
     };
   }
 
@@ -186,7 +189,7 @@ export async function createRateCardAction(
     data: {
       clientId,
       name: parsed.data.name,
-      currency: parsed.data.currency.toUpperCase(),
+      currency: parsed.data.currency ? parsed.data.currency.toUpperCase() : null,
       versions: {
         create: {
           versionNumber: 1,
