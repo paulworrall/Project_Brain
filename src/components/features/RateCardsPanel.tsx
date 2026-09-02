@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
 import { VersionHistory, type VersionHistoryItem } from "./VersionHistory";
 import { CreateRateCardForm } from "./CreateRateCardForm";
+import { formatRateCardLabel } from "@/lib/formatRateCardLabel";
 import {
   uploadRateCardVersionAction,
   revertRateCardVersionAction,
@@ -21,7 +22,11 @@ export interface RateCardVersionView extends VersionHistoryItem {
 export interface RateCardDocumentView {
   id: string;
   name: string;
-  currency: string;
+  // Nullable — a rate card can carry multiple currencies (one per role)
+  // within a single file, so recording one at upload time isn't always
+  // meaningful. Display sites omit the "(CURRENCY)" suffix entirely when
+  // absent, never render a literal "(null)"/"(undefined)".
+  currency: string | null;
   archivedAt: Date | null;
   /** How many Projects currently reference this Rate Card (via rateCardId) — gates the archive confirmation below. */
   liveProjectCount: number;
@@ -167,13 +172,14 @@ export function RateCardsPanel({
               )}
             </div>
             <VersionHistory
-              title={`${rateCard.name} (${rateCard.currency})`}
+              title={formatRateCardLabel(rateCard.name, rateCard.currency)}
               versions={rateCard.versions.map((v) => ({
                 ...v,
                 detail: `${formatDate(v.effectiveFrom)} – ${formatDate(v.effectiveTo)}`,
               }))}
               canManage={canManage}
               fileLabel="Rate card file"
+              fileAccept=".docx,.pdf,.pptx,.txt,.xlsx"
               onUpload={uploadRateCardVersionAction.bind(null, clientId, rateCard.id)}
               makeRevertAction={(versionId) =>
                 revertRateCardVersionAction.bind(null, clientId, rateCard.id, versionId)

@@ -182,7 +182,11 @@ model RateCard {
   id         String    @id @default(cuid())
   clientId   String
   name       String
-  currency   String
+  // Nullable: rate cards often carry multiple currencies (per role) within a
+  // single file — currency selection happens when a user consumes the rate
+  // card, not at upload time, so it's not always meaningful to record one
+  // value here.
+  currency   String?
   // Set to retire this named Rate Card from end-user selectors without
   // touching its version-currency (ENABLED/DISABLED) state — a distinct
   // lever from superseding a version, per the Rule 3 audit gap.

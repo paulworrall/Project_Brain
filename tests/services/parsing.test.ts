@@ -46,9 +46,22 @@ describe("parseDocumentToText", () => {
     expect(officeparser.__mockParseOffice).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects unsupported file extensions", async () => {
+  it("parses .xlsx files via officeparser using 'csv' output, not 'text' — spreadsheets are tabular, not prose", async () => {
+    officeparser.__mockParseOffice.mockResolvedValueOnce({
+      type: "xlsx",
+      to: officeparser.__mockTo,
+    });
+    officeparser.__mockTo.mockResolvedValueOnce({ value: "Role,Rate\nDev,650\n" });
+
+    const result = await parseDocumentToText(Buffer.from("fake xlsx bytes"), "rates.xlsx");
+
+    expect(result).toBe("Role,Rate\nDev,650");
+    expect(officeparser.__mockTo).toHaveBeenCalledWith("csv");
+  });
+
+  it("rejects unsupported file extensions (legacy .xls is deliberately not supported — officeparser can't read the binary format, only modern .xlsx)", async () => {
     await expect(
-      parseDocumentToText(Buffer.from("data"), "brief.xlsx")
+      parseDocumentToText(Buffer.from("data"), "brief.xls")
     ).rejects.toThrow(UnsupportedBriefFormatError);
     expect(officeparser.__mockParseOffice).not.toHaveBeenCalled();
   });

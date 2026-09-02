@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { formatRateCardLabel } from "@/lib/formatRateCardLabel";
 import {
   updateProjectSummaryAction,
   type ActionState,
@@ -29,7 +30,9 @@ export interface ProjectManagerOption {
 export interface RateCardOption {
   id: string;
   name: string;
-  currency: string;
+  // Nullable — a rate card can carry several currencies (one per role)
+  // within a single file, so it's not always set at upload time.
+  currency: string | null;
 }
 
 interface ProjectSummaryBarProps {
@@ -145,7 +148,7 @@ export function ProjectSummaryBar({
               <option value="">No rate card</option>
               {rateCardOptions.map((rc) => (
                 <option key={rc.id} value={rc.id}>
-                  {rc.name} ({rc.currency})
+                  {formatRateCardLabel(rc.name, rc.currency)}
                 </option>
               ))}
             </select>
@@ -181,7 +184,7 @@ export function ProjectSummaryBar({
           <SummaryField label="PM" value={projectManager?.name ?? NOT_SET} />
           <SummaryField
             label="Rate Card"
-            value={rateCard ? `${rateCard.name} (${rateCard.currency})` : NOT_SET}
+            value={rateCard ? formatRateCardLabel(rateCard.name, rateCard.currency) : NOT_SET}
           />
         </div>
         <button

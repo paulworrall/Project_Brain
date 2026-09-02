@@ -2,11 +2,14 @@
 
 import { LibrarySummaryList, type LibrarySummaryItem } from "./LibrarySummaryList";
 import { CreateRateCardForm } from "./CreateRateCardForm";
+import { formatRateCardLabel } from "@/lib/formatRateCardLabel";
 
 export interface RateCardSummaryView {
   id: string;
   name: string;
-  currency: string;
+  // Nullable — see formatRateCardLabel: a rate card can carry several
+  // currencies (one per role) within one file, so it's not always set.
+  currency: string | null;
   currentVersionFileName: string | null;
 }
 
@@ -28,7 +31,7 @@ export function ClientRateCardsSummary({
 }) {
   const items: LibrarySummaryItem[] = rateCards.map((rc) => ({
     id: rc.id,
-    name: `${rc.name} (${rc.currency})`,
+    name: formatRateCardLabel(rc.name, rc.currency),
     tag: "current",
     fileName: rc.currentVersionFileName,
   }));

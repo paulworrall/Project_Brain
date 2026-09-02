@@ -49,8 +49,8 @@ export function CreateRateCardForm({ clientId }: { clientId: string }) {
             <Input id="rcName" name="name" type="text" required />
           </div>
           <div>
-            <Label htmlFor="rcCurrency">Currency</Label>
-            <Input id="rcCurrency" name="currency" type="text" placeholder="GBP" required />
+            <Label htmlFor="rcCurrency">Currency (optional)</Label>
+            <Input id="rcCurrency" name="currency" type="text" placeholder="GBP" />
           </div>
           <div>
             <Label htmlFor="rcFile">Rate card file</Label>
@@ -58,7 +58,7 @@ export function CreateRateCardForm({ clientId }: { clientId: string }) {
               id="rcFile"
               name="file"
               type="file"
-              accept=".docx,.pdf,.pptx,.txt"
+              accept=".docx,.pdf,.pptx,.txt,.xlsx"
               required
               className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground"
             />

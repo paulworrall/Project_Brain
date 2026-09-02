@@ -48,7 +48,9 @@ export interface RateCardVersionOption {
 export interface RateCardOption {
   id: string;
   name: string;
-  currency: string;
+  // Nullable — a rate card can carry several currencies (one per role)
+  // within a single file, so it's not always set at upload time.
+  currency: string | null;
   // Every version of this Rate Card, newest first — Rule 3 (audit gap): rate
   // cards don't supersede, so every version stays independently selectable
   // forever, not just whichever one is flagged ENABLED. Grouped per rate

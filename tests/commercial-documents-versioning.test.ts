@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
@@ -55,6 +57,18 @@ let clientEngagementUserId: string;
 
 function fakeFile(name: string, text = "dummy file contents"): File {
   return new File([Buffer.from(text)], name, { type: "text/plain" });
+}
+
+// A real, valid .xlsx workbook (Role/Currency/Day Rate columns) — generated
+// once via SheetJS and committed as a binary fixture. A fake/dummy buffer
+// with a ".xlsx" name would not exercise the real bug: officeparser detects
+// file type from content (magic bytes), not the extension, so only genuine
+// OOXML bytes actually exercise its xlsx-parsing path.
+function realXlsxFile(name = "rate-card.xlsx"): File {
+  const buffer = readFileSync(join(__dirname, "fixtures", "sample-rate-card.xlsx"));
+  return new File([buffer], name, {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
 }
 
 // Always sets effectiveTo (even if blank) — a real <input type="date"> left
@@ -203,6 +217,92 @@ describe("createRateCardAction — creation always includes a first version (fea
     expect(after).toBe(before);
     const found = await prisma.rateCard.findFirst({ where: { clientId: clientAId, name: "No File Rates" } });
     expect(found).toBeNull();
+  });
+
+  it("creates a rate card with no currency — saves successfully, and the row has currency = null", async () => {
+    const formData = new FormData();
+    formData.set("name", "No Currency Rates");
+    formData.set("effectiveFrom", "2026-01-01");
+    formData.set("effectiveTo", "");
+    // Deliberately no "currency" entry set — matches a real <input> left
+    // blank, which still submits "" for its key, not an absent key.
+    formData.set("currency", "");
+    formData.set("file", fakeFile("no-currency-rates.txt"));
+
+    const result = await createRateCardAction(clientAId, undefined, formData);
+
+    expect(result?.message).toBeUndefined();
+    const rateCard = await prisma.rateCard.findFirstOrThrow({
+      where: { clientId: clientAId, name: "No Currency Rates" },
+    });
+    expect(rateCard.currency).toBeNull();
+  });
+
+  it("still uppercases and stores a currency when one IS provided — existing rate cards with a currency are unaffected", async () => {
+    const formData = new FormData();
+    formData.set("name", "With Currency Rates");
+    formData.set("currency", "gbp");
+    formData.set("effectiveFrom", "2026-01-01");
+    formData.set("effectiveTo", "");
+    formData.set("file", fakeFile("with-currency-rates.txt"));
+
+    const result = await createRateCardAction(clientAId, undefined, formData);
+
+    expect(result?.message).toBeUndefined();
+    const rateCard = await prisma.rateCard.findFirstOrThrow({
+      where: { clientId: clientAId, name: "With Currency Rates" },
+    });
+    expect(rateCard.currency).toBe("GBP");
+  });
+});
+
+describe("RateCard .xlsx support (feature: rate-card-page-creation-and-toggle fix)", () => {
+  it("accepts a real .xlsx file on creation — extracts structured, CSV-shaped text, not rejected as an unsupported format", async () => {
+    const formData = new FormData();
+    formData.set("name", "Xlsx Rates");
+    formData.set("effectiveFrom", "2026-01-01");
+    formData.set("effectiveTo", "");
+    formData.set("file", realXlsxFile());
+
+    const result = await createRateCardAction(clientAId, undefined, formData);
+
+    expect(result?.message).toBeUndefined();
+    const rateCard = await prisma.rateCard.findFirstOrThrow({
+      where: { clientId: clientAId, name: "Xlsx Rates" },
+      include: { versions: true },
+    });
+    expect(rateCard.versions).toHaveLength(1);
+    // Real row data from the fixture, and comma-separated (csv), not a flat
+    // prose dump or tab-separated 'text' output.
+    expect(rateCard.versions[0].extractedText).toContain("Senior Developer");
+    expect(rateCard.versions[0].extractedText).toContain("Role,Currency,Day Rate");
+  });
+
+  it("accepts a real .xlsx file via uploadRateCardVersionAction ('Upload new version') too", async () => {
+    await createRateCardAction(
+      clientAId,
+      undefined,
+      fileFormData({ name: "Xlsx Upload Target", effectiveFrom: "2026-01-01" }, "rates-v1.txt")
+    );
+    const rateCard = await prisma.rateCard.findFirstOrThrow({
+      where: { clientId: clientAId, name: "Xlsx Upload Target" },
+    });
+
+    const formData = new FormData();
+    formData.set("effectiveFrom", "2026-06-01");
+    formData.set("effectiveTo", "");
+    formData.set("file", realXlsxFile("rate-card-v2.xlsx"));
+
+    const result = await uploadRateCardVersionAction(clientAId, rateCard.id, undefined, formData);
+
+    expect(result?.message).toBeUndefined();
+    const versions = await prisma.rateCardVersion.findMany({
+      where: { rateCardId: rateCard.id },
+      orderBy: { versionNumber: "asc" },
+    });
+    expect(versions).toHaveLength(2);
+    expect(versions[1].fileName).toBe("rate-card-v2.xlsx");
+    expect(versions[1].extractedText).toContain("Project Manager");
   });
 });
 
