@@ -18,6 +18,17 @@ import { parseDocumentToText, UnsupportedBriefFormatError } from "@/services/par
 import { PositionDocumentFieldsSchema } from "@/types/intake";
 import { DraftScopeDocumentSchema } from "@/types/triage";
 import { DeliverablesServicesDocumentSchema } from "@/types/deliverables-services";
+import {
+  CapabilityAssessmentError,
+  assessCapabilities,
+} from "@/services/agents/capability-assessment-agent";
+import {
+  EstimateBriefAgentError,
+  generateEstimateBriefContent,
+} from "@/services/agents/estimate-brief-agent";
+import { renderEstimateBriefDocx } from "@/services/documents/estimate-brief-docx";
+import { CapabilityEnum, type CapabilitySuggestion } from "@/types/capabilities";
+import type { Capability } from "@/generated/prisma/enums";
 
 export interface ActionState {
   message?: string;
@@ -649,4 +660,206 @@ export async function askChatbotAction(
     }
     throw error;
   }
+}
+
+// ---------------------------------------------------------------------------
+// End-of-Phase-1: Capabilities & Estimate Brief. Additive — never gates
+// Stage 2. See CLAUDE.md's Data Flow section and prisma/schema.prisma's
+// Capability/ProjectCapability/EstimateBrief models.
+// ---------------------------------------------------------------------------
+
+/**
+ * Everything captured about this project's brief so far — raw brief text,
+ * Position Document, Draft Scope Document, and logged client updates — for
+ * the capability-assessment and estimate-brief agents to reason from. Every
+ * query below is scoped by `projectId`, matching the chatbot's isolation
+ * pattern (CLAUDE.md: project scoping enforced at the query layer, never by
+ * prompting alone) even though this feature has no cross-project surface of
+ * its own.
+ */
+async function assembleCapabilityBriefContext(projectId: string): Promise<string> {
+  const [project, positionDocument, draftScopeDocument, clientUpdates] = await Promise.all([
+    prisma.project.findUnique({ where: { id: projectId }, select: { briefRawText: true } }),
+    prisma.document.findUnique({
+      where: { projectId_type: { projectId, type: "POSITION_DOCUMENT" } },
+      include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
+    }),
+    prisma.document.findUnique({
+      where: { projectId_type: { projectId, type: "DRAFT_SCOPE_DOCUMENT" } },
+      include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
+    }),
+    prisma.touchpointNote.findMany({
+      where: { projectId, type: "CLARIFICATION_REPLY" },
+      orderBy: { createdAt: "asc" },
+    }),
+  ]);
+
+  const sections: string[] = [];
+  if (project?.briefRawText) {
+    sections.push(`## Original brief\n${project.briefRawText}`);
+  }
+  const positionContent = positionDocument?.versions[0]?.content;
+  if (positionContent) {
+    sections.push(`## Position Document\n${JSON.stringify(positionContent)}`);
+  }
+  const draftScopeContent = draftScopeDocument?.versions[0]?.content;
+  if (draftScopeContent) {
+    sections.push(`## Draft Scope Document\n${JSON.stringify(draftScopeContent)}`);
+  }
+  for (const update of clientUpdates) {
+    sections.push(`## Client update\n${update.content}`);
+  }
+
+  return sections.length > 0
+    ? sections.join("\n\n")
+    : "No brief content has been captured for this project yet.";
+}
+
+export interface CapabilitySuggestionActionState extends ActionState {
+  suggestions?: CapabilitySuggestion[];
+  isLowConfidence?: boolean;
+  lowConfidenceReason?: string | null;
+}
+
+/**
+ * "Not sure? Get suggestions" — never writes anything. Suggestions are
+ * returned to the client component, which pre-checks them in the
+ * capability multi-select's local state; only submitting that form (see
+ * updateConfirmedCapabilitiesAction) actually confirms anything.
+ */
+export async function suggestCapabilitiesAction(
+  projectId: string,
+  _prevState: CapabilitySuggestionActionState | undefined,
+  _formData: FormData
+): Promise<CapabilitySuggestionActionState> {
+  const briefContext = await assembleCapabilityBriefContext(projectId);
+
+  try {
+    const assessment = await assessCapabilities(briefContext);
+    return {
+      suggestions: assessment.suggestions,
+      isLowConfidence: assessment.isLowConfidence,
+      lowConfidenceReason: assessment.lowConfidenceReason,
+    };
+  } catch (error) {
+    if (error instanceof CapabilityAssessmentError) {
+      return { message: error.message };
+    }
+    throw error;
+  }
+}
+
+/**
+ * Saves the confirmed capability multi-select as this Project's single
+ * source of truth — a full replace of whatever's checked, not a diff/patch,
+ * so unchecking a capability actually removes it. Editable at any time,
+ * including after an EstimateBrief version already exists (see
+ * generateEstimateBriefAction's staleness check on the read side).
+ */
+export async function updateConfirmedCapabilitiesAction(
+  projectId: string,
+  _prevState: ActionState | undefined,
+  formData: FormData
+): Promise<ActionState | undefined> {
+  const parsed = z.array(CapabilityEnum).safeParse(formData.getAll("capabilities").map(String));
+  if (!parsed.success) {
+    return { message: "Invalid capability selection." };
+  }
+
+  const capabilities = Array.from(new Set(parsed.data));
+
+  await prisma.$transaction(async (tx) => {
+    await tx.projectCapability.deleteMany({ where: { projectId } });
+    if (capabilities.length > 0) {
+      await tx.projectCapability.createMany({
+        data: capabilities.map((capability) => ({ projectId, capability })),
+      });
+    }
+  });
+
+  revalidatePath(`/projects/${projectId}`);
+}
+
+/**
+ * "Prepare the estimate brief" — generates the shared overview + one
+ * section per confirmed capability, renders it to a real .docx, and always
+ * adds a new EstimateBriefVersion snapshotting which capabilities were
+ * included (never overwrites a prior version).
+ */
+export async function generateEstimateBriefAction(
+  projectId: string,
+  _prevState: ActionState | undefined,
+  _formData: FormData
+): Promise<ActionState | undefined> {
+  const session = await auth();
+
+  const [project, confirmedCapabilities] = await Promise.all([
+    prisma.project.findUnique({ where: { id: projectId }, select: { name: true } }),
+    prisma.projectCapability.findMany({ where: { projectId }, orderBy: { createdAt: "asc" } }),
+  ]);
+
+  if (!project) {
+    return { message: "Project not found." };
+  }
+  if (confirmedCapabilities.length === 0) {
+    return { message: "Confirm at least one capability before preparing the estimate brief." };
+  }
+
+  const capabilities: Capability[] = confirmedCapabilities.map((c) => c.capability);
+  const briefContext = await assembleCapabilityBriefContext(projectId);
+
+  let content;
+  try {
+    content = await generateEstimateBriefContent(briefContext, capabilities);
+  } catch (error) {
+    if (error instanceof EstimateBriefAgentError) {
+      return { message: error.message };
+    }
+    throw error;
+  }
+
+  const fileBytes = new Uint8Array(await renderEstimateBriefDocx(content));
+
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.estimateBrief.findUnique({
+      where: { projectId },
+      include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
+    });
+
+    const versionNumber = (existing?.versions[0]?.versionNumber ?? 0) + 1;
+    const fileName = `Estimate Brief - ${project.name} - v${versionNumber}.docx`;
+
+    if (existing) {
+      await tx.estimateBriefVersion.create({
+        data: {
+          estimateBriefId: existing.id,
+          versionNumber,
+          fileName,
+          fileBytes,
+          content,
+          capabilities,
+          createdById: session?.user?.id,
+        },
+      });
+      return;
+    }
+
+    await tx.estimateBrief.create({
+      data: {
+        projectId,
+        versions: {
+          create: {
+            versionNumber: 1,
+            fileName,
+            fileBytes,
+            content,
+            capabilities,
+            createdById: session?.user?.id,
+          },
+        },
+      },
+    });
+  });
+
+  revalidatePath(`/projects/${projectId}`);
 }

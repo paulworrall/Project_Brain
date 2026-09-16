@@ -123,6 +123,8 @@ model Project {
   checklistItems         ChecklistItem[]
   touchpointNotes        TouchpointNote[]
   knowledgeItems         KnowledgeItem[]
+  capabilities           ProjectCapability[]
+  estimateBrief          EstimateBrief?
 
   @@unique([workstreamId, name])
 }
@@ -341,6 +343,81 @@ model DocumentVersion {
 }
 
 // ---------------------------------------------------------------------------
+// End-of-Phase-1: which MAP capability teams a project needs estimates from,
+// and the downloadable brief prepared for them. Additive to the Stage 1-5
+// pipeline — never gates Stage 2 (specialist consultation). The 12
+// capabilities are a fixed list (see src/lib/mapCapabilities.ts for the
+// human-readable reference content each maps to); "confirmed" is a single
+// live source of truth per Project, editable at any time, independent of
+// how it was populated (manual pick or accepted AI suggestion).
+// ---------------------------------------------------------------------------
+
+enum Capability {
+  CLIENT_ENGAGEMENT_AND_DELIVERY
+  CUSTOMER_AND_BUSINESS_STRATEGY
+  BUSINESS_ARCHITECTURE
+  AI_INNOVATION_AND_ENABLEMENT
+  INSIGHTS_AND_OPTIMIZATION
+  EXPERIENCE_STRATEGY
+  EXPERIENCE_DESIGN
+  DATA_SOLUTION_CONSULTING
+  TECH_SOLUTION_CONSULTING
+  TECH_AND_DATA
+  MEDIA_SOLUTION_CONSULTING
+  MARKETING_OPERATIONS
+}
+
+model ProjectCapability {
+  id         String     @id @default(cuid())
+  projectId  String
+  capability Capability
+  createdAt  DateTime   @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, capability])
+}
+
+// One EstimateBrief per Project; each "Prepare the estimate brief" run adds
+// a new EstimateBriefVersion rather than overwriting — mirrors the MSA/Rate
+// Card/SOW Template document+version split, minus their ENABLED/DISABLED
+// revert mechanic, which this doesn't need (nothing here is ever superseded
+// by re-uploading an old file — only by generating a new one).
+model EstimateBrief {
+  id        String   @id @default(cuid())
+  projectId String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project  Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versions EstimateBriefVersion[]
+}
+
+model EstimateBriefVersion {
+  id              String       @id @default(cuid())
+  estimateBriefId String
+  versionNumber   Int
+  fileName        String
+  // Rendered .docx bytes, downloaded as-is — see estimate-brief-docx.ts.
+  fileBytes       Bytes
+  // Structured content behind the .docx (project overview + one section per
+  // capability) — kept alongside the rendered file for the in-app review
+  // step, same rationale as DocumentVersion.content.
+  content         Json
+  // Snapshot of which capabilities were confirmed at generation time — a
+  // frozen historical record, not a live relation, so a plain Postgres enum
+  // array rather than another join table.
+  capabilities    Capability[]
+  createdById     String?
+  createdAt       DateTime     @default(now())
+
+  estimateBrief EstimateBrief @relation(fields: [estimateBriefId], references: [id], onDelete: Cascade)
+  createdBy     User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([estimateBriefId, versionNumber])
+}
+
+// ---------------------------------------------------------------------------
 // Manual checklist (interactive tick-box state, distinct from the versioned
 // CHECKLIST Document artifact that generated the initial items)
 // ---------------------------------------------------------------------------
@@ -431,4 +508,5 @@ model User {
   masterServiceAgreementVersions MasterServiceAgreementVersion[]
   rateCardVersions               RateCardVersion[]
   sowTemplateVersions            SOWTemplateVersion[]
+  estimateBriefVersions          EstimateBriefVersion[]
 }

@@ -3,9 +3,11 @@ import type { ClarificationEmail, PositionDocumentFields } from "@/types/intake"
 import type { DraftScopeDocument } from "@/types/triage";
 import type { DeliverablesServicesDocument } from "@/types/deliverables-services";
 import type { WorkflowStep } from "@/types/workflow";
+import type { Capability } from "@/generated/prisma/enums";
 import type { WorkflowStepData } from "./WorkflowStepList";
 import { StageTracker, type Phase1Status } from "./StageTracker";
 import { Phase1Workspace } from "./Phase1Workspace";
+import type { EstimateBriefVersionMeta } from "./CapabilitiesAndEstimateBriefPanel";
 import { BriefReadinessIndicator } from "./BriefReadinessIndicator";
 import { deriveFoundationDetails } from "@/lib/foundationDetails";
 import type { ClientUpdateLogEntry } from "./ClientUpdateComposer";
@@ -95,6 +97,8 @@ interface ProjectWorkflowProps {
   sowTemplateOptions: SowTemplateSelectOption[];
   kickOffDate: Date | null;
   targetCompletionDate: Date | null;
+  confirmedCapabilities: Capability[];
+  estimateBriefVersion: EstimateBriefVersionMeta | null;
 }
 
 /**
@@ -138,6 +142,8 @@ export function ProjectWorkflow({
   sowTemplateOptions,
   kickOffDate,
   targetCompletionDate,
+  confirmedCapabilities,
+  estimateBriefVersion,
 }: ProjectWorkflowProps) {
   const contentByStage: Record<number, ReactNode> = {
     5: (
@@ -177,6 +183,8 @@ export function ProjectWorkflow({
       checklistItems={checklistItems}
       kickOffDate={kickOffDate}
       targetCompletionDate={targetCompletionDate}
+      confirmedCapabilities={confirmedCapabilities}
+      estimateBriefVersion={estimateBriefVersion}
     />
   );
 

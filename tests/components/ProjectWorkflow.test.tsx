@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import type { Capability } from "@/generated/prisma/enums";
 
 vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
   submitClientUpdateAction: vi.fn(),
@@ -12,6 +13,9 @@ vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
   uploadKnowledgeItemAction: vi.fn(),
   askChatbotAction: vi.fn(),
   startSowDevelopmentAction: vi.fn(),
+  suggestCapabilitiesAction: vi.fn(),
+  updateConfirmedCapabilitiesAction: vi.fn(),
+  generateEstimateBriefAction: vi.fn(),
 }));
 
 const { ProjectWorkflow } = await import("@/components/features/ProjectWorkflow");
@@ -119,6 +123,13 @@ function baseProps() {
     }[],
     kickOffDate: null as Date | null,
     targetCompletionDate: null as Date | null,
+    confirmedCapabilities: [] as Capability[],
+    estimateBriefVersion: null as {
+      id: string;
+      versionNumber: number;
+      createdAt: Date;
+      capabilities: Capability[];
+    } | null,
   };
 }
 
