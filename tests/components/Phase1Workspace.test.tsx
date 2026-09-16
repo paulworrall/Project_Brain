@@ -7,6 +7,9 @@ vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
   generateDraftScopeDocumentAction: vi.fn(),
   updateChecklistItemDetailAction: vi.fn(),
   toggleChecklistItemAction: vi.fn(),
+  suggestCapabilitiesAction: vi.fn(),
+  updateConfirmedCapabilitiesAction: vi.fn(),
+  generateEstimateBriefAction: vi.fn(),
 }));
 
 const { Phase1Workspace } = await import("@/components/features/Phase1Workspace");
@@ -32,6 +35,8 @@ function baseProps() {
     checklistItems: [],
     kickOffDate: null,
     targetCompletionDate: null,
+    confirmedCapabilities: [],
+    estimateBriefVersion: null,
   };
 }
 

@@ -62,6 +62,15 @@ export default async function ProjectDetailPage({
       knowledgeItems: {
         orderBy: { uploadedAt: "desc" },
       },
+      capabilities: true,
+      estimateBrief: {
+        include: {
+          versions: {
+            orderBy: { versionNumber: "desc" },
+            take: 1,
+          },
+        },
+      },
       projectManager: true,
     },
   });
@@ -70,7 +79,8 @@ export default async function ProjectDetailPage({
     notFound();
   }
 
-  const { workstream, documents, checklistItems, touchpointNotes, knowledgeItems } = project;
+  const { workstream, documents, checklistItems, touchpointNotes, knowledgeItems, capabilities, estimateBrief } =
+    project;
   const { client } = workstream;
   const { hub } = client;
 
@@ -126,6 +136,17 @@ export default async function ProjectDetailPage({
   const projectStatus = stages.every((stage) => stage.stageStatuses[0]?.status === "COMPLETE")
     ? "COMPLETE"
     : "ACTIVE";
+
+  const confirmedCapabilities = capabilities.map((c) => c.capability);
+  const latestEstimateBriefVersion = estimateBrief?.versions[0] ?? null;
+  const estimateBriefVersion = latestEstimateBriefVersion
+    ? {
+        id: latestEstimateBriefVersion.id,
+        versionNumber: latestEstimateBriefVersion.versionNumber,
+        createdAt: latestEstimateBriefVersion.createdAt,
+        capabilities: latestEstimateBriefVersion.capabilities,
+      }
+    : null;
 
   return (
     <div className="space-y-6">
@@ -225,6 +246,8 @@ export default async function ProjectDetailPage({
         }))}
         kickOffDate={project.kickOffDate}
         targetCompletionDate={project.targetCompletionDate}
+        confirmedCapabilities={confirmedCapabilities}
+        estimateBriefVersion={estimateBriefVersion}
       />
     </div>
   );

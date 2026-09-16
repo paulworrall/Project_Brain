@@ -1,9 +1,14 @@
 import type { ClarificationEmail, PositionDocumentFields } from "@/types/intake";
 import type { DraftScopeDocument } from "@/types/triage";
+import type { Capability } from "@/generated/prisma/enums";
 import { PositionDocumentView } from "./PositionDocumentView";
 import { ClientUpdateComposer, type ClientUpdateLogEntry } from "./ClientUpdateComposer";
 import { ClarificationEmailCard } from "./ClarificationEmailCard";
 import { DraftScopeDocumentCard, type DraftScopeDocumentMeta } from "./DraftScopeDocumentCard";
+import {
+  CapabilitiesAndEstimateBriefPanel,
+  type EstimateBriefVersionMeta,
+} from "./CapabilitiesAndEstimateBriefPanel";
 import type { ChecklistItemView } from "./ChecklistView";
 
 function pluralize(count: number, noun: string): string {
@@ -28,6 +33,8 @@ export interface Phase1WorkspaceProps {
   checklistItems: ChecklistItemView[];
   kickOffDate: Date | null;
   targetCompletionDate: Date | null;
+  confirmedCapabilities: Capability[];
+  estimateBriefVersion: EstimateBriefVersionMeta | null;
 }
 
 export function Phase1Workspace({
@@ -40,6 +47,8 @@ export function Phase1Workspace({
   checklistItems,
   kickOffDate,
   targetCompletionDate,
+  confirmedCapabilities,
+  estimateBriefVersion,
 }: Phase1WorkspaceProps) {
   const confirmedDetailsCount = positionDocument?.whatWeKnow.length ?? 0;
   const openQuestionsCount = positionDocument?.whatWeNeedToFindOut.length ?? 0;
@@ -87,6 +96,12 @@ export function Phase1Workspace({
           meta={draftScopeDocumentMeta}
         />
       </div>
+
+      <CapabilitiesAndEstimateBriefPanel
+        projectId={projectId}
+        confirmedCapabilities={confirmedCapabilities}
+        estimateBriefVersion={estimateBriefVersion}
+      />
     </div>
   );
 }
