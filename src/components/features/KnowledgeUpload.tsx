@@ -50,9 +50,9 @@ export function KnowledgeUpload({
           </svg>
         </span>
         <div>
-          <h3 className="text-base font-semibold text-foreground">Add more</h3>
+          <h3 className="text-base font-semibold text-foreground">Keep This Project Up to Date</h3>
           <p className="text-xs text-muted-foreground">
-            Updates the Position Document and the chatbot&rsquo;s knowledge base, at once.
+            Got an update from the client or team? Add it here to keep everything current.
           </p>
         </div>
       </div>
