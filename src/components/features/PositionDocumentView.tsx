@@ -1,6 +1,5 @@
 import type { PositionDocumentFields } from "@/types/intake";
 import { Card } from "@/components/ui/Card";
-import { Disclosure } from "@/components/ui/Disclosure";
 import { deriveFoundationDetails } from "@/lib/foundationDetails";
 import { FoundationDetailsBlock } from "./FoundationDetailsBlock";
 
@@ -59,33 +58,7 @@ export function PositionDocumentView({ fields, kickOffDate, targetCompletionDate
       {/* The Brief Readiness strip lives in the step card's header row (always
           visible, expanded or not) — see ProjectWorkflow/StageTracker — not
           here, to avoid showing it twice while this body is expanded. */}
-      <FoundationDetailsBlock categories={categories} />
-
-      <Card className="p-5">
-        <h3 className="text-sm font-semibold text-foreground">What We Know</h3>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Foundation Details are summarized above. Everything else the brief captured is below.
-        </p>
-        {secondaryWhatWeKnow.length === 0 ? (
-          <p className="mt-2 text-sm text-muted-foreground">No additional details captured.</p>
-        ) : (
-          <Disclosure
-            className="mt-2"
-            summary={`${secondaryWhatWeKnow.length} additional detail${secondaryWhatWeKnow.length === 1 ? "" : "s"} captured`}
-          >
-            <dl className="space-y-2">
-              {secondaryWhatWeKnow.map((item, i) => (
-                <div key={i}>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {item.topic}
-                  </dt>
-                  <dd className="text-sm text-foreground">{item.detail}</dd>
-                </div>
-              ))}
-            </dl>
-          </Disclosure>
-        )}
-      </Card>
+      <FoundationDetailsBlock categories={categories} additionalDetails={secondaryWhatWeKnow} />
 
       <Card className="p-5">
         <h3 className="text-sm font-semibold text-foreground">What We Need to Find Out</h3>

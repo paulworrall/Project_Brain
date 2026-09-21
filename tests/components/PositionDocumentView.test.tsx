@@ -168,6 +168,20 @@ describe("PositionDocumentView", () => {
   });
 
   describe("secondary details expander", () => {
+    it("does not render a separate 'What We Know' card — secondary details fold into Foundation Details", () => {
+      renderView({
+        fields: {
+          ...baseFields,
+          whatWeKnow: [
+            { topic: "Objective", detail: "Refresh the campaign." },
+            { topic: "Attendees", detail: "Jamie, Sam, Priya" },
+          ],
+        },
+      });
+
+      expect(screen.queryByText("What We Know")).not.toBeInTheDocument();
+    });
+
     it("moves whatWeKnow items that don't map to a Foundation category into a collapsed expander", () => {
       renderView({
         fields: {
@@ -201,10 +215,9 @@ describe("PositionDocumentView", () => {
       expect(screen.getByText("Jamie, Sam, Priya")).toBeVisible();
     });
 
-    it("shows a plain message when there are no secondary details at all", () => {
+    it("renders no expander at all when there are no secondary details", () => {
       renderView({ fields: { ...baseFields, whatWeKnow: [{ topic: "Objective", detail: "Refresh the campaign." }] } });
 
-      expect(screen.getByText("No additional details captured.")).toBeInTheDocument();
       expect(screen.queryByText(/additional detail.*captured$/)).not.toBeInTheDocument();
     });
   });

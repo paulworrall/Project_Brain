@@ -1,5 +1,7 @@
 import type { FoundationCategoryResult, FoundationState } from "@/lib/foundationDetails";
+import type { PositionDocumentFields } from "@/types/intake";
 import { Card } from "@/components/ui/Card";
+import { Disclosure } from "@/components/ui/Disclosure";
 
 // Icon + text together carry the state — never colour alone.
 const STATE_ICON: Record<FoundationState, string> = {
@@ -20,7 +22,12 @@ const STATE_TEXT_CLASS: Record<FoundationState, string> = {
   missing: "text-muted-foreground",
 };
 
-export function FoundationDetailsBlock({ categories }: { categories: FoundationCategoryResult[] }) {
+export interface FoundationDetailsBlockProps {
+  categories: FoundationCategoryResult[];
+  additionalDetails?: PositionDocumentFields["whatWeKnow"];
+}
+
+export function FoundationDetailsBlock({ categories, additionalDetails = [] }: FoundationDetailsBlockProps) {
   return (
     <Card className="p-5">
       <h3 className="text-sm font-semibold text-foreground">Foundation Details</h3>
@@ -51,6 +58,25 @@ export function FoundationDetailsBlock({ categories }: { categories: FoundationC
           </div>
         ))}
       </dl>
+
+      {additionalDetails.length > 0 && (
+        <div className="mt-4 border-t border-border pt-3">
+          <Disclosure
+            summary={`${additionalDetails.length} additional detail${additionalDetails.length === 1 ? "" : "s"} captured`}
+          >
+            <dl className="space-y-2">
+              {additionalDetails.map((item, i) => (
+                <div key={i}>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    {item.topic}
+                  </dt>
+                  <dd className="text-sm text-foreground">{item.detail}</dd>
+                </div>
+              ))}
+            </dl>
+          </Disclosure>
+        </div>
+      )}
     </Card>
   );
 }
