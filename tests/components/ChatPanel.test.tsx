@@ -15,7 +15,8 @@ describe("ChatPanel", () => {
   it("renders the project name and an empty-state message before any question is asked", () => {
     render(<ChatPanel projectId="proj_1" projectName="Fizzy Summer Launch" />);
 
-    expect(screen.getByText(/Ask anything about Fizzy Summer Launch/)).toBeInTheDocument();
+    expect(screen.getByText("Ask me anything")).toBeInTheDocument();
+    expect(screen.getByText(/For Fizzy Summer Launch/)).toBeInTheDocument();
     expect(screen.getByText(/grounded strictly in this project's own/)).toBeInTheDocument();
   });
 

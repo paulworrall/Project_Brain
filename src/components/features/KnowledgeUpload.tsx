@@ -33,12 +33,29 @@ export function KnowledgeUpload({
   const [mode, setMode] = useState<InputMode>("paste");
 
   return (
-    <Card className="p-5">
-      <h3 className="text-sm font-semibold text-foreground">Additional Inputs</h3>
-      <p className="mt-1 text-xs text-muted-foreground">
-        Paste notes or upload a document anytime — updates the Position Document above and the
-        chatbot&rsquo;s knowledge base, both at once.
-      </p>
+    <Card variant="feature" className="p-5">
+      <div className="flex items-center gap-3">
+        <span
+          aria-hidden="true"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
+        >
+          <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.75" />
+            <path
+              d="M12 8v8M8 12h8"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+            />
+          </svg>
+        </span>
+        <div>
+          <h3 className="text-base font-semibold text-foreground">Add more</h3>
+          <p className="text-xs text-muted-foreground">
+            Updates the Position Document and the chatbot&rsquo;s knowledge base, at once.
+          </p>
+        </div>
+      </div>
 
       <form action={formAction} className="mt-3 space-y-2">
         <Input
@@ -93,7 +110,7 @@ export function KnowledgeUpload({
           </p>
         )}
 
-        <Button type="submit" disabled={pending} variant="secondary" className="w-full">
+        <Button type="submit" disabled={pending} className="w-full">
           {pending ? "Adding…" : "Add"}
         </Button>
       </form>

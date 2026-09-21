@@ -38,10 +38,29 @@ export function ChatPanel({ projectId, projectName }: { projectId: string; proje
   }
 
   return (
-    <Card className="flex h-full flex-col p-4">
-      <div>
-        <h2 className="text-sm font-semibold text-foreground">Project Brain</h2>
-        <p className="text-xs text-muted-foreground">Ask anything about {projectName}</p>
+    <Card variant="feature" className="flex h-full flex-col p-4">
+      <div className="flex items-center gap-3">
+        <span
+          aria-hidden="true"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
+        >
+          <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+            <path
+              d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v7a2.5 2.5 0 0 1-2.5 2.5H9l-4 4v-4H6.5A2.5 2.5 0 0 1 4 12.5v-7Z"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <circle cx="9" cy="9.25" r="0.9" fill="currentColor" />
+            <circle cx="12" cy="9.25" r="0.9" fill="currentColor" />
+            <circle cx="15" cy="9.25" r="0.9" fill="currentColor" />
+          </svg>
+        </span>
+        <div>
+          <h2 className="text-base font-semibold text-foreground">Ask me anything</h2>
+          <p className="text-xs text-muted-foreground">For {projectName}</p>
+        </div>
       </div>
 
       <div
