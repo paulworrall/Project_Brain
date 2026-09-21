@@ -38,6 +38,16 @@ describe("answerQuestionFromContext", () => {
     expect(callArgs.messages[0].content).toContain("120k");
   });
 
+  it("instructs the model to answer concisely, not verbosely — regression guard for the FB verbosity fix", async () => {
+    mockParse.mockResolvedValueOnce({ parsed_output: { answer: "£50k." } });
+
+    await answerQuestionFromContext("## POSITION_DOCUMENT\n{}", "What's the budget?");
+
+    const prompt = mockParse.mock.calls[0][0].messages[0].content;
+    expect(prompt).toMatch(/concise/i);
+    expect(prompt).toMatch(/1-3 (short )?sentences/i);
+  });
+
   it("throws a friendly error when Claude returns no parsed output", async () => {
     mockParse.mockResolvedValueOnce({ parsed_output: null });
 

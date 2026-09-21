@@ -17,7 +17,9 @@ export class ChatbotError extends Error {
 const ChatbotAnswerSchema = z.object({
   answer: z
     .string()
-    .describe("A clear, direct answer grounded only in the provided project context."),
+    .describe(
+      "A short, direct answer grounded only in the provided project context — 1-3 sentences by default, no preamble, no restating the question, unless the question genuinely requires a list or breakdown."
+    ),
 });
 
 /**
@@ -85,7 +87,7 @@ export async function answerQuestionFromContext(
       messages: [
         {
           role: "user",
-          content: `You answer questions about ONE specific project, using ONLY the context below. Never reference, infer, or compare against any other project. If the context doesn't contain the answer, say so plainly rather than guessing.\n\n<project_context>\n${context}\n</project_context>\n\n<question>\n${question}\n</question>`,
+          content: `You're answering a quick question from a project team member who is already looking at this project's page — they don't need background restated. Use ONLY the context below.\n\nAnswer style — this is a chat message, not a report:\n- Lead with the direct answer in the first sentence. No preamble like "Based on the context..." or restating the question.\n- Keep it concise: 1-3 short sentences by default. Only go longer if the question explicitly asks for a list, comparison, or full breakdown.\n- If there's a material caveat or open item, fold it into a short clause on the same answer (e.g. "£50k, but it's not yet confirmed whether that includes production.") — don't give it its own paragraph of explanation.\n- Never reference, infer, or compare against any other project.\n- If the context doesn't contain the answer, say so in one short sentence rather than guessing or padding.\n\n<project_context>\n${context}\n</project_context>\n\n<question>\n${question}\n</question>`,
         },
       ],
     });
