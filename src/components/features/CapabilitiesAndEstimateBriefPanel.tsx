@@ -217,13 +217,13 @@ export function CapabilitiesAndEstimateBriefPanel({
         )}
 
         <form action={saveFormAction} className="mt-3 space-y-3">
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
             {MAP_CAPABILITIES.map((capability) => {
               const isChecked = checked.has(capability.id);
               return (
                 <label
                   key={capability.id}
-                  className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ring ${
+                  className={`flex cursor-pointer items-center gap-2.5 rounded-full border px-4 py-3 text-sm font-medium transition-colors focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ring ${
                     isChecked
                       ? "border-primary bg-primary text-primary-foreground"
                       : "border-border bg-surface text-foreground hover:border-primary/50 hover:bg-surface-muted"
