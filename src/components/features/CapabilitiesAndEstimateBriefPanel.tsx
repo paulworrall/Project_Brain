@@ -176,68 +176,110 @@ export function CapabilitiesAndEstimateBriefPanel({
     estimateBriefVersion !== null &&
     !sameCapabilitySet(estimateBriefVersion.capabilities, confirmedCapabilities);
 
+  const checkedWithRationale = MAP_CAPABILITIES.filter(
+    (c) => checked.has(c.id) && rationaleByCapability[c.id]
+  );
+
   return (
     <Card className="space-y-5 p-5">
-      <h3 className="text-sm font-semibold text-foreground">Capabilities & Estimate Brief</h3>
+      <h3 className="text-sm font-semibold text-foreground">Ready the Brief for Team Estimates</h3>
 
       <div>
-        <div className="flex items-center justify-between gap-2">
-          <h4 className="text-sm font-medium text-foreground">Confirmed capabilities</h4>
+        <h4 className="text-sm font-medium text-foreground">Which capability teams are needed?</h4>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Tick the teams below that you already know should be involved — or, if you&apos;re not
+          sure, let AI suggest them from the brief instead. Either way, review and save before
+          moving on.
+        </p>
+
+        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md bg-surface-muted p-3">
           <form action={suggestFormAction} onSubmit={handleSuggestSubmit}>
             <Button
               ref={suggestSubmitRef}
               type="submit"
-              variant="ghost"
+              variant="secondary"
               className="text-xs"
               disabled={suggestPending}
             >
               {suggestPending ? "Thinking…" : "Not sure? Get suggestions"}
             </Button>
           </form>
+          <span className="text-xs text-muted-foreground">
+            or tick the capability teams below yourself
+          </span>
         </div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Which MAP capability teams should be approached for estimates on this project — editable
-          at any time.
-        </p>
 
         {lowConfidenceReason && (
-          <p className="mt-2 rounded-md bg-warning-bg px-3 py-2 text-xs text-warning" role="status">
+          <p className="mt-3 rounded-md bg-warning-bg px-3 py-2 text-xs text-warning" role="status">
             Low confidence: {lowConfidenceReason} Treat these suggestions as a starting point, not
             certainties.
           </p>
         )}
 
         <form action={saveFormAction} className="mt-3 space-y-3">
-          <ul className="space-y-2">
-            {MAP_CAPABILITIES.map((capability) => (
-              <li key={capability.id}>
-                <label className="flex items-start gap-2 text-sm text-foreground">
+          <div className="flex flex-wrap gap-2">
+            {MAP_CAPABILITIES.map((capability) => {
+              const isChecked = checked.has(capability.id);
+              return (
+                <label
+                  key={capability.id}
+                  className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ring ${
+                    isChecked
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-surface text-foreground hover:border-primary/50 hover:bg-surface-muted"
+                  }`}
+                >
                   <input
                     type="checkbox"
                     name="capabilities"
                     value={capability.id}
-                    checked={checked.has(capability.id)}
+                    checked={isChecked}
                     onChange={() => toggleCapability(capability.id)}
-                    className="mt-0.5"
+                    className="sr-only"
                   />
-                  <span>
-                    {capability.label}
-                    {checked.has(capability.id) && rationaleByCapability[capability.id] && (
-                      <span className="mt-0.5 block text-xs text-muted-foreground">
-                        {rationaleByCapability[capability.id]}
-                      </span>
+                  <span
+                    aria-hidden="true"
+                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+                      isChecked ? "border-primary-foreground" : "border-current"
+                    }`}
+                  >
+                    {isChecked && (
+                      <svg viewBox="0 0 24 24" fill="none" className="h-3 w-3">
+                        <path
+                          d="M5 13l4 4L19 7"
+                          stroke="currentColor"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
                     )}
                   </span>
+                  {capability.label}
                 </label>
-              </li>
-            ))}
-          </ul>
+              );
+            })}
+          </div>
+
+          {checkedWithRationale.length > 0 && (
+            <div className="rounded-md bg-accent p-3 text-xs text-accent-foreground">
+              <p className="font-semibold">Why these were suggested</p>
+              <ul className="mt-1 space-y-1">
+                {checkedWithRationale.map((c) => (
+                  <li key={c.id}>
+                    <span className="font-medium">{c.label}:</span> {rationaleByCapability[c.id]}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {saveState?.message && (
             <p className="text-xs text-danger" role="alert">
               {saveState.message}
             </p>
           )}
-          <Button type="submit" variant="secondary" className="text-xs" disabled={savePending}>
+          <Button type="submit" className="text-xs" disabled={savePending}>
             {savePending ? "Saving…" : "Save confirmed capabilities"}
           </Button>
         </form>
