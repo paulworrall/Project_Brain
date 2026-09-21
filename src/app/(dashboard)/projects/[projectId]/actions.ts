@@ -15,7 +15,7 @@ import {
 } from "@/services/agents/specialist-review-extraction";
 import { ChatbotError, answerProjectQuestion } from "@/services/agents/chatbot";
 import { parseDocumentToText, UnsupportedBriefFormatError } from "@/services/parsing";
-import { PositionDocumentFieldsSchema } from "@/types/intake";
+import { PositionDocumentFieldsSchema, type PositionDocumentFields } from "@/types/intake";
 import { DraftScopeDocumentSchema } from "@/types/triage";
 import { DeliverablesServicesDocumentSchema } from "@/types/deliverables-services";
 import {
@@ -171,76 +171,6 @@ export async function startSowDevelopmentAction(
   await prisma.project.update({
     where: { id: projectId },
     data: { sowTemplateId: validTemplate.id, sowTemplateVersionId: validTemplateVersion.id },
-  });
-
-  revalidatePath(`/projects/${projectId}`);
-}
-
-const NotesSchema = z.object({
-  notes: z.string().trim().min(1, { error: "Add some detail before submitting." }),
-});
-
-/**
- * "Add a client update" — usable at any time in Phase 1, not gated behind a
- * single one-time step. Each submission re-runs the clarification extraction
- * against the Position Document's current state, appends a new version, and
- * leaves a timestamped TouchpointNote in the log. Never marks anything
- * "complete" — Phase 1 doesn't have a discrete step here to complete; the
- * Position Document just keeps evolving until Draft Scope Document
- * generation is triggered (see generateDraftScopeDocumentAction).
- */
-export async function submitClientUpdateAction(
-  projectId: string,
-  _prevState: ActionState | undefined,
-  formData: FormData
-): Promise<ActionState | undefined> {
-  const parsed = NotesSchema.safeParse({ notes: formData.get("notes") });
-  if (!parsed.success) {
-    return { message: z.flattenError(parsed.error).fieldErrors.notes?.[0] ?? "Invalid update." };
-  }
-
-  const session = await auth();
-
-  const positionDocument = await prisma.document.findUnique({
-    where: { projectId_type: { projectId, type: "POSITION_DOCUMENT" } },
-    include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
-  });
-  const latestVersion = positionDocument?.versions[0];
-  const currentFields = PositionDocumentFieldsSchema.safeParse(latestVersion?.content);
-
-  if (!positionDocument || !latestVersion || !currentFields.success) {
-    return { message: "No Position Document found to update." };
-  }
-
-  let updatedFields;
-  try {
-    updatedFields = await extractClarificationUpdate(currentFields.data, parsed.data.notes);
-  } catch (error) {
-    if (error instanceof ClarificationExtractionError) {
-      return { message: error.message };
-    }
-    throw error;
-  }
-
-  await prisma.$transaction(async (tx) => {
-    await tx.touchpointNote.create({
-      data: {
-        projectId,
-        type: "CLARIFICATION_REPLY",
-        content: parsed.data.notes,
-        createdById: session?.user?.id,
-      },
-    });
-
-    await tx.documentVersion.create({
-      data: {
-        documentId: positionDocument.id,
-        versionNumber: latestVersion.versionNumber + 1,
-        stageNumber: 3,
-        content: updatedFields,
-        createdById: session?.user?.id,
-      },
-    });
   });
 
   revalidatePath(`/projects/${projectId}`);
@@ -566,6 +496,16 @@ const KnowledgeItemSchema = z.object({
   content: z.string().trim().optional(),
 });
 
+/**
+ * The single place any new information enters a project — pasted notes or
+ * an uploaded file. Always adds a KnowledgeItem for the chatbot, and (this
+ * used to be a separate "Add a client update" action/panel — merged here so
+ * there's one input point instead of two that looked like they did the same
+ * thing) also re-runs the clarification extraction against the Position
+ * Document's current state when one exists, appending a new version and a
+ * timestamped CLARIFICATION_REPLY TouchpointNote. Usable repeatedly at any
+ * time in Phase 1, not gated behind a single one-time step.
+ */
 export async function uploadKnowledgeItemAction(
   projectId: string,
   _prevState: ActionState | undefined,
@@ -616,15 +556,57 @@ export async function uploadKnowledgeItemAction(
     return { message: "That upload appears to be empty." };
   }
 
-  await prisma.knowledgeItem.create({
-    data: {
-      projectId,
-      type: hasFile ? "DOCUMENT" : "NOTE",
-      title: parsed.data.title,
-      content,
-      originalFileName,
-      uploadedById: session?.user?.id,
-    },
+  const positionDocument = await prisma.document.findUnique({
+    where: { projectId_type: { projectId, type: "POSITION_DOCUMENT" } },
+    include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
+  });
+  const latestVersion = positionDocument?.versions[0];
+  const currentFields = PositionDocumentFieldsSchema.safeParse(latestVersion?.content);
+
+  let updatedFields: PositionDocumentFields | undefined;
+  if (positionDocument && latestVersion && currentFields.success) {
+    try {
+      updatedFields = await extractClarificationUpdate(currentFields.data, content);
+    } catch (error) {
+      if (error instanceof ClarificationExtractionError) {
+        return { message: error.message };
+      }
+      throw error;
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.knowledgeItem.create({
+      data: {
+        projectId,
+        type: hasFile ? "DOCUMENT" : "NOTE",
+        title: parsed.data.title,
+        content,
+        originalFileName,
+        uploadedById: session?.user?.id,
+      },
+    });
+
+    if (updatedFields && positionDocument && latestVersion) {
+      await tx.touchpointNote.create({
+        data: {
+          projectId,
+          type: "CLARIFICATION_REPLY",
+          content,
+          createdById: session?.user?.id,
+        },
+      });
+
+      await tx.documentVersion.create({
+        data: {
+          documentId: positionDocument.id,
+          versionNumber: latestVersion.versionNumber + 1,
+          stageNumber: 3,
+          content: updatedFields,
+          createdById: session?.user?.id,
+        },
+      });
+    }
   });
 
   revalidatePath(`/projects/${projectId}`);

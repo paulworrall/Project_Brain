@@ -27,7 +27,7 @@ const { anthropic } = await import("@/lib/anthropic");
 const mockParse = anthropic.messages.parse as ReturnType<typeof vi.fn>;
 
 const {
-  submitClientUpdateAction,
+  uploadKnowledgeItemAction,
   generateDraftScopeDocumentAction,
   updateChecklistItemDetailAction,
   toggleChecklistItemAction,
@@ -81,9 +81,10 @@ function draftScopeWithSummary(summary: string) {
   };
 }
 
-function notesFormData(notes: string) {
+function notesFormData(notes: string, title = "Client update") {
   const formData = new FormData();
-  formData.set("notes", notes);
+  formData.set("title", title);
+  formData.set("content", notes);
   return formData;
 }
 
@@ -153,17 +154,17 @@ beforeEach(() => {
   mockParse.mockReset();
 });
 
-describe("submitClientUpdateAction", () => {
-  it("can be submitted multiple times in sequence, each producing a new Position Document version and log entry", async () => {
+describe("uploadKnowledgeItemAction (Position Document side)", () => {
+  it("can be submitted multiple times in sequence, each producing a new Position Document version, a log entry, and a KnowledgeItem", async () => {
     mockParse.mockResolvedValueOnce({ parsed_output: positionFieldsV2 });
-    await submitClientUpdateAction(
+    await uploadKnowledgeItemAction(
       projectId,
       undefined,
       notesFormData("The referral feature is confirmed in scope.")
     );
 
     mockParse.mockResolvedValueOnce({ parsed_output: positionFieldsV3 });
-    await submitClientUpdateAction(
+    await uploadKnowledgeItemAction(
       projectId,
       undefined,
       notesFormData("Launch date is confirmed for 15 Sept 2026.")
@@ -182,6 +183,15 @@ describe("submitClientUpdateAction", () => {
       orderBy: { createdAt: "asc" },
     });
     expect(notes.map((n) => n.content)).toEqual([
+      "The referral feature is confirmed in scope.",
+      "Launch date is confirmed for 15 Sept 2026.",
+    ]);
+
+    const knowledgeItems = await prisma.knowledgeItem.findMany({
+      where: { projectId },
+      orderBy: { uploadedAt: "asc" },
+    });
+    expect(knowledgeItems.map((k) => k.content)).toEqual([
       "The referral feature is confirmed in scope.",
       "Launch date is confirmed for 15 Sept 2026.",
     ]);

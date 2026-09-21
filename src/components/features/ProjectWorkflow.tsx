@@ -10,7 +10,7 @@ import { Phase1Workspace } from "./Phase1Workspace";
 import type { EstimateBriefVersionMeta } from "./CapabilitiesAndEstimateBriefPanel";
 import { BriefReadinessIndicator } from "./BriefReadinessIndicator";
 import { deriveFoundationDetails } from "@/lib/foundationDetails";
-import type { ClientUpdateLogEntry } from "./ClientUpdateComposer";
+import type { ClientUpdateLogEntry } from "./Phase1Workspace";
 import type { DraftScopeDocumentMeta } from "./DraftScopeDocumentCard";
 import { ChatPanel } from "./ChatPanel";
 import { KnowledgeUpload, type KnowledgeItemView } from "./KnowledgeUpload";

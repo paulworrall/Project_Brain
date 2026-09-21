@@ -37,7 +37,7 @@ const mockParse = anthropic.messages.parse as ReturnType<typeof vi.fn>;
 
 const { createProjectAction } = await import("@/app/(dashboard)/projects/new/actions");
 const {
-  submitClientUpdateAction,
+  uploadKnowledgeItemAction,
   generateDraftScopeDocumentAction,
   submitSpecialistFeedbackAction,
 } = await import("@/app/(dashboard)/projects/[projectId]/actions");
@@ -124,7 +124,8 @@ function briefFormData() {
 
 function notesFormData(notes: string) {
   const formData = new FormData();
-  formData.set("notes", notes);
+  formData.set("title", "Client update");
+  formData.set("content", notes);
   return formData;
 }
 
@@ -192,9 +193,10 @@ describe("Stage 1-5 happy path", () => {
       where: { workstreamId_name: { workstreamId, name: PROJECT_NAME } },
     });
 
-    // Stage 3 — Get Clarifications: add a client update, extraction (1 Claude call).
+    // Stage 3 — Get Clarifications: add a client update via the merged
+    // Additional Inputs action, extraction (1 Claude call).
     mockParse.mockResolvedValueOnce({ parsed_output: positionFieldsV2 });
-    await submitClientUpdateAction(
+    await uploadKnowledgeItemAction(
       project.id,
       undefined,
       notesFormData("The referral feature is confirmed in scope after all.")

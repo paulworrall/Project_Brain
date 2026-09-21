@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
-  submitClientUpdateAction: vi.fn(),
   generateDraftScopeDocumentAction: vi.fn(),
   updateChecklistItemDetailAction: vi.fn(),
   toggleChecklistItemAction: vi.fn(),
@@ -56,10 +55,10 @@ describe("Phase1Workspace", () => {
     expect(screen.getByText("Not generated yet.")).toBeInTheDocument();
   });
 
-  it("always shows the client update composer", () => {
+  it("does not render its own client-update composer — that's now the sidebar's Additional Inputs panel", () => {
     render(<Phase1Workspace {...baseProps()} />);
 
-    expect(screen.getByLabelText("Add a client update")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Add a client update")).not.toBeInTheDocument();
   });
 
   it("shows the Clarification Email and Draft Scope Document cards side by side", () => {

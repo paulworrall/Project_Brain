@@ -2,7 +2,6 @@ import type { ClarificationEmail, PositionDocumentFields } from "@/types/intake"
 import type { DraftScopeDocument } from "@/types/triage";
 import type { Capability } from "@/generated/prisma/enums";
 import { PositionDocumentView } from "./PositionDocumentView";
-import { ClientUpdateComposer, type ClientUpdateLogEntry } from "./ClientUpdateComposer";
 import { ClarificationEmailCard } from "./ClarificationEmailCard";
 import { DraftScopeDocumentCard, type DraftScopeDocumentMeta } from "./DraftScopeDocumentCard";
 import {
@@ -13,6 +12,18 @@ import type { ChecklistItemView } from "./ChecklistView";
 
 function pluralize(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
+// A submission through the "Additional Inputs" panel that also updated the
+// Position Document (see uploadKnowledgeItemAction) — counted in the
+// progress summary strip below. There's no dedicated UI list of these
+// anymore; the Additional Inputs panel's own knowledge-item list doubles as
+// the visible history.
+export interface ClientUpdateLogEntry {
+  id: string;
+  content: string;
+  createdAt: Date;
+  createdByName: string | null;
 }
 
 /**
@@ -85,8 +96,6 @@ export function Phase1Workspace({
           <p className="text-sm text-muted-foreground">Not generated yet.</p>
         )}
       </div>
-
-      <ClientUpdateComposer projectId={projectId} updates={clientUpdates} />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <ClarificationEmailCard projectId={projectId} email={clarificationEmail} />

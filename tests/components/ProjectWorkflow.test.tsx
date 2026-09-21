@@ -4,7 +4,6 @@ import { render, screen } from "@testing-library/react";
 import type { Capability } from "@/generated/prisma/enums";
 
 vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
-  submitClientUpdateAction: vi.fn(),
   generateDraftScopeDocumentAction: vi.fn(),
   updateChecklistItemDetailAction: vi.fn(),
   submitSpecialistFeedbackAction: vi.fn(),
@@ -142,7 +141,7 @@ describe("ProjectWorkflow", () => {
     expect(screen.queryByText("Step 1.1")).not.toBeInTheDocument();
   });
 
-  it("shows past client updates in the log", () => {
+  it("counts past client updates in the Phase 1 progress summary, without a separate log list", () => {
     render(
       <ProjectWorkflow
         {...baseProps()}
@@ -157,10 +156,13 @@ describe("ProjectWorkflow", () => {
       />
     );
 
+    expect(screen.getByLabelText("Phase 1 progress summary")).toHaveTextContent(
+      "1 client update logged"
+    );
+    // No standalone client-update log anymore — folded into Additional Inputs.
     expect(
-      screen.getByText("The referral feature is confirmed in scope after all.")
-    ).toBeInTheDocument();
-    expect(screen.getByText(/Alex Morgan/)).toBeInTheDocument();
+      screen.queryByText("The referral feature is confirmed in scope after all.")
+    ).not.toBeInTheDocument();
   });
 
   it("shows a compact Draft Scope Document summary — not the full content — once it has been generated", () => {

@@ -36,7 +36,8 @@ export function KnowledgeUpload({
     <Card className="p-5">
       <h3 className="text-sm font-semibold text-foreground">Additional Inputs</h3>
       <p className="mt-1 text-xs text-muted-foreground">
-        Upload documents or notes anytime — the chatbot answers using these too.
+        Paste notes or upload a document anytime — updates the Position Document above and the
+        chatbot&rsquo;s knowledge base, both at once.
       </p>
 
       <form action={formAction} className="mt-3 space-y-2">
