@@ -20,7 +20,7 @@
     "bcryptjs": "^3.0.3",
     "docx": "^9.7.1",
     "dotenv": "^17.4.2",
-    "next": "16.3.0",
+    "next": "16.3.5",
     "next-auth": "^5.0.0-beta.32",
     "officeparser": "^7.5.1",
     "pg": "^8.22.0",
@@ -40,7 +40,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.0",
+    "eslint-config-next": "16.3.5",
     "eslint-config-prettier": "^10.1.8",
     "jsdom": "^30.0.1",
     "prettier": "^3.9.6",
@@ -50,7 +50,9 @@
     "vitest": "^4.1.10"
   },
   "overrides": {
-    "pdfjs-dist": "6.2.108"
+    "pdfjs-dist": "6.2.108",
+    "deepmerge-ts": "8.0.2",
+    "mysql2": "3.24.4"
   },
   "allowScripts": {
     "@prisma/engines@7.9.1": true,
