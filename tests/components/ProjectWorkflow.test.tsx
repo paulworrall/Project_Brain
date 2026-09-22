@@ -25,7 +25,7 @@ const STAGE_NAMES = [
   "Get Clarifications",
   "Triage",
   "Capability inputs",
-  "Estimation Kick Off",
+  "Build The Estimate",
   "Estimation Session",
   "Commercials & SOW",
   "Planning & Capability Briefing",

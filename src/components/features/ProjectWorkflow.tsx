@@ -18,6 +18,7 @@ import { KnowledgeUpload, type KnowledgeItemView } from "./KnowledgeUpload";
 import type { ChecklistItemView } from "./ChecklistView";
 import { EditableChecklist } from "./EditableChecklist";
 import { SpecialistFeedbackForm } from "./SpecialistFeedbackForm";
+import { BuildEstimateInputForm } from "./BuildEstimateInputForm";
 import { DeliverablesServicesDocumentView } from "./DeliverablesServicesDocumentView";
 import { StartSowDevelopmentPanel, type SowTemplateSelectOption } from "./StartSowDevelopmentPanel";
 
@@ -171,8 +172,7 @@ export function ProjectWorkflow({
         deliverablesServicesDocument={deliverablesServicesDocument}
       />
     ),
-    6: <PlaceholderStepContent taskRef="Level 3 (post-MVP)" actionLabel="Run Agent" />,
-    7: <PlaceholderStepContent taskRef="Level 3 (post-MVP)" actionLabel="Submit Session Notes" />,
+    6: <BuildEstimateInputForm />,
     8: (
       <StartSowDevelopmentPanel
         projectId={projectId}

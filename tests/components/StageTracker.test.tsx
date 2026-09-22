@@ -19,10 +19,13 @@ const steps: WorkflowStepData[] = [
   },
   {
     stageNumber: 6,
-    name: "Estimation Kick Off",
+    name: "Build The Estimate",
     status: "NOT_STARTED",
     content: <p>Estimation kick off content</p>,
   },
+  // Stage 7 ("Estimation Session") still exists as a Stage row in real data
+  // but is deliberately excluded from Phase 2's stageNumbers (src/lib/phases.ts)
+  // — kept here to prove it stays hidden even when present in `steps`.
   {
     stageNumber: 7,
     name: "Estimation Session",
@@ -112,7 +115,10 @@ describe("StageTracker", () => {
     // by plain name, no "Step N.N —" prefix.
     const estimation = getPhaseDetails("Estimation and team planning");
     expect(estimation).toHaveTextContent("Capability inputs");
-    expect(estimation).toHaveTextContent("Estimation Session");
+    expect(estimation).toHaveTextContent("Build The Estimate");
+    // Stage 7 is deliberately not part of this Phase's step list anymore —
+    // simplified down to just Capability inputs + Build The Estimate.
+    expect(estimation).not.toHaveTextContent("Estimation Session");
     expect(estimation).not.toHaveTextContent("Step 2.1");
     expect(estimation).not.toHaveTextContent("Commercials & SOW");
 
@@ -132,8 +138,8 @@ describe("StageTracker", () => {
       });
 
     // Every Phase 2 stage's step card renders exactly once too, just without
-    // the numbered prefix.
-    [5, 6, 7].forEach((stageNumber) => {
+    // the numbered prefix. Stage 7 is excluded from this phase entirely.
+    [5, 6].forEach((stageNumber) => {
       const step = steps.find((s) => s.stageNumber === stageNumber)!;
       expect(screen.getAllByText(step.name)).toHaveLength(1);
     });
@@ -270,7 +276,7 @@ describe("StageTracker", () => {
       renderTracker();
 
       const estimation = getPhaseDetails("Estimation and team planning");
-      expect(estimation).toHaveTextContent("0 of 3 stages complete");
+      expect(estimation).toHaveTextContent("0 of 2 stages complete");
     });
 
     it("shows an auto-built stage-completion strip for Phase 3 when no override is given", () => {
@@ -293,7 +299,7 @@ describe("StageTracker", () => {
       );
 
       const estimation = getPhaseDetails("Estimation and team planning");
-      expect(estimation).toHaveTextContent("2 of 3 stages complete");
+      expect(estimation).toHaveTextContent("2 of 2 stages complete");
     });
 
     it("keeps showing Phase 2/3's auto-built strip even while collapsed", () => {
@@ -302,7 +308,7 @@ describe("StageTracker", () => {
       // Phase 1 is expanded by default here, so Phase 2/3 are collapsed.
       expect(getPhaseDetails("Estimation and team planning").open).toBe(false);
       expect(getPhaseDetails("Estimation and team planning")).toHaveTextContent(
-        "0 of 3 stages complete"
+        "0 of 2 stages complete"
       );
     });
 

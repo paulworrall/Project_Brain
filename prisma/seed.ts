@@ -14,7 +14,7 @@ const STAGES = [
   { number: 3, name: "Get Clarifications" },
   { number: 4, name: "Triage" },
   { number: 5, name: "Capability inputs" },
-  { number: 6, name: "Estimation Kick Off" },
+  { number: 6, name: "Build The Estimate" },
   { number: 7, name: "Estimation Session" },
   { number: 8, name: "Commercials & SOW" },
   { number: 9, name: "Planning & Capability Briefing" },

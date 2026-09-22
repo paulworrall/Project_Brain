@@ -19,7 +19,12 @@ export const PHASES: Phase[] = [
   {
     key: "estimation",
     name: "Estimation and team planning",
-    stageNumbers: [5, 6, 7],
+    // Stage 7 ("Estimation Session") is deliberately not shown here — the PM
+    // asked to simplify this phase down to two subsections (Capability
+    // inputs, Build the estimate). Its Stage row still exists (stage
+    // numbering elsewhere is unaffected), it's just not part of this Phase's
+    // rendered step list.
+    stageNumbers: [5, 6],
   },
   {
     key: "sow",
