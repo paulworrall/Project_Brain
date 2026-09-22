@@ -94,44 +94,48 @@ export function BuildEstimateInputForm({
         </p>
       )}
 
-      <div>
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Capability team
-        </h4>
-        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {MAP_CAPABILITIES.map((c) => {
-            const isSelected = capability === c.id;
-            const isCaptured = existingByKey.has(c.id);
-            return (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setCapability(c.id)}
-                className={`flex items-center justify-center gap-1.5 rounded-full border px-3 py-2 text-center text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${
-                  isSelected
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-surface text-foreground hover:border-primary/50 hover:bg-surface-muted"
-                }`}
-              >
-                {c.label}
-                {isCaptured && <span aria-hidden="true">✓</span>}
-              </button>
-            );
-          })}
-          <button
-            type="button"
-            onClick={() => setCapability("OTHER")}
-            className={`flex items-center justify-center gap-1.5 rounded-full border px-3 py-2 text-center text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${
-              capability === "OTHER"
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-surface text-foreground hover:border-primary/50 hover:bg-surface-muted"
-            }`}
-          >
-            Other
-            {existingByKey.has("OTHER") && <span aria-hidden="true">✓</span>}
-          </button>
+      {capability ? (
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-medium text-foreground">
+            {capability === "OTHER"
+              ? "Other"
+              : MAP_CAPABILITIES.find((c) => c.id === capability)?.label}
+          </p>
+          <Button type="button" variant="ghost" className="text-xs" onClick={() => setCapability("")}>
+            Change
+          </Button>
         </div>
-      </div>
+      ) : (
+        <div>
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Capability team
+          </h4>
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {MAP_CAPABILITIES.map((c) => {
+              const isCaptured = existingByKey.has(c.id);
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setCapability(c.id)}
+                  className="flex items-center justify-center gap-1.5 rounded-full border border-border bg-surface px-3 py-2 text-center text-xs font-medium text-foreground transition-colors hover:border-primary/50 hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                >
+                  {c.label}
+                  {isCaptured && <span aria-hidden="true">✓</span>}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => setCapability("OTHER")}
+              className="flex items-center justify-center gap-1.5 rounded-full border border-border bg-surface px-3 py-2 text-center text-xs font-medium text-foreground transition-colors hover:border-primary/50 hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              Other
+              {existingByKey.has("OTHER") && <span aria-hidden="true">✓</span>}
+            </button>
+          </div>
+        </div>
+      )}
 
       {capability && (
         <form action={formAction} className="space-y-3 border-t border-border pt-4">
