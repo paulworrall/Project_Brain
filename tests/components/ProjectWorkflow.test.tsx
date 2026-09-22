@@ -17,6 +17,14 @@ vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
   generateEstimateBriefAction: vi.fn(),
 }));
 
+vi.mock("@/app/(dashboard)/projects/[projectId]/estimates/actions", () => ({
+  createEstimateAction: vi.fn(),
+  addOrReviseCapabilityInputAction: vi.fn(),
+  analyzeAndBuildEstimateAction: vi.fn(),
+  resolveRoleResolutionAction: vi.fn(),
+  saveEstimateVersionAction: vi.fn(),
+}));
+
 const { ProjectWorkflow } = await import("@/components/features/ProjectWorkflow");
 
 const STAGE_NAMES = [
@@ -133,6 +141,31 @@ function baseProps() {
       createdAt: Date;
       capabilities: Capability[];
     } | null,
+    estimates: [] as {
+      id: string;
+      label: string;
+      versions: {
+        id: string;
+        versionNumber: number;
+        createdAt: Date;
+        totalValue: number;
+        currency: string;
+        description: string;
+      }[];
+    }[],
+    rateCardOptions: [] as {
+      id: string;
+      name: string;
+      currency: string | null;
+      versions: {
+        id: string;
+        versionNumber: number;
+        fileName: string;
+        effectiveFrom: Date;
+        effectiveTo: Date | null;
+        status: "ENABLED" | "DISABLED";
+      }[];
+    }[],
   };
 }
 

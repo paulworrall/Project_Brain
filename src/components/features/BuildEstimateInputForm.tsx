@@ -1,22 +1,48 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { MAP_CAPABILITIES } from "@/lib/mapCapabilities";
+import { MAP_CAPABILITIES, capabilityLabel } from "@/lib/mapCapabilities";
+import {
+  addOrReviseCapabilityInputAction,
+  type ActionState,
+} from "@/app/(dashboard)/projects/[projectId]/estimates/actions";
+import type { Capability } from "@/generated/prisma/enums";
 
 type InputMode = "paste" | "upload";
 
+export interface EstimateCapabilityInputView {
+  capability: Capability | null;
+  otherLabel: string | null;
+  rawContent: string;
+  sourceFileName: string | null;
+}
+
 /**
- * Front-end only for now, by design — the PM asked to confirm this shape on
- * the live site before "the estimate building functionality" (add-to-or-
- * renew, version tracking) gets designed in a follow-up. Submission is
- * intentionally disabled rather than silently no-op'd, same convention as
- * this app's other not-yet-built steps (see PlaceholderStepContent) — no
- * saved data quietly goes nowhere.
+ * Captures one capability team's raw estimate input per project — paste or
+ * upload, same UX as before, now wired to a real Server Action. Adding a
+ * new capability and revising an already-captured one are the same form:
+ * picking an already-captured capability prefills its existing content and
+ * makes clear that submitting replaces it, matching
+ * addOrReviseCapabilityInputAction's upsert-by-capability behavior.
  */
-export function BuildEstimateInputForm() {
+export function BuildEstimateInputForm({
+  estimateId,
+  existingInputs,
+}: {
+  estimateId: string;
+  existingInputs: EstimateCapabilityInputView[];
+}) {
+  const action = addOrReviseCapabilityInputAction.bind(null, estimateId);
+  const [state, formAction, pending] = useActionState<ActionState | undefined, FormData>(
+    action,
+    undefined
+  );
   const [capability, setCapability] = useState("");
   const [mode, setMode] = useState<InputMode>("paste");
+
+  const existingByKey = new Map(existingInputs.map((input) => [input.capability ?? "OTHER", input]));
+  const existingForSelected = capability ? existingByKey.get(capability) : undefined;
 
   return (
     <div className="space-y-3">
@@ -24,7 +50,7 @@ export function BuildEstimateInputForm() {
         Upload or paste the estimate you&apos;ve received back from each capability team here.
       </p>
 
-      <form className="space-y-3" onSubmit={(e) => e.preventDefault()}>
+      <form action={formAction} className="space-y-3">
         <div>
           <label
             htmlFor="estimate-capability"
@@ -37,6 +63,7 @@ export function BuildEstimateInputForm() {
             name="capability"
             value={capability}
             onChange={(e) => setCapability(e.target.value)}
+            required
             className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
           >
             <option value="" disabled>
@@ -45,11 +72,18 @@ export function BuildEstimateInputForm() {
             {MAP_CAPABILITIES.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.label}
+                {existingByKey.has(c.id) ? " (captured)" : ""}
               </option>
             ))}
-            <option value="OTHER">Other</option>
+            <option value="OTHER">Other{existingByKey.has("OTHER") ? " (captured)" : ""}</option>
           </select>
         </div>
+
+        {existingForSelected && (
+          <p className="rounded-md bg-accent px-3 py-2 text-xs text-accent-foreground" role="status">
+            This capability already has input captured — submitting below replaces it.
+          </p>
+        )}
 
         {capability === "OTHER" && (
           <div>
@@ -62,6 +96,7 @@ export function BuildEstimateInputForm() {
             <input
               id="estimate-other-label"
               name="otherLabel"
+              defaultValue={existingForSelected?.otherLabel ?? ""}
               placeholder="e.g. Legal & Compliance"
               className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
             />
@@ -91,9 +126,11 @@ export function BuildEstimateInputForm() {
 
         {mode === "paste" ? (
           <textarea
+            key={`content-${capability}`}
             name="content"
             aria-label="Estimate"
             rows={6}
+            defaultValue={existingForSelected?.rawContent ?? ""}
             placeholder="Paste the estimate content here…"
             className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
           />
@@ -107,14 +144,29 @@ export function BuildEstimateInputForm() {
           />
         )}
 
-        <Button type="submit" disabled className="w-full">
-          Save estimate — coming soon
+        {state?.message && (
+          <p className="text-sm text-danger" role="alert">
+            {state.message}
+          </p>
+        )}
+
+        <Button type="submit" disabled={pending} className="w-full">
+          {pending ? "Saving…" : existingForSelected ? "Update estimate input" : "Add estimate input"}
         </Button>
-        <p className="text-xs text-muted-foreground">
-          This form is a preview of the input — saving, updating and version tracking for
-          estimates is being designed next.
-        </p>
       </form>
+
+      {existingInputs.length > 0 && (
+        <ul className="space-y-1 border-t border-border pt-3 text-xs text-foreground">
+          {existingInputs.map((input) => (
+            <li key={input.capability ?? "OTHER"}>
+              {input.capability ? capabilityLabel(input.capability) : input.otherLabel}
+              {input.sourceFileName && (
+                <span className="text-muted-foreground"> ({input.sourceFileName})</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

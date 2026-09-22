@@ -18,9 +18,10 @@ import { KnowledgeUpload, type KnowledgeItemView } from "./KnowledgeUpload";
 import type { ChecklistItemView } from "./ChecklistView";
 import { EditableChecklist } from "./EditableChecklist";
 import { SpecialistFeedbackForm } from "./SpecialistFeedbackForm";
-import { BuildEstimateInputForm } from "./BuildEstimateInputForm";
+import { EstimatesListPanel, type EstimateListItem } from "./EstimatesListPanel";
 import { DeliverablesServicesDocumentView } from "./DeliverablesServicesDocumentView";
 import { StartSowDevelopmentPanel, type SowTemplateSelectOption } from "./StartSowDevelopmentPanel";
+import type { RateCardOption } from "@/app/(dashboard)/projects/new/actions";
 
 function PlaceholderStepContent({
   taskRef,
@@ -118,6 +119,8 @@ interface ProjectWorkflowProps {
   targetCompletionDate: Date | null;
   confirmedCapabilities: Capability[];
   estimateBriefVersion: EstimateBriefVersionMeta | null;
+  estimates: EstimateListItem[];
+  rateCardOptions: RateCardOption[];
 }
 
 /**
@@ -163,6 +166,8 @@ export function ProjectWorkflow({
   targetCompletionDate,
   confirmedCapabilities,
   estimateBriefVersion,
+  estimates,
+  rateCardOptions,
 }: ProjectWorkflowProps) {
   const contentByStage: Record<number, ReactNode> = {
     5: (
@@ -172,7 +177,9 @@ export function ProjectWorkflow({
         deliverablesServicesDocument={deliverablesServicesDocument}
       />
     ),
-    6: <BuildEstimateInputForm />,
+    6: (
+      <EstimatesListPanel projectId={projectId} estimates={estimates} rateCardOptions={rateCardOptions} />
+    ),
     8: (
       <StartSowDevelopmentPanel
         projectId={projectId}

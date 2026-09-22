@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ProjectWorkflow } from "@/components/features/ProjectWorkflow";
 import { ProjectSummaryBar } from "@/components/features/ProjectSummaryBar";
 import { getSOWTemplatesForClientAction } from "@/app/(dashboard)/sow-templates/actions";
+import { getRateCardsForWorkstreamAction } from "@/app/(dashboard)/projects/new/actions";
 import {
   ClarificationEmailSchema,
   PositionDocumentFieldsSchema,
@@ -71,6 +72,12 @@ export default async function ProjectDetailPage({
           },
         },
       },
+      estimates: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          versions: { orderBy: { versionNumber: "desc" } },
+        },
+      },
       projectManager: true,
     },
   });
@@ -79,12 +86,20 @@ export default async function ProjectDetailPage({
     notFound();
   }
 
-  const { workstream, documents, checklistItems, touchpointNotes, knowledgeItems, capabilities, estimateBrief } =
-    project;
+  const {
+    workstream,
+    documents,
+    checklistItems,
+    touchpointNotes,
+    knowledgeItems,
+    capabilities,
+    estimateBrief,
+    estimates,
+  } = project;
   const { client } = workstream;
   const { hub } = client;
 
-  const [stages, projectManagerOptions, sowTemplateOptions] = await Promise.all([
+  const [stages, projectManagerOptions, sowTemplateOptions, rateCardOptions] = await Promise.all([
     prisma.stage.findMany({
       orderBy: { number: "asc" },
       include: {
@@ -98,6 +113,7 @@ export default async function ProjectDetailPage({
       orderBy: { name: "asc" },
     }),
     getSOWTemplatesForClientAction(client.id),
+    getRateCardsForWorkstreamAction(workstream.id),
   ]);
 
   const clarificationEmailContent = documents.find(
@@ -254,6 +270,19 @@ export default async function ProjectDetailPage({
         targetCompletionDate={project.targetCompletionDate}
         confirmedCapabilities={confirmedCapabilities}
         estimateBriefVersion={estimateBriefVersion}
+        estimates={estimates.map((estimate) => ({
+          id: estimate.id,
+          label: estimate.label,
+          versions: estimate.versions.map((version) => ({
+            id: version.id,
+            versionNumber: version.versionNumber,
+            createdAt: version.createdAt,
+            totalValue: Number(version.totalValue),
+            currency: version.currency,
+            description: version.description,
+          })),
+        }))}
+        rateCardOptions={rateCardOptions}
       />
     </div>
   );
