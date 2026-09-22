@@ -22,7 +22,7 @@ export const STEP_KIND_BY_STAGE: Record<number, StepKind> = {
   2: STEP_KIND.AGENT, // Clarification Email drafted
   3: STEP_KIND.HUMAN_INPUT, // Get Clarifications (paste client reply)
   4: STEP_KIND.AGENT, // Triage
-  5: STEP_KIND.HUMAN_INPUT, // Review with Specialist Leads (paste feedback)
+  5: STEP_KIND.HUMAN_INPUT, // Capability inputs (paste specialist feedback, tagged by capability)
   6: STEP_KIND.AGENT, // Estimation Kick Off
   7: STEP_KIND.HUMAN_INPUT, // Estimation Session
   8: STEP_KIND.AGENT, // Commercials & SOW

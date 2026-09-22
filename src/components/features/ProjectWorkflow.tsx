@@ -4,6 +4,7 @@ import type { DraftScopeDocument } from "@/types/triage";
 import type { DeliverablesServicesDocument } from "@/types/deliverables-services";
 import type { WorkflowStep } from "@/types/workflow";
 import type { Capability } from "@/generated/prisma/enums";
+import { capabilityLabel } from "@/lib/mapCapabilities";
 import type { WorkflowStepData } from "./WorkflowStepList";
 import { StageTracker, type Phase1Status } from "./StageTracker";
 import { Phase1Workspace } from "./Phase1Workspace";
@@ -41,18 +42,28 @@ function PlaceholderStepContent({
   );
 }
 
+export interface SpecialistFeedbackView {
+  content: string;
+  capability: Capability | null;
+  otherCapabilityLabel: string | null;
+}
+
 function SpecialistReviewStepContent({
   projectId,
   specialistFeedback,
   deliverablesServicesDocument,
 }: {
   projectId: string;
-  specialistFeedback: string | null;
+  specialistFeedback: SpecialistFeedbackView | null;
   deliverablesServicesDocument: DeliverablesServicesDocument | null;
 }) {
   if (specialistFeedback === null) {
     return <SpecialistFeedbackForm projectId={projectId} />;
   }
+
+  const capabilityDisplay = specialistFeedback.capability
+    ? capabilityLabel(specialistFeedback.capability)
+    : specialistFeedback.otherCapabilityLabel;
 
   return (
     <div className="space-y-4">
@@ -60,7 +71,14 @@ function SpecialistReviewStepContent({
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Input
         </h3>
-        <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{specialistFeedback}</p>
+        {capabilityDisplay && (
+          <span className="mt-1 inline-block rounded-full bg-accent px-2.5 py-0.5 text-xs font-medium text-accent-foreground">
+            {capabilityDisplay}
+          </span>
+        )}
+        <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">
+          {specialistFeedback.content}
+        </p>
       </div>
       <div>
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -89,7 +107,7 @@ interface ProjectWorkflowProps {
   checklistItems: ChecklistItemView[];
   draftScopeDocument: DraftScopeDocument | null;
   draftScopeDocumentMeta: DraftScopeDocumentMeta | null;
-  specialistFeedback: string | null;
+  specialistFeedback: SpecialistFeedbackView | null;
   deliverablesServicesDocument: DeliverablesServicesDocument | null;
   knowledgeItems: KnowledgeItemView[];
   currentSowTemplate: { id: string; name: string } | null;

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import type { Capability } from "@/generated/prisma/enums";
 
 vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
@@ -24,7 +24,7 @@ const STAGE_NAMES = [
   "Clarification Email Sent",
   "Get Clarifications",
   "Triage",
-  "Review with Specialist Leads",
+  "Capability inputs",
   "Estimation Kick Off",
   "Estimation Session",
   "Commercials & SOW",
@@ -109,7 +109,11 @@ function baseProps() {
     }[],
     draftScopeDocument: null as typeof draftScope | null,
     draftScopeDocumentMeta: null as { versionNumber: number; createdAt: Date } | null,
-    specialistFeedback: null as string | null,
+    specialistFeedback: null as {
+      content: string;
+      capability: Capability | null;
+      otherCapabilityLabel: string | null;
+    } | null,
     deliverablesServicesDocument: null as typeof deliverablesServices | null,
     knowledgeItems: [],
     currentSowTemplate: null as { id: string; name: string } | null,
@@ -207,22 +211,49 @@ describe("ProjectWorkflow", () => {
     expect(screen.getAllByText("Project Set-Up Checklist")).toHaveLength(1);
   });
 
-  it("shows submitted specialist feedback read-only and the Deliverables + Services Document", () => {
+  it("shows submitted specialist feedback read-only, tagged with its capability, and the Deliverables + Services Document", () => {
     render(
       <ProjectWorkflow
         {...baseProps()}
         stages={stagesUpTo(5, "IN_PROGRESS")}
-        specialistFeedback="Creative needs 2 concept rounds."
+        specialistFeedback={{
+          content: "Creative needs 2 concept rounds.",
+          capability: "EXPERIENCE_DESIGN",
+          otherCapabilityLabel: null,
+        }}
         deliverablesServicesDocument={deliverablesServices}
       />
     );
 
-    expect(screen.getByText("Creative needs 2 concept rounds.")).toBeInTheDocument();
+    const feedbackContent = screen.getByText("Creative needs 2 concept rounds.");
+    expect(feedbackContent).toBeInTheDocument();
+    // Scoped: "Experience Design" also appears as a capability pill in the
+    // sidebar's Capabilities panel — this checks the Stage 5 badge specifically.
+    expect(
+      within(feedbackContent.closest("div")!).getByText("Experience Design")
+    ).toBeInTheDocument();
     expect(screen.getByText("Legal & Compliance")).toBeInTheDocument();
     expect(screen.getByText("Legal review of influencer usage.")).toBeInTheDocument();
     expect(
       screen.queryByPlaceholderText(/Paste the specialist leads' feedback/)
     ).not.toBeInTheDocument();
+  });
+
+  it("falls back to the free-text label when specialist feedback was tagged 'Other'", () => {
+    render(
+      <ProjectWorkflow
+        {...baseProps()}
+        stages={stagesUpTo(5, "IN_PROGRESS")}
+        specialistFeedback={{
+          content: "Compliance sign-off needed before launch.",
+          capability: null,
+          otherCapabilityLabel: "Legal & Regulatory",
+        }}
+        deliverablesServicesDocument={deliverablesServices}
+      />
+    );
+
+    expect(screen.getByText("Legal & Regulatory")).toBeInTheDocument();
   });
 
   it("shows the Brief Readiness strip in Phase 1's header row, derived from the live Position Document", () => {

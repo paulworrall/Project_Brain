@@ -297,22 +297,37 @@ export async function generateDraftScopeDocumentAction(
   revalidatePath(`/projects/${projectId}`);
 }
 
-const FeedbackSchema = z.object({
-  feedback: z
-    .string()
-    .trim()
-    .min(1, { error: "Paste the specialist leads' feedback before submitting." }),
-});
+const FeedbackSchema = z
+  .object({
+    feedback: z
+      .string()
+      .trim()
+      .min(1, { error: "Paste the specialist leads' feedback before submitting." }),
+    capability: z.union([CapabilityEnum, z.literal("OTHER")], {
+      error: "Choose which capability team this feedback is from.",
+    }),
+    otherLabel: z.string().trim().optional(),
+  })
+  .refine((data) => data.capability !== "OTHER" || !!data.otherLabel, {
+    error: "Name the capability team when selecting \"Other\".",
+    path: ["otherLabel"],
+  });
 
 export async function submitSpecialistFeedbackAction(
   projectId: string,
   _prevState: ActionState | undefined,
   formData: FormData
 ): Promise<ActionState | undefined> {
-  const parsed = FeedbackSchema.safeParse({ feedback: formData.get("feedback") });
+  const parsed = FeedbackSchema.safeParse({
+    feedback: formData.get("feedback"),
+    capability: formData.get("capability"),
+    otherLabel: formData.get("otherLabel") || undefined,
+  });
   if (!parsed.success) {
+    const errors = z.flattenError(parsed.error).fieldErrors;
     return {
-      message: z.flattenError(parsed.error).fieldErrors.feedback?.[0] ?? "Invalid feedback.",
+      message:
+        errors.feedback?.[0] ?? errors.capability?.[0] ?? errors.otherLabel?.[0] ?? "Invalid feedback.",
     };
   }
 
@@ -349,6 +364,8 @@ export async function submitSpecialistFeedbackAction(
         projectId,
         type: "SPECIALIST_REVIEW",
         content: parsed.data.feedback,
+        capability: parsed.data.capability === "OTHER" ? null : parsed.data.capability,
+        otherCapabilityLabel: parsed.data.capability === "OTHER" ? parsed.data.otherLabel : null,
         createdById: session?.user?.id,
       },
     });

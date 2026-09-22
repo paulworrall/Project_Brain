@@ -130,8 +130,14 @@ export default async function ProjectDetailPage({
       createdAt: n.createdAt,
       createdByName: n.createdBy?.name ?? null,
     }));
-  const specialistFeedback =
-    touchpointNotes.find((n) => n.type === "SPECIALIST_REVIEW")?.content ?? null;
+  const specialistFeedbackNote = touchpointNotes.find((n) => n.type === "SPECIALIST_REVIEW");
+  const specialistFeedback = specialistFeedbackNote
+    ? {
+        content: specialistFeedbackNote.content,
+        capability: specialistFeedbackNote.capability,
+        otherCapabilityLabel: specialistFeedbackNote.otherCapabilityLabel,
+      }
+    : null;
 
   const projectStatus = stages.every((stage) => stage.stageStatuses[0]?.status === "COMPLETE")
     ? "COMPLETE"

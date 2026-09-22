@@ -13,7 +13,7 @@ const STAGES = [
   { number: 2, name: "Clarification Email Sent" },
   { number: 3, name: "Get Clarifications" },
   { number: 4, name: "Triage" },
-  { number: 5, name: "Review with Specialist Leads" },
+  { number: 5, name: "Capability inputs" },
   { number: 6, name: "Estimation Kick Off" },
   { number: 7, name: "Estimation Session" },
   { number: 8, name: "Commercials & SOW" },

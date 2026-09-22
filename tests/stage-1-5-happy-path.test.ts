@@ -132,6 +132,7 @@ function notesFormData(notes: string) {
 function feedbackFormData(feedback: string) {
   const formData = new FormData();
   formData.set("feedback", feedback);
+  formData.set("capability", "TECH_AND_DATA");
   return formData;
 }
 
@@ -262,6 +263,9 @@ describe("Stage 1-5 happy path", () => {
       "CLARIFICATION_REPLY",
       "SPECIALIST_REVIEW",
     ]);
+    expect(touchpointNotes.find((n) => n.type === "SPECIALIST_REVIEW")?.capability).toBe(
+      "TECH_AND_DATA"
+    );
 
     const checklistItems = await prisma.checklistItem.findMany({
       where: { projectId: project.id },

@@ -52,4 +52,14 @@ describe("WorkflowStepList", () => {
     expect(intakeHeader).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("Intake output")).toBeInTheDocument();
   });
+
+  it("drops the numbered badge and 'Step N —' prefix when hideStepNumbers is set", () => {
+    render(<WorkflowStepList steps={steps} hideStepNumbers />);
+
+    expect(screen.getByText("Intake")).toBeInTheDocument();
+    expect(screen.queryByText(/Step \d+ —/)).not.toBeInTheDocument();
+    // The status label (e.g. "Complete") still renders — only the ordinal
+    // badge/prefix is dropped, not step status.
+    expect(screen.getAllByText("Complete")).toHaveLength(2);
+  });
 });

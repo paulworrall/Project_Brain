@@ -13,7 +13,7 @@ import type { ReactNode } from "react";
 const steps: WorkflowStepData[] = [
   {
     stageNumber: 5,
-    name: "Review with Specialist Leads",
+    name: "Capability inputs",
     status: "NOT_STARTED",
     content: <p>Specialist review content</p>,
   },
@@ -107,33 +107,45 @@ describe("StageTracker", () => {
   it("groups the real step cards under the correct phase for Phase 2 and Phase 3, each stage appearing exactly once", () => {
     renderTracker();
 
+    // Phase 2 (estimation) steps aren't a strict required order — capability
+    // inputs can come from different teams in any sequence — so they render
+    // by plain name, no "Step N.N —" prefix.
     const estimation = getPhaseDetails("Estimation and team planning");
-    expect(estimation).toHaveTextContent("Step 2.1 — Review with Specialist Leads");
-    expect(estimation).toHaveTextContent("Step 2.3 — Estimation Session");
+    expect(estimation).toHaveTextContent("Capability inputs");
+    expect(estimation).toHaveTextContent("Estimation Session");
+    expect(estimation).not.toHaveTextContent("Step 2.1");
     expect(estimation).not.toHaveTextContent("Commercials & SOW");
 
+    // Phase 3 keeps its Phase-scoped numbering.
     const sow = getPhaseDetails("Statement of work and delivery setup");
     expect(sow).toHaveTextContent("Step 3.1 — Commercials & SOW");
     expect(sow).toHaveTextContent("Step 3.2 — Planning & Capability Briefing");
 
-    // No duplication: every phased stage's step card renders exactly once.
-    // Stage 10 is deliberately excluded — it only appears in the separate
-    // Delivery Monitoring block.
-    const phaseScopedLabels = ["2.1", "2.2", "2.3", "3.1", "3.2"];
+    // No duplication: every Phase 3 stage's step card renders exactly once.
+    const phaseScopedLabels: Record<number, string> = { 8: "3.1", 9: "3.2" };
     steps
-      .filter((s) => s.stageNumber !== 10)
-      .forEach((step, i) => {
+      .filter((s) => s.stageNumber === 8 || s.stageNumber === 9)
+      .forEach((step) => {
         expect(
-          screen.getAllByText(`Step ${phaseScopedLabels[i]} — ${step.name}`)
+          screen.getAllByText(`Step ${phaseScopedLabels[step.stageNumber]} — ${step.name}`)
         ).toHaveLength(1);
       });
+
+    // Every Phase 2 stage's step card renders exactly once too, just without
+    // the numbered prefix.
+    [5, 6, 7].forEach((stageNumber) => {
+      const step = steps.find((s) => s.stageNumber === stageNumber)!;
+      expect(screen.getAllByText(step.name)).toHaveLength(1);
+    });
   });
 
-  it("labels each Phase 2/3 step with a Phase-scoped number (P.N), not the flat 1-10 stage number", () => {
+  it("labels each Phase 3 step with a Phase-scoped number (P.N), not the flat 1-10 stage number — Phase 2 shows no number at all", () => {
     renderTracker();
 
-    expect(screen.getByText("2.1")).toBeInTheDocument(); // Review with Specialist Leads, NOT_STARTED
     expect(screen.getByText("3.1")).toBeInTheDocument(); // Commercials & SOW, NOT_STARTED
+    expect(screen.queryByText("2.1")).not.toBeInTheDocument(); // Capability inputs — numbering hidden
+    expect(screen.queryByText("2.2")).not.toBeInTheDocument();
+    expect(screen.queryByText("2.3")).not.toBeInTheDocument();
     expect(screen.queryByText("6")).not.toBeInTheDocument();
     expect(screen.queryByText("7")).not.toBeInTheDocument();
     expect(screen.queryByText("9")).not.toBeInTheDocument();

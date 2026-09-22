@@ -449,12 +449,19 @@ enum TouchpointNoteType {
 }
 
 model TouchpointNote {
-  id          String             @id @default(cuid())
-  projectId   String
-  type        TouchpointNoteType
-  content     String
-  createdById String?
-  createdAt   DateTime           @default(now())
+  id                   String             @id @default(cuid())
+  projectId            String
+  type                 TouchpointNoteType
+  content              String
+  // Which MAP capability team this note is about — SPECIALIST_REVIEW notes
+  // only, always null for CLARIFICATION_REPLY. Null `capability` with a set
+  // `otherCapabilityLabel` means the submitter picked "Other" and typed a
+  // custom team name, same convention as DeliverablesServicesDocument's own
+  // services.other.label.
+  capability           Capability?
+  otherCapabilityLabel String?
+  createdById          String?
+  createdAt            DateTime           @default(now())
 
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdBy User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)

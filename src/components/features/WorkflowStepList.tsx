@@ -61,7 +61,19 @@ function findDefaultExpandedStage(steps: WorkflowStepData[]): number {
   return current?.stageNumber ?? steps[0]?.stageNumber ?? 1;
 }
 
-export function WorkflowStepList({ steps }: { steps: WorkflowStepData[] }) {
+export function WorkflowStepList({
+  steps,
+  hideStepNumbers = false,
+}: {
+  steps: WorkflowStepData[];
+  /**
+   * Drops the ordinal "N.N" badge/prefix (e.g. "2.1 — ") for phases whose
+   * steps aren't a strict required sequence — a numbered badge implies a
+   * gated order that doesn't hold for e.g. Phase 2's capability inputs,
+   * which can come in from different teams in any order.
+   */
+  hideStepNumbers?: boolean;
+}) {
   const [expandedStage, setExpandedStage] = useState<number>(() =>
     findDefaultExpandedStage(steps)
   );
@@ -84,10 +96,10 @@ export function WorkflowStepList({ steps }: { steps: WorkflowStepData[] }) {
                 }
                 className="flex w-full items-center gap-3 px-4 py-3 text-left"
               >
-                <StepIcon status={step.status} label={label} />
+                {!hideStepNumbers && <StepIcon status={step.status} label={label} />}
                 <div className="flex-1">
                   <p className="text-sm font-medium text-foreground">
-                    Step {label} — {step.name}
+                    {hideStepNumbers ? step.name : `Step ${label} — ${step.name}`}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {kind === "AGENT" ? "AI Agent" : "Human Input"}

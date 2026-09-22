@@ -156,7 +156,11 @@ export function StageTracker({
             </summary>
 
             <div className="border-t border-border px-4 py-3">
-              {isPhase1 ? phase1Content : <WorkflowStepList steps={phaseSteps} />}
+              {isPhase1 ? (
+                phase1Content
+              ) : (
+                <WorkflowStepList steps={phaseSteps} hideStepNumbers={phase.key === "estimation"} />
+              )}
             </div>
           </details>
         );
