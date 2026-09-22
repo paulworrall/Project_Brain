@@ -4,9 +4,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const startSowDevelopmentAction = vi.fn(async () => undefined);
+const generateSowAction = vi.fn(async () => undefined);
 
 vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
   startSowDevelopmentAction,
+  generateSowAction,
 }));
 
 const { StartSowDevelopmentPanel } = await import(
@@ -34,17 +36,90 @@ const templateOptions = [
 ];
 
 describe("StartSowDevelopmentPanel", () => {
-  it("shows a disabled placeholder 'Generate SOW' button — the generation agent isn't built yet", () => {
+  it("disables 'Generate SOW' until a template is selected", () => {
     render(
       <StartSowDevelopmentPanel
         projectId="proj_1"
         currentTemplate={null}
         currentTemplateVersion={null}
         templateOptions={templateOptions}
+        sowVersions={[]}
       />
     );
 
     expect(screen.getByRole("button", { name: "Generate SOW" })).toBeDisabled();
+    expect(screen.getByText("Select a SOW Template above before generating.")).toBeInTheDocument();
+  });
+
+  it("enables 'Generate SOW' once a template is selected, and calls generateSowAction on click", async () => {
+    const user = userEvent.setup();
+    render(
+      <StartSowDevelopmentPanel
+        projectId="proj_1"
+        currentTemplate={{ id: "sow_baseline", name: "Standard SOW Template" }}
+        currentTemplateVersion={{ id: "sow_baseline_v1" }}
+        templateOptions={templateOptions}
+        sowVersions={[]}
+      />
+    );
+
+    const generateButton = screen.getByRole("button", { name: "Generate SOW" });
+    expect(generateButton).toBeEnabled();
+
+    await user.click(generateButton);
+    expect(generateSowAction).toHaveBeenCalled();
+  });
+
+  it("shows the latest version + download link, and labels the button 'Regenerate SOW' once one exists", () => {
+    render(
+      <StartSowDevelopmentPanel
+        projectId="proj_1"
+        currentTemplate={{ id: "sow_baseline", name: "Standard SOW Template" }}
+        currentTemplateVersion={{ id: "sow_baseline_v1" }}
+        templateOptions={templateOptions}
+        sowVersions={[{ id: "sowv_2", versionNumber: 2, createdAt: new Date("2026-09-20T10:00:00Z") }]}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Regenerate SOW" })).toBeInTheDocument();
+    expect(screen.getByText(/Version 2 —/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Download .docx →" })).toHaveAttribute(
+      "href",
+      "/api/projects/proj_1/sow/sowv_2"
+    );
+  });
+
+  it("lists every earlier version in the 'Download a past version' disclosure", () => {
+    render(
+      <StartSowDevelopmentPanel
+        projectId="proj_1"
+        currentTemplate={{ id: "sow_baseline", name: "Standard SOW Template" }}
+        currentTemplateVersion={{ id: "sow_baseline_v1" }}
+        templateOptions={templateOptions}
+        sowVersions={[
+          { id: "sowv_2", versionNumber: 2, createdAt: new Date("2026-09-20T10:00:00Z") },
+          { id: "sowv_1", versionNumber: 1, createdAt: new Date("2026-09-10T10:00:00Z") },
+        ]}
+      />
+    );
+
+    expect(screen.getByText("Download a past version (1)")).toBeInTheDocument();
+    const pastVersionLink = screen.getByRole("link", { name: "Download →" });
+    expect(pastVersionLink).toHaveAttribute("href", "/api/projects/proj_1/sow/sowv_1");
+  });
+
+  it("shows 'No SOW generated yet' when no version exists", () => {
+    render(
+      <StartSowDevelopmentPanel
+        projectId="proj_1"
+        currentTemplate={{ id: "sow_baseline", name: "Standard SOW Template" }}
+        currentTemplateVersion={{ id: "sow_baseline_v1" }}
+        templateOptions={templateOptions}
+        sowVersions={[]}
+      />
+    );
+
+    expect(screen.getByText("No SOW generated yet.")).toBeInTheDocument();
   });
 
   it("lists the baseline and any client-specific variant, labeling the baseline", () => {
@@ -54,6 +129,7 @@ describe("StartSowDevelopmentPanel", () => {
         currentTemplate={null}
         currentTemplateVersion={null}
         templateOptions={templateOptions}
+        sowVersions={[]}
       />
     );
 
@@ -63,17 +139,18 @@ describe("StartSowDevelopmentPanel", () => {
     expect(screen.getByRole("option", { name: "Acme-specific SOW" })).toBeInTheDocument();
   });
 
-  it("shows 'Start SOW development' when no template is selected yet", () => {
+  it("shows 'Select SOW Template' when no template is selected yet", () => {
     render(
       <StartSowDevelopmentPanel
         projectId="proj_1"
         currentTemplate={null}
         currentTemplateVersion={null}
         templateOptions={templateOptions}
+        sowVersions={[]}
       />
     );
 
-    expect(screen.getByRole("button", { name: "Start SOW development" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Select SOW Template" })).toBeInTheDocument();
   });
 
   it("shows the current selection and 'Change SOW Template' once one is set", () => {
@@ -83,6 +160,7 @@ describe("StartSowDevelopmentPanel", () => {
         currentTemplate={{ id: "sow_baseline", name: "Standard SOW Template" }}
         currentTemplateVersion={{ id: "sow_baseline_v1" }}
         templateOptions={templateOptions}
+        sowVersions={[]}
       />
     );
 
@@ -98,11 +176,12 @@ describe("StartSowDevelopmentPanel", () => {
         currentTemplate={null}
         currentTemplateVersion={null}
         templateOptions={templateOptions}
+        sowVersions={[]}
       />
     );
 
     await user.selectOptions(screen.getByLabelText("SOW Template"), "sow_variant");
-    await user.click(screen.getByRole("button", { name: "Start SOW development" }));
+    await user.click(screen.getByRole("button", { name: "Select SOW Template" }));
 
     expect(startSowDevelopmentAction).toHaveBeenCalled();
   });
@@ -115,6 +194,7 @@ describe("StartSowDevelopmentPanel", () => {
         currentTemplate={null}
         currentTemplateVersion={null}
         templateOptions={templateOptions}
+        sowVersions={[]}
       />
     );
 
@@ -133,6 +213,7 @@ describe("StartSowDevelopmentPanel", () => {
         currentTemplate={{ id: "sow_variant", name: "Acme-specific SOW" }}
         currentTemplateVersion={{ id: "sow_variant_v2" }}
         templateOptions={templateOptions}
+        sowVersions={[]}
       />
     );
 

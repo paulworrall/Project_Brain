@@ -126,6 +126,7 @@ model Project {
   capabilities           ProjectCapability[]
   estimateBrief          EstimateBrief?
   estimates              Estimate[]
+  sow                    SOW?
 
   @@unique([workstreamId, name])
 }
@@ -246,9 +247,10 @@ model SOWTemplate {
   createdAt  DateTime         @default(now())
   updatedAt  DateTime         @updatedAt
 
-  client   Client?              @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  versions SOWTemplateVersion[]
-  projects Project[]
+  client      Client?              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  versions    SOWTemplateVersion[]
+  projects    Project[]
+  sowVersions SOWVersion[]
 }
 
 model SOWTemplateVersion {
@@ -262,9 +264,10 @@ model SOWTemplateVersion {
   uploadedById  String?
   uploadedAt    DateTime      @default(now())
 
-  sowTemplate SOWTemplate @relation(fields: [sowTemplateId], references: [id], onDelete: Cascade)
-  uploadedBy  User?       @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  sowTemplate SOWTemplate  @relation(fields: [sowTemplateId], references: [id], onDelete: Cascade)
+  uploadedBy  User?        @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
   projects    Project[]
+  sowVersions SOWVersion[]
 
   @@unique([sowTemplateId, versionNumber])
 }
@@ -424,6 +427,53 @@ model EstimateBriefVersion {
   createdBy     User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
   @@unique([estimateBriefId, versionNumber])
+}
+
+// One SOW per Project, mirroring EstimateBrief/EstimateBriefVersion exactly
+// (see that model's comment) — append-only versions, no ENABLED/DISABLED/
+// revert mechanic. Unlike EstimateBrief, each version also pins which
+// SOWTemplate/SOWTemplateVersion actually informed it: a PM can change the
+// Project's live template selection (startSowDevelopmentAction)
+// independently of regenerating, so a past SOWVersion needs its own frozen
+// record of what it was drafted against, not a live read of
+// Project.sowTemplateVersionId — same rationale as EstimateVersion locking
+// to one rateCardVersionId for its whole life.
+model SOW {
+  id        String   @id @default(cuid())
+  projectId String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project  Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versions SOWVersion[]
+}
+
+model SOWVersion {
+  id                   String   @id @default(cuid())
+  sowId                String
+  versionNumber        Int
+  fileName             String
+  // Rendered .docx bytes, downloaded as-is — see sow-docx.ts.
+  fileBytes            Bytes
+  // { coverDetails: SowCoverDetails, body: SOWDocumentContent } — deterministic
+  // cover-details half (client/dates/commercials, never agent-authored) plus
+  // the agent-drafted narrative half, kept together as one self-contained
+  // historical snapshot — see src/types/sow.ts.
+  content              Json
+  // Frozen snapshot of which template/version this draft was generated
+  // against — see the model comment above. Nullable/SetNull: removing a
+  // template later shouldn't invalidate the historical SOWVersion record.
+  sowTemplateId        String?
+  sowTemplateVersionId String?
+  createdById          String?
+  createdAt            DateTime @default(now())
+
+  sow                SOW                 @relation(fields: [sowId], references: [id], onDelete: Cascade)
+  sowTemplate        SOWTemplate?        @relation(fields: [sowTemplateId], references: [id], onDelete: SetNull)
+  sowTemplateVersion SOWTemplateVersion? @relation(fields: [sowTemplateVersionId], references: [id], onDelete: SetNull)
+  createdBy          User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([sowId, versionNumber])
 }
 
 // ---------------------------------------------------------------------------
@@ -721,4 +771,5 @@ model User {
   estimateCapabilityInputsAdded  EstimateCapabilityInput[]
   roleResolutionsResolved        RoleResolution[]
   estimateVersionsCreated        EstimateVersion[]
+  sowVersionsCreated             SOWVersion[]
 }

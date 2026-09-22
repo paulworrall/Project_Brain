@@ -159,7 +159,10 @@ export function StageTracker({
               {isPhase1 ? (
                 phase1Content
               ) : (
-                <WorkflowStepList steps={phaseSteps} hideStepNumbers={phase.key === "estimation"} />
+                <WorkflowStepList
+                  steps={phaseSteps}
+                  hideStepNumbers={phase.key === "estimation" || phase.key === "sow"}
+                />
               )}
             </div>
           </details>

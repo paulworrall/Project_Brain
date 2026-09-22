@@ -122,38 +122,35 @@ describe("StageTracker", () => {
     expect(estimation).not.toHaveTextContent("Step 2.1");
     expect(estimation).not.toHaveTextContent("Commercials & SOW");
 
-    // Phase 3 keeps its Phase-scoped numbering.
+    // Phase 3 no longer shows its own numbering either — same
+    // hideStepNumbers treatment as Phase 2, so it reads as a simple named
+    // checklist rather than an engineering decomposition.
     const sow = getPhaseDetails("Statement of work and delivery setup");
-    expect(sow).toHaveTextContent("Step 3.1 — Commercials & SOW");
-    expect(sow).toHaveTextContent("Step 3.2 — Planning & Capability Briefing");
+    expect(sow).toHaveTextContent("Commercials & SOW");
+    expect(sow).not.toHaveTextContent("Step 3.1");
+    expect(sow).toHaveTextContent("Planning & Capability Briefing");
+    expect(sow).not.toHaveTextContent("Step 3.2");
 
-    // No duplication: every Phase 3 stage's step card renders exactly once.
-    const phaseScopedLabels: Record<number, string> = { 8: "3.1", 9: "3.2" };
-    steps
-      .filter((s) => s.stageNumber === 8 || s.stageNumber === 9)
-      .forEach((step) => {
-        expect(
-          screen.getAllByText(`Step ${phaseScopedLabels[step.stageNumber]} — ${step.name}`)
-        ).toHaveLength(1);
-      });
-
-    // Every Phase 2 stage's step card renders exactly once too, just without
-    // the numbered prefix. Stage 7 is excluded from this phase entirely.
-    [5, 6].forEach((stageNumber) => {
+    // No duplication: every Phase 2/3 stage's step card renders exactly
+    // once, just without any numbered prefix. Stage 7 is excluded from
+    // Phase 2 entirely.
+    [5, 6, 8, 9].forEach((stageNumber) => {
       const step = steps.find((s) => s.stageNumber === stageNumber)!;
       expect(screen.getAllByText(step.name)).toHaveLength(1);
     });
   });
 
-  it("labels each Phase 3 step with a Phase-scoped number (P.N), not the flat 1-10 stage number — Phase 2 shows no number at all", () => {
+  it("shows no step numbering at all for Phase 2 or Phase 3 — neither the flat 1-10 stage number nor a Phase-scoped one", () => {
     renderTracker();
 
-    expect(screen.getByText("3.1")).toBeInTheDocument(); // Commercials & SOW, NOT_STARTED
+    expect(screen.queryByText("3.1")).not.toBeInTheDocument(); // Commercials & SOW — numbering hidden
+    expect(screen.queryByText("3.2")).not.toBeInTheDocument(); // Planning & Capability Briefing
     expect(screen.queryByText("2.1")).not.toBeInTheDocument(); // Capability inputs — numbering hidden
     expect(screen.queryByText("2.2")).not.toBeInTheDocument();
     expect(screen.queryByText("2.3")).not.toBeInTheDocument();
     expect(screen.queryByText("6")).not.toBeInTheDocument();
     expect(screen.queryByText("7")).not.toBeInTheDocument();
+    expect(screen.queryByText("8")).not.toBeInTheDocument();
     expect(screen.queryByText("9")).not.toBeInTheDocument();
   });
 

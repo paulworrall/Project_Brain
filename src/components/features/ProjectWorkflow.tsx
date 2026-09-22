@@ -20,7 +20,11 @@ import { EditableChecklist } from "./EditableChecklist";
 import { SpecialistFeedbackForm } from "./SpecialistFeedbackForm";
 import { EstimatesListPanel, type EstimateListItem } from "./EstimatesListPanel";
 import { DeliverablesServicesDocumentView } from "./DeliverablesServicesDocumentView";
-import { StartSowDevelopmentPanel, type SowTemplateSelectOption } from "./StartSowDevelopmentPanel";
+import {
+  StartSowDevelopmentPanel,
+  type SowTemplateSelectOption,
+  type SowVersionMeta,
+} from "./StartSowDevelopmentPanel";
 import type { RateCardOption } from "@/app/(dashboard)/projects/new/actions";
 
 function PlaceholderStepContent({
@@ -115,6 +119,7 @@ interface ProjectWorkflowProps {
   currentSowTemplate: { id: string; name: string } | null;
   currentSowTemplateVersion: { id: string } | null;
   sowTemplateOptions: SowTemplateSelectOption[];
+  sowVersions: SowVersionMeta[];
   kickOffDate: Date | null;
   targetCompletionDate: Date | null;
   confirmedCapabilities: Capability[];
@@ -162,6 +167,7 @@ export function ProjectWorkflow({
   currentSowTemplate,
   currentSowTemplateVersion,
   sowTemplateOptions,
+  sowVersions,
   kickOffDate,
   targetCompletionDate,
   confirmedCapabilities,
@@ -186,6 +192,7 @@ export function ProjectWorkflow({
         currentTemplate={currentSowTemplate}
         currentTemplateVersion={currentSowTemplateVersion}
         templateOptions={sowTemplateOptions}
+        sowVersions={sowVersions}
       />
     ),
     9: <PlaceholderStepContent taskRef="Level 3 (post-MVP)" actionLabel="Run Agent" />,

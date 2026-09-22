@@ -78,6 +78,11 @@ export default async function ProjectDetailPage({
           versions: { orderBy: { versionNumber: "desc" } },
         },
       },
+      sow: {
+        include: {
+          versions: { orderBy: { versionNumber: "desc" } },
+        },
+      },
       projectManager: true,
     },
   });
@@ -95,6 +100,7 @@ export default async function ProjectDetailPage({
     capabilities,
     estimateBrief,
     estimates,
+    sow,
   } = project;
   const { client } = workstream;
   const { hub } = client;
@@ -266,6 +272,9 @@ export default async function ProjectDetailPage({
             status: v.status,
           })),
         }))}
+        sowVersions={
+          sow?.versions.map((v) => ({ id: v.id, versionNumber: v.versionNumber, createdAt: v.createdAt })) ?? []
+        }
         kickOffDate={project.kickOffDate}
         targetCompletionDate={project.targetCompletionDate}
         confirmedCapabilities={confirmedCapabilities}

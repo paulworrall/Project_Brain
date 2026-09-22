@@ -28,7 +28,12 @@ import {
 } from "@/services/agents/estimate-brief-agent";
 import { renderEstimateBriefDocx } from "@/services/documents/estimate-brief-docx";
 import { CapabilityEnum, type CapabilitySuggestion } from "@/types/capabilities";
+import { SowAgentError, generateSowContent } from "@/services/agents/sow-agent";
+import { renderSowDocx } from "@/services/documents/sow-docx";
+import { assembleSowContext } from "@/lib/sow-context";
+import type { SOWContent, SOWDocumentContent } from "@/types/sow";
 import type { Capability } from "@/generated/prisma/enums";
+import { Prisma } from "@/generated/prisma/client";
 
 export interface ActionState {
   message?: string;
@@ -171,6 +176,88 @@ export async function startSowDevelopmentAction(
   await prisma.project.update({
     where: { id: projectId },
     data: { sowTemplateId: validTemplate.id, sowTemplateVersionId: validTemplateVersion.id },
+  });
+
+  revalidatePath(`/projects/${projectId}`);
+}
+
+/**
+ * "Generate SOW" — assembles everything already captured about the
+ * project, drafts fresh SOW content guided by the selected template's
+ * structure (never a mail-merge — see sow-agent.ts), renders a real .docx,
+ * and always adds a new SOWVersion (never overwrites), snapshotting which
+ * template/version actually informed it. Kept separate from
+ * startSowDevelopmentAction (template selection) rather than combined:
+ * changing which template is pinned is a legitimate standalone action a PM
+ * may take without wanting an immediate regeneration.
+ */
+export async function generateSowAction(
+  projectId: string,
+  _prevState: ActionState | undefined,
+  _formData: FormData
+): Promise<ActionState | undefined> {
+  const session = await auth();
+
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { name: true, sowTemplateId: true, sowTemplateVersionId: true },
+  });
+  if (!project) {
+    return { message: "Project not found." };
+  }
+  if (!project.sowTemplateVersionId) {
+    return { message: "Select a SOW Template before generating." };
+  }
+
+  const templateVersion = await prisma.sOWTemplateVersion.findUnique({
+    where: { id: project.sowTemplateVersionId },
+    select: { extractedText: true },
+  });
+  if (!templateVersion) {
+    return { message: "Selected SOW Template version no longer exists." };
+  }
+
+  const { narrativeContext, coverDetails } = await assembleSowContext(projectId);
+
+  let body: SOWDocumentContent;
+  try {
+    body = await generateSowContent(narrativeContext, templateVersion.extractedText);
+  } catch (error) {
+    if (error instanceof SowAgentError) {
+      return { message: error.message };
+    }
+    throw error;
+  }
+
+  const content: SOWContent = { coverDetails, body };
+  const fileBytes = new Uint8Array(await renderSowDocx(content));
+
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.sOW.findUnique({
+      where: { projectId },
+      include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
+    });
+
+    const versionNumber = (existing?.versions[0]?.versionNumber ?? 0) + 1;
+    const fileName = `SOW - ${project.name} - v${versionNumber}.docx`;
+    const versionData = {
+      versionNumber,
+      fileName,
+      fileBytes,
+      content: content as unknown as Prisma.InputJsonValue,
+      sowTemplateId: project.sowTemplateId,
+      sowTemplateVersionId: project.sowTemplateVersionId,
+      createdById: session?.user?.id,
+    };
+
+    if (existing) {
+      await tx.sOWVersion.create({ data: { sowId: existing.id, ...versionData } });
+      return;
+    }
+
+    await tx.sOW.create({
+      data: { projectId, versions: { create: versionData } },
+    });
   });
 
   revalidatePath(`/projects/${projectId}`);

@@ -12,6 +12,7 @@ vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
   uploadKnowledgeItemAction: vi.fn(),
   askChatbotAction: vi.fn(),
   startSowDevelopmentAction: vi.fn(),
+  generateSowAction: vi.fn(),
   suggestCapabilitiesAction: vi.fn(),
   updateConfirmedCapabilitiesAction: vi.fn(),
   generateEstimateBriefAction: vi.fn(),
@@ -132,6 +133,7 @@ function baseProps() {
       isBaseline: boolean;
       versions: { id: string; versionNumber: number; fileName: string; status: "ENABLED" | "DISABLED" }[];
     }[],
+    sowVersions: [] as { id: string; versionNumber: number; createdAt: Date }[],
     kickOffDate: null as Date | null,
     targetCompletionDate: null as Date | null,
     confirmedCapabilities: [] as Capability[],
