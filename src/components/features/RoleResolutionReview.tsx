@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/Button";
 import { capabilityLabel } from "@/lib/mapCapabilities";
 import {
   resolveRoleResolutionAction,
-  type ActionState,
+  type EstimateBuildActionState,
 } from "@/app/(dashboard)/projects/[projectId]/estimates/actions";
+import type { EstimateBuildViewData } from "@/lib/estimateBuildViewData";
 import type { Capability } from "@/generated/prisma/enums";
 
 export interface RateCardLineOption {
@@ -39,13 +40,28 @@ function lineLabel(line: RateCardLineOption): string {
 function RoleResolutionRow({
   resolution,
   rateCardLines,
+  onResolved,
 }: {
   resolution: PendingRoleResolutionView;
   rateCardLines: RateCardLineOption[];
+  onResolved?: (view: EstimateBuildViewData) => void;
 }) {
-  const action = resolveRoleResolutionAction.bind(null, resolution.id);
-  const [state, formAction, pending] = useActionState<ActionState | undefined, FormData>(
-    action,
+  // Same reasoning as BuildEstimateInputForm's submitAction: report the
+  // fresh view here, inside the action's own async function, once the
+  // resolve actually succeeds — not in a useEffect watching pending->settled.
+  async function submitAction(
+    prevState: EstimateBuildActionState | undefined,
+    formData: FormData
+  ): Promise<EstimateBuildActionState> {
+    const result = await resolveRoleResolutionAction(resolution.id, prevState, formData);
+    if (!result.message && result.view) {
+      onResolved?.(result.view);
+    }
+    return result;
+  }
+
+  const [state, formAction, pending] = useActionState<EstimateBuildActionState | undefined, FormData>(
+    submitAction,
     undefined
   );
 
@@ -117,9 +133,11 @@ function RoleResolutionRow({
 export function RoleResolutionReview({
   pendingResolutions,
   rateCardLines,
+  onResolved,
 }: {
   pendingResolutions: PendingRoleResolutionView[];
   rateCardLines: RateCardLineOption[];
+  onResolved?: (view: EstimateBuildViewData) => void;
 }) {
   if (pendingResolutions.length === 0) {
     return null;
@@ -139,7 +157,12 @@ export function RoleResolutionReview({
       </div>
       <ul className="space-y-3">
         {pendingResolutions.map((resolution) => (
-          <RoleResolutionRow key={resolution.id} resolution={resolution} rateCardLines={rateCardLines} />
+          <RoleResolutionRow
+            key={resolution.id}
+            resolution={resolution}
+            rateCardLines={rateCardLines}
+            onResolved={onResolved}
+          />
         ))}
       </ul>
     </div>

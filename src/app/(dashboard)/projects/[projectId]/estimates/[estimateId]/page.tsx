@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { EstimateBuildWorkspace } from "@/components/features/EstimateBuildWorkspace";
-import { buildEstimateContentDraft } from "@/lib/estimateContentDraft";
+import { getEstimateBuildViewData } from "@/lib/estimateBuildViewData";
 
 export default async function EstimateDetailPage({
   params,
@@ -18,15 +18,6 @@ export default async function EstimateDetailPage({
         include: { workstream: { include: { client: { include: { hub: true } } } } },
       },
       rateCardVersion: { include: { rateCard: true } },
-      capabilityInputs: { orderBy: { addedAt: "asc" } },
-      roleResolutions: {
-        where: { resolvedAt: null },
-        include: {
-          estimateCapabilityInput: { select: { capability: true, otherLabel: true } },
-          suggestedRateCardLine: true,
-        },
-        orderBy: { createdAt: "asc" },
-      },
     },
   });
 
@@ -39,16 +30,10 @@ export default async function EstimateDetailPage({
   const { client } = workstream;
   const { hub } = client;
 
-  const rateCardLines = await prisma.rateCardLineItem.findMany({
-    where: { rateCardVersionId: rateCardVersion.id },
-    orderBy: [{ role: "asc" }, { level: "asc" }],
-  });
-
-  // buildEstimateContentDraft returns { message } instead of content
-  // whenever there are pending resolutions or nothing resolved yet — both
-  // cases where EstimateBuildWorkspace shouldn't show a review card.
-  const draft = await buildEstimateContentDraft(estimateId);
-  const reviewContent = "content" in draft ? draft.content : null;
+  const view = await getEstimateBuildViewData(estimateId);
+  if (!view) {
+    notFound();
+  }
 
   return (
     <div className="space-y-6">
@@ -81,43 +66,10 @@ export default async function EstimateDetailPage({
       <EstimateBuildWorkspace
         projectId={project.id}
         estimateId={estimate.id}
-        existingInputs={estimate.capabilityInputs.map((input) => ({
-          capability: input.capability,
-          otherLabel: input.otherLabel,
-          rawContent: input.rawContent,
-          sourceFileName: input.sourceFileName,
-        }))}
-        pendingResolutions={estimate.roleResolutions.map((resolution) => ({
-          id: resolution.id,
-          capability: resolution.estimateCapabilityInput.capability,
-          otherLabel: resolution.estimateCapabilityInput.otherLabel,
-          rawRoleText: resolution.rawRoleText,
-          extractedRole: resolution.extractedRole,
-          extractedLevel: resolution.extractedLevel,
-          extractedQuantity: Number(resolution.extractedQuantity),
-          extractedUnit: resolution.extractedUnit,
-          matchType: resolution.matchType,
-          confidence: resolution.confidence,
-          suggestedLine: resolution.suggestedRateCardLine
-            ? {
-                id: resolution.suggestedRateCardLine.id,
-                role: resolution.suggestedRateCardLine.role,
-                level: resolution.suggestedRateCardLine.level,
-                rateType: resolution.suggestedRateCardLine.rateType,
-                rate: Number(resolution.suggestedRateCardLine.rate),
-                currency: resolution.suggestedRateCardLine.currency,
-              }
-            : null,
-        }))}
-        rateCardLines={rateCardLines.map((line) => ({
-          id: line.id,
-          role: line.role,
-          level: line.level,
-          rateType: line.rateType,
-          rate: Number(line.rate),
-          currency: line.currency,
-        }))}
-        reviewContent={reviewContent}
+        existingInputs={view.existingInputs}
+        pendingResolutions={view.pendingResolutions}
+        rateCardLines={view.rateCardLines}
+        reviewContent={view.reviewContent}
       />
     </div>
   );

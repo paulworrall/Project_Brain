@@ -2,7 +2,6 @@
 
 import * as z from "zod";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { parseDocumentToText, UnsupportedBriefFormatError } from "@/services/parsing";
@@ -23,10 +22,22 @@ import {
 import { resolveMatchRouting } from "@/lib/estimateMatching";
 import { ROLE_MATCH_CONFIDENCE_THRESHOLD } from "@/lib/estimateMatchingConfig";
 import { buildEstimateContentDraft } from "@/lib/estimateContentDraft";
+import { getEstimateBuildViewData, type EstimateBuildViewData } from "@/lib/estimateBuildViewData";
 import { renderEstimateDocumentDocx } from "@/services/documents/estimate-document-docx";
 
 export interface ActionState {
   message?: string;
+}
+
+/**
+ * Returned by every build-flow action (create/add-input/analyze/resolve) —
+ * the full current state of one Estimate's build workspace, so a caller
+ * driving the whole flow client-side (the "New estimate" modal) can update
+ * its own local state directly from the action's result instead of relying
+ * on a page navigation or revalidatePath reaching a route it never visits.
+ */
+export interface EstimateBuildActionState extends ActionState {
+  view?: EstimateBuildViewData;
 }
 
 // ---------------------------------------------------------------------------
@@ -41,6 +52,12 @@ const CreateEstimateSchema = z.object({
     .min(1, { error: "Select a rate card." }),
 });
 
+export interface CreateEstimateActionState extends EstimateBuildActionState {
+  estimateId?: string;
+  label?: string;
+  rateCardLabel?: string;
+}
+
 /**
  * Starts a new Estimate track, locked for its whole life to the chosen
  * RateCardVersion (not just the parent RateCard — pricing needs one
@@ -48,13 +65,15 @@ const CreateEstimateSchema = z.object({
  * version actually belongs to a rate card under this project's own client —
  * the same isolation pattern used elsewhere for rate cards (see
  * updateProjectSummaryAction), never trusting the already-scoped dropdown
- * alone.
+ * alone. Returns the new estimate's id and its (trivially empty) build view
+ * rather than redirecting, so the "New estimate" modal can drive the whole
+ * build flow itself without ever navigating to the estimate's own page.
  */
 export async function createEstimateAction(
   projectId: string,
-  _prevState: ActionState | undefined,
+  _prevState: CreateEstimateActionState | undefined,
   formData: FormData
-): Promise<ActionState | undefined> {
+): Promise<CreateEstimateActionState> {
   const parsed = CreateEstimateSchema.safeParse({
     label: formData.get("label"),
     rateCardVersionId: formData.get("rateCardVersionId"),
@@ -74,7 +93,7 @@ export async function createEstimateAction(
           id: parsed.data.rateCardVersionId,
           rateCard: { clientId: project.workstream.clientId },
         },
-        select: { id: true },
+        select: { id: true, versionNumber: true, rateCard: { select: { name: true } } },
       })
     : null;
   if (!validRateCardVersion) {
@@ -92,8 +111,15 @@ export async function createEstimateAction(
     },
   });
 
+  const view = await getEstimateBuildViewData(estimate.id);
+
   revalidatePath(`/projects/${projectId}`);
-  redirect(`/projects/${projectId}/estimates/${estimate.id}`);
+  return {
+    estimateId: estimate.id,
+    label: estimate.label,
+    rateCardLabel: `${validRateCardVersion.rateCard.name} (version ${validRateCardVersion.versionNumber})`,
+    view: view ?? undefined,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -123,9 +149,9 @@ const CapabilityInputSchema = z
  */
 export async function addOrReviseCapabilityInputAction(
   estimateId: string,
-  _prevState: ActionState | undefined,
+  _prevState: EstimateBuildActionState | undefined,
   formData: FormData
-): Promise<ActionState | undefined> {
+): Promise<EstimateBuildActionState> {
   const parsed = CapabilityInputSchema.safeParse({
     capability: formData.get("capability"),
     otherLabel: formData.get("otherLabel") || undefined,
@@ -214,15 +240,14 @@ export async function addOrReviseCapabilityInputAction(
   if (estimate) {
     revalidatePath(`/projects/${estimate.projectId}/estimates/${estimateId}`);
   }
+
+  const view = await getEstimateBuildViewData(estimateId);
+  return { view: view ?? undefined };
 }
 
 // ---------------------------------------------------------------------------
 // Analyze & build — parse, extract, match, surface pending resolutions
 // ---------------------------------------------------------------------------
-
-export interface AnalyzeAndBuildActionState extends ActionState {
-  pendingCount?: number;
-}
 
 /**
  * Runs the estimate-analysis pipeline: lazily parses the locked rate card
@@ -236,9 +261,9 @@ export interface AnalyzeAndBuildActionState extends ActionState {
  */
 export async function analyzeAndBuildEstimateAction(
   estimateId: string,
-  _prevState: AnalyzeAndBuildActionState | undefined,
+  _prevState: EstimateBuildActionState | undefined,
   _formData: FormData
-): Promise<AnalyzeAndBuildActionState> {
+): Promise<EstimateBuildActionState> {
   const estimate = await prisma.estimate.findUnique({
     where: { id: estimateId },
     include: {
@@ -343,12 +368,9 @@ export async function analyzeAndBuildEstimateAction(
     );
   }
 
-  const pendingCount = await prisma.roleResolution.count({
-    where: { estimateId, resolvedAt: null },
-  });
-
   revalidatePath(`/projects/${estimate.projectId}/estimates/${estimateId}`);
-  return { pendingCount };
+  const view = await getEstimateBuildViewData(estimateId);
+  return { view: view ?? undefined };
 }
 
 // ---------------------------------------------------------------------------
@@ -367,9 +389,9 @@ const ResolveRoleSchema = z.object({
  */
 export async function resolveRoleResolutionAction(
   roleResolutionId: string,
-  _prevState: ActionState | undefined,
+  _prevState: EstimateBuildActionState | undefined,
   formData: FormData
-): Promise<ActionState | undefined> {
+): Promise<EstimateBuildActionState> {
   const parsed = ResolveRoleSchema.safeParse({
     rateCardLineItemId: formData.get("rateCardLineItemId"),
   });
@@ -410,6 +432,8 @@ export async function resolveRoleResolutionAction(
   revalidatePath(
     `/projects/${roleResolution.estimate.projectId}/estimates/${roleResolution.estimateId}`
   );
+  const view = await getEstimateBuildViewData(roleResolution.estimateId);
+  return { view: view ?? undefined };
 }
 
 // ---------------------------------------------------------------------------

@@ -1,14 +1,16 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import {
   createEstimateAction,
-  type ActionState,
+  type CreateEstimateActionState,
 } from "@/app/(dashboard)/projects/[projectId]/estimates/actions";
 import type { RateCardOption } from "@/app/(dashboard)/projects/new/actions";
+import { EstimateBuildWorkspace } from "./EstimateBuildWorkspace";
 
 export interface EstimateVersionListItem {
   id: string;
@@ -37,6 +39,25 @@ function formatDate(date: Date): string {
   }).format(date);
 }
 
+interface CreatedEstimate {
+  estimateId: string;
+  label: string;
+  rateCardLabel: string;
+  view: NonNullable<CreateEstimateActionState["view"]>;
+}
+
+/**
+ * "+ New estimate" opens a modal that drives the WHOLE build flow —
+ * creation, capability-input capture, analyze & build, role resolution,
+ * review, save and download — without ever navigating to the estimate's own
+ * page. createEstimateAction returns the new estimate's id and its
+ * (trivially empty) initial view instead of redirecting; once that
+ * succeeds, the modal's content swaps from the label/rate-card form to an
+ * embedded EstimateBuildWorkspace for that estimate. router.refresh() keeps
+ * the estimates list behind the modal in sync (new local state on this
+ * component isn't touched by it — only the Server Component's own props
+ * are refreshed) so the new track is already there once the modal closes.
+ */
 function NewEstimateForm({
   projectId,
   rateCardOptions,
@@ -44,12 +65,36 @@ function NewEstimateForm({
   projectId: string;
   rateCardOptions: RateCardOption[];
 }) {
-  const action = createEstimateAction.bind(null, projectId);
-  const [state, formAction, pending] = useActionState<ActionState | undefined, FormData>(
-    action,
+  const router = useRouter();
+  const [isOpen, setIsOpen] = useState(false);
+  const [created, setCreated] = useState<CreatedEstimate | null>(null);
+
+  async function submitAction(
+    prevState: CreateEstimateActionState | undefined,
+    formData: FormData
+  ): Promise<CreateEstimateActionState> {
+    const result = await createEstimateAction(projectId, prevState, formData);
+    if (!result.message && result.estimateId && result.view) {
+      setCreated({
+        estimateId: result.estimateId,
+        label: result.label ?? "Estimate",
+        rateCardLabel: result.rateCardLabel ?? "",
+        view: result.view,
+      });
+      router.refresh();
+    }
+    return result;
+  }
+
+  const [state, formAction, pending] = useActionState<CreateEstimateActionState | undefined, FormData>(
+    submitAction,
     undefined
   );
-  const [isOpen, setIsOpen] = useState(false);
+
+  function closeModal() {
+    setIsOpen(false);
+    setCreated(null);
+  }
 
   return (
     <>
@@ -57,69 +102,89 @@ function NewEstimateForm({
         + New estimate
       </Button>
 
-      <Modal isOpen={isOpen} title="New estimate" onClose={() => setIsOpen(false)}>
-        <form action={formAction} className="space-y-3">
-          <div>
-            <label
-              htmlFor="estimate-label"
-              className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-            >
-              Label
-            </label>
-            <input
-              id="estimate-label"
-              name="label"
-              required
-              placeholder="e.g. Initial estimate"
-              className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+      <Modal isOpen={isOpen} title={created ? created.label : "New estimate"} onClose={closeModal}>
+        {created ? (
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">Locked to {created.rateCardLabel}</p>
+            <EstimateBuildWorkspace
+              projectId={projectId}
+              estimateId={created.estimateId}
+              existingInputs={created.view.existingInputs}
+              pendingResolutions={created.view.pendingResolutions}
+              rateCardLines={created.view.rateCardLines}
+              reviewContent={created.view.reviewContent}
+              embedded
             />
+            <div className="flex justify-end border-t border-border pt-3">
+              <Button type="button" variant="ghost" className="text-xs" onClick={closeModal}>
+                Done
+              </Button>
+            </div>
           </div>
-          <div>
-            <label
-              htmlFor="estimate-rate-card"
-              className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-            >
-              Rate card
-            </label>
-            <select
-              id="estimate-rate-card"
-              name="rateCardVersionId"
-              required
-              defaultValue=""
-              className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
-            >
-              <option value="" disabled>
-                Choose a rate card version…
-              </option>
-              {rateCardOptions.map((card) =>
-                card.versions.map((version) => (
-                  <option key={version.id} value={version.id}>
-                    {card.name} — version {version.versionNumber}
-                    {version.status === "ENABLED" ? " (current)" : ""}
-                  </option>
-                ))
+        ) : (
+          <form action={formAction} className="space-y-3">
+            <div>
+              <label
+                htmlFor="estimate-label"
+                className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+              >
+                Label
+              </label>
+              <input
+                id="estimate-label"
+                name="label"
+                required
+                placeholder="e.g. Initial estimate"
+                className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="estimate-rate-card"
+                className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+              >
+                Rate card
+              </label>
+              <select
+                id="estimate-rate-card"
+                name="rateCardVersionId"
+                required
+                defaultValue=""
+                className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+              >
+                <option value="" disabled>
+                  Choose a rate card version…
+                </option>
+                {rateCardOptions.map((card) =>
+                  card.versions.map((version) => (
+                    <option key={version.id} value={version.id}>
+                      {card.name} — version {version.versionNumber}
+                      {version.status === "ENABLED" ? " (current)" : ""}
+                    </option>
+                  ))
+                )}
+              </select>
+              {rateCardOptions.length === 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  This client has no rate cards yet — upload one before starting an estimate.
+                </p>
               )}
-            </select>
-            {rateCardOptions.length === 0 && (
-              <p className="mt-1 text-xs text-muted-foreground">
-                This client has no rate cards yet — upload one before starting an estimate.
+            </div>
+            {state?.message && (
+              <p className="text-xs text-danger" role="alert">
+                {state.message}
               </p>
             )}
-          </div>
-          {state?.message && (
-            <p className="text-xs text-danger" role="alert">
-              {state.message}
-            </p>
-          )}
-          <div className="flex justify-end gap-2 border-t border-border pt-3">
-            <Button type="button" variant="ghost" className="text-xs" onClick={() => setIsOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={pending} className="text-xs">
-              {pending ? "Creating…" : "Create estimate"}
-            </Button>
-          </div>
-        </form>
+            <div className="flex justify-end gap-2 border-t border-border pt-3">
+              <Button type="button" variant="ghost" className="text-xs" onClick={closeModal}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={pending} className="text-xs">
+                {pending ? "Creating…" : "Create estimate"}
+              </Button>
+            </div>
+          </form>
+        )}
       </Modal>
     </>
   );

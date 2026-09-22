@@ -4,10 +4,10 @@ import { PrismaClient } from "@/generated/prisma/client";
 
 // Real-DB integration test for the Build The Estimate feature — same
 // convention as capabilities-and-estimate-brief.test.ts / stage-1-5-happy-path.test.ts:
-// only the Anthropic SDK, next/cache, next/navigation's redirect, and auth
-// are mocked; everything else (Prisma queries, the Server Actions
-// themselves, the matching/pricing code) runs for real against a throwaway
-// Hub, removed via cascade delete in afterAll.
+// only the Anthropic SDK, next/cache, and auth are mocked; everything else
+// (Prisma queries, the Server Actions themselves, the matching/pricing code)
+// runs for real against a throwaway Hub, removed via cascade delete in
+// afterAll.
 
 vi.mock("@anthropic-ai/sdk", () => {
   class RateLimitError extends Error {}
@@ -21,11 +21,6 @@ vi.mock("@anthropic-ai/sdk", () => {
 });
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("next/navigation", () => ({
-  redirect: vi.fn(() => {
-    throw new Error("NEXT_REDIRECT_MOCK");
-  }),
-}));
 vi.mock("@/lib/auth", () => ({ auth: vi.fn().mockResolvedValue(null) }));
 
 const { anthropic } = await import("@/lib/anthropic");
@@ -138,13 +133,22 @@ describe("createEstimateAction", () => {
     formData.set("label", "Initial Estimate");
     formData.set("rateCardVersionId", rateCardVersionId);
 
-    await expect(createEstimateAction(projectId, undefined, formData)).rejects.toThrow(
-      "NEXT_REDIRECT_MOCK"
-    );
+    const result = await createEstimateAction(projectId, undefined, formData);
+
+    expect(result.message).toBeUndefined();
+    expect(result.estimateId).toBeDefined();
+    expect(result.label).toBe("Initial Estimate");
+    expect(result.view).toEqual({
+      existingInputs: [],
+      pendingResolutions: [],
+      rateCardLines: [],
+      reviewContent: null,
+    });
 
     const estimate = await prisma.estimate.findFirstOrThrow({
       where: { projectId, label: "Initial Estimate" },
     });
+    expect(estimate.id).toBe(result.estimateId);
     expect(estimate.rateCardVersionId).toBe(rateCardVersionId);
   });
 
@@ -227,7 +231,7 @@ describe("analyze & build, role resolution, and save", () => {
     // yet, so exactly one Claude call happens: the line-item parse).
     mockParse.mockResolvedValueOnce({ parsed_output: rateCardLines });
     const firstAnalyze = await analyzeAndBuildEstimateAction(estimate.id, undefined, new FormData());
-    expect(firstAnalyze.pendingCount).toBe(0);
+    expect(firstAnalyze.view?.pendingResolutions).toHaveLength(0);
     expect(mockParse).toHaveBeenCalledTimes(1);
 
     const seededLines = await prisma.rateCardLineItem.findMany({ where: { rateCardVersionId } });
@@ -285,7 +289,7 @@ describe("analyze & build, role resolution, and save", () => {
     const callsBeforeSecondAnalyze = mockParse.mock.calls.length;
     const secondAnalyze = await analyzeAndBuildEstimateAction(estimate.id, undefined, new FormData());
     expect(mockParse.mock.calls.length - callsBeforeSecondAnalyze).toBe(2);
-    expect(secondAnalyze.pendingCount).toBe(1);
+    expect(secondAnalyze.view?.pendingResolutions).toHaveLength(1);
 
     const resolutions = await prisma.roleResolution.findMany({ where: { estimateId: estimate.id } });
     expect(resolutions).toHaveLength(2);

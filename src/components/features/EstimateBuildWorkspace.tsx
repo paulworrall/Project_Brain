@@ -10,8 +10,9 @@ import {
 } from "@/lib/estimateAnalysisProcessingStages";
 import {
   analyzeAndBuildEstimateAction,
-  type AnalyzeAndBuildActionState,
+  type EstimateBuildActionState,
 } from "@/app/(dashboard)/projects/[projectId]/estimates/actions";
+import type { EstimateBuildViewData } from "@/lib/estimateBuildViewData";
 import { BuildEstimateInputForm, type EstimateCapabilityInputView } from "./BuildEstimateInputForm";
 import {
   RoleResolutionReview,
@@ -26,14 +27,25 @@ import type { EstimateDocumentContent } from "@/types/estimates";
  * "Analyze & build" (ProcessingOverlay-wired, same pattern as
  * CapabilitiesAndEstimateBriefPanel's "Get suggestions") -> RoleResolutionReview
  * while anything's pending -> EstimateReviewCard once everything's resolved.
+ *
+ * Owns the whole workspace's state locally, seeded from the initial
+ * `existingInputs`/`pendingResolutions`/`rateCardLines`/`reviewContent`
+ * props — every nested action (add/revise input, analyze & build, resolve
+ * one role) reports its fresh EstimateBuildViewData result back up via
+ * handleViewUpdate rather than relying on a page revalidatePath/refresh to
+ * reach it. This is what lets the whole flow run inside a modal (the "New
+ * estimate" flow) with no navigation at all, while the standalone estimate
+ * page uses the exact same component the exact same way, just seeded from a
+ * server-rendered initial view instead of an action result.
  */
 export function EstimateBuildWorkspace({
   projectId,
   estimateId,
-  existingInputs,
-  pendingResolutions,
-  rateCardLines,
-  reviewContent,
+  existingInputs: initialExistingInputs,
+  pendingResolutions: initialPendingResolutions,
+  rateCardLines: initialRateCardLines,
+  reviewContent: initialReviewContent,
+  embedded = false,
 }: {
   projectId: string;
   estimateId: string;
@@ -41,7 +53,20 @@ export function EstimateBuildWorkspace({
   pendingResolutions: PendingRoleResolutionView[];
   rateCardLines: RateCardLineOption[];
   reviewContent: EstimateDocumentContent | null;
+  embedded?: boolean;
 }) {
+  const [existingInputs, setExistingInputs] = useState(initialExistingInputs);
+  const [pendingResolutions, setPendingResolutions] = useState(initialPendingResolutions);
+  const [rateCardLines, setRateCardLines] = useState(initialRateCardLines);
+  const [reviewContent, setReviewContent] = useState(initialReviewContent);
+
+  function handleViewUpdate(view: EstimateBuildViewData) {
+    setExistingInputs(view.existingInputs);
+    setPendingResolutions(view.pendingResolutions);
+    setRateCardLines(view.rateCardLines);
+    setReviewContent(view.reviewContent);
+  }
+
   const analyzeSubmitRef = useRef<HTMLButtonElement>(null);
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [overlayStatus, setOverlayStatus] = useState<ProcessingOverlayStatus>("active");
@@ -51,9 +76,9 @@ export function EstimateBuildWorkspace({
   // setState here, synchronously inside the action's own async function,
   // not in a useEffect keyed off a pending->settled transition.
   async function analyzeAction(
-    prevState: AnalyzeAndBuildActionState | undefined,
+    prevState: EstimateBuildActionState | undefined,
     formData: FormData
-  ): Promise<AnalyzeAndBuildActionState> {
+  ): Promise<EstimateBuildActionState> {
     const result = await analyzeAndBuildEstimateAction(estimateId, prevState, formData);
 
     if (result.message) {
@@ -61,13 +86,16 @@ export function EstimateBuildWorkspace({
       return result;
     }
 
-    setPendingCountAfterAnalyze(result.pendingCount ?? null);
+    if (result.view) {
+      handleViewUpdate(result.view);
+      setPendingCountAfterAnalyze(result.view.pendingResolutions.length);
+    }
     setOverlayStatus("success");
     return result;
   }
 
   const [analyzeState, analyzeFormAction, analyzePending] = useActionState<
-    AnalyzeAndBuildActionState | undefined,
+    EstimateBuildActionState | undefined,
     FormData
   >(analyzeAction, undefined);
 
@@ -109,7 +137,12 @@ export function EstimateBuildWorkspace({
 
   return (
     <div className="space-y-4">
-      <BuildEstimateInputForm estimateId={estimateId} existingInputs={existingInputs} />
+      <BuildEstimateInputForm
+        estimateId={estimateId}
+        existingInputs={existingInputs}
+        embedded={embedded}
+        onSuccess={handleViewUpdate}
+      />
 
       {existingInputs.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 rounded-md bg-surface-muted p-3">
@@ -125,7 +158,11 @@ export function EstimateBuildWorkspace({
         </div>
       )}
 
-      <RoleResolutionReview pendingResolutions={pendingResolutions} rateCardLines={rateCardLines} />
+      <RoleResolutionReview
+        pendingResolutions={pendingResolutions}
+        rateCardLines={rateCardLines}
+        onResolved={handleViewUpdate}
+      />
 
       {reviewContent && pendingResolutions.length === 0 && (
         <EstimateReviewCard projectId={projectId} estimateId={estimateId} content={reviewContent} />
