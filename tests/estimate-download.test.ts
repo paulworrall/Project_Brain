@@ -1,12 +1,19 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { PrismaPg } from "@prisma/adapter-pg";
 import type { NextRequest } from "next/server";
 import { PrismaClient } from "@/generated/prisma/client";
-import { GET } from "@/app/api/projects/[projectId]/estimates/[estimateId]/versions/[versionId]/route";
 
 // Real-DB integration test for the estimate version download route — same
 // throwaway-Hub convention as the other estimate-build tests. No Anthropic
-// call happens on this path at all, so nothing needs mocking here.
+// call happens on this path at all; only auth is mocked (this route checks
+// a session — src/proxy.ts excludes /api/* from the app-wide auth redirect).
+
+const mockAuth = vi.fn();
+vi.mock("@/lib/auth", () => ({ auth: mockAuth }));
+
+const { GET } = await import(
+  "@/app/api/projects/[projectId]/estimates/[estimateId]/versions/[versionId]/route"
+);
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
@@ -84,6 +91,8 @@ function fakeRequest(): NextRequest {
 
 describe("GET /api/projects/[projectId]/estimates/[estimateId]/versions/[versionId]", () => {
   it("streams the saved .docx bytes with the correct filename and content type", async () => {
+    mockAuth.mockResolvedValueOnce({ user: { id: "user_1" } });
+
     const response = await GET(fakeRequest(), {
       params: Promise.resolve({ projectId, estimateId, versionId }),
     });
@@ -99,7 +108,18 @@ describe("GET /api/projects/[projectId]/estimates/[estimateId]/versions/[version
     expect(body.subarray(0, 2).toString("utf-8")).toBe("PK");
   });
 
+  it("401s when there is no session", async () => {
+    mockAuth.mockResolvedValueOnce(null);
+
+    const response = await GET(fakeRequest(), {
+      params: Promise.resolve({ projectId, estimateId, versionId }),
+    });
+
+    expect(response.status).toBe(401);
+  });
+
   it("404s when the version doesn't belong to the given estimate", async () => {
+    mockAuth.mockResolvedValueOnce({ user: { id: "user_1" } });
     const otherEstimate = await prisma.estimate.create({
       data: {
         projectId,
@@ -118,6 +138,8 @@ describe("GET /api/projects/[projectId]/estimates/[estimateId]/versions/[version
   });
 
   it("404s when the estimate doesn't belong to the given project", async () => {
+    mockAuth.mockResolvedValueOnce({ user: { id: "user_1" } });
+
     const response = await GET(fakeRequest(), {
       params: Promise.resolve({ projectId: otherProjectId, estimateId, versionId }),
     });
@@ -126,6 +148,8 @@ describe("GET /api/projects/[projectId]/estimates/[estimateId]/versions/[version
   });
 
   it("404s for a version id that doesn't exist at all", async () => {
+    mockAuth.mockResolvedValueOnce({ user: { id: "user_1" } });
+
     const response = await GET(fakeRequest(), {
       params: Promise.resolve({ projectId, estimateId, versionId: "not_a_real_id" }),
     });
