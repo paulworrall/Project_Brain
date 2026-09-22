@@ -113,10 +113,10 @@ function NewEstimateForm({
             <EstimateBuildWorkspace
               projectId={projectId}
               estimateId={created.estimateId}
-              existingInputs={created.view.existingInputs}
               pendingResolutions={created.view.pendingResolutions}
               rateCardLines={created.view.rateCardLines}
               reviewContent={created.view.reviewContent}
+              latestVersion={created.view.latestVersion}
               embedded
             />
             <div className="flex justify-end border-t border-border pt-3">

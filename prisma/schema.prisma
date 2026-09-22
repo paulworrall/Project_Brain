@@ -493,26 +493,15 @@ enum EstimateInputSource {
   FILE
 }
 
-// Upsert-by-capability draft input, revised in place — adding a new
-// capability's input and replacing an existing one are both writes here;
-// neither creates an EstimateVersion by itself. No fileBytes retained
-// (mirrors KnowledgeItem, not RateCardVersion — only the already-parsed text
-// is kept). Revising an existing row also deletes its RoleResolution rows
-// (see actions.ts) since stale extracted roles must not silently keep
-// counting as resolved.
+// An append-only record of one raw paste/upload batch of estimate content —
+// nothing more. Name predates a redesign where capability moved to
+// RoleResolution (a batch can contain roles for several different
+// capability teams at once, classified individually by AI on extraction —
+// see estimate-role-extraction-agent.ts); there is no longer a "revise this
+// capability's input in place" concept, each submission just appends.
 model EstimateCapabilityInput {
   id         String @id @default(cuid())
   estimateId String
-
-  // Nullable — a null capability with otherLabel set means the submitter
-  // picked "Other" (same convention as TouchpointNote.capability /
-  // otherCapabilityLabel). Postgres doesn't treat two NULLs as equal in a
-  // unique index, so upsert-by-capability for the "Other" slot is enforced
-  // in application code (addOrReviseCapabilityInputAction), not by
-  // @@unique alone — there is still only ever one "Other" input per
-  // Estimate in practice.
-  capability Capability?
-  otherLabel String?
 
   source         EstimateInputSource
   rawContent     String
@@ -524,8 +513,6 @@ model EstimateCapabilityInput {
   estimate        Estimate         @relation(fields: [estimateId], references: [id], onDelete: Cascade)
   addedBy         User?            @relation(fields: [addedById], references: [id], onDelete: SetNull)
   roleResolutions RoleResolution[]
-
-  @@unique([estimateId, capability])
 }
 
 enum RoleMatchType {
@@ -545,6 +532,10 @@ model RoleResolution {
   id                        String        @id @default(cuid())
   estimateId                String
   estimateCapabilityInputId String
+  // Classified per role by the extraction agent — always exactly one of the
+  // fixed 12, never a free-text "Other" (unlike the old batch-level tag this
+  // replaced). See estimate-role-extraction-agent.ts.
+  capability                Capability
   rawRoleText               String
   extractedRole             String
   extractedLevel            String?

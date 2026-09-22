@@ -1,76 +1,73 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-import { MAP_CAPABILITIES, capabilityLabel } from "@/lib/mapCapabilities";
+import { ProcessingOverlay, type ProcessingOverlayStatus } from "@/components/ui/ProcessingOverlay";
+import { useFallbackStageProgress } from "@/hooks/useFallbackStageProgress";
 import {
-  addOrReviseCapabilityInputAction,
+  ESTIMATE_ANALYSIS_PROCESSING_STAGES,
+  ESTIMATE_ANALYSIS_STAGE_DURATIONS_MS,
+} from "@/lib/estimateAnalysisProcessingStages";
+import {
+  addEstimateRoleInputAction,
   type EstimateBuildActionState,
 } from "@/app/(dashboard)/projects/[projectId]/estimates/actions";
 import type { EstimateBuildViewData } from "@/lib/estimateBuildViewData";
-import type { Capability } from "@/generated/prisma/enums";
 
 type InputMode = "paste" | "upload";
 
-export interface EstimateCapabilityInputView {
-  capability: Capability | null;
-  otherLabel: string | null;
-  rawContent: string;
-  sourceFileName: string | null;
-}
-
 /**
- * Captures one capability team's raw estimate input per project. Normally
- * inside its own modal (a PM may have several teams' estimates to add in
- * one sitting, so picking a capability — via a lozenge grid, not a dropdown
- * — and submitting its content resets back to the grid rather than closing
- * the modal, ready for the next team). When `embedded` (rendered inside
- * another modal, e.g. the "New estimate" flow), it skips its own trigger
- * button and Modal wrapper and renders the same grid + form directly —
- * nesting one modal inside another is not something to do. Adding a new
- * capability and revising an already-captured one are the same flow:
- * picking an already-captured lozenge prefills its existing content and
- * makes clear that submitting replaces it, matching
- * addOrReviseCapabilityInputAction's upsert-by-capability behavior.
+ * Captures one raw batch of estimate content — paste or upload — and
+ * immediately extracts + matches every role in it in the same submission
+ * (no capability picker, no separate "Analyze & build" step — see
+ * addEstimateRoleInputAction). Normally inside its own modal (a PM may add
+ * several roles in one sitting, so a successful submission resets the form
+ * rather than closing the modal). When `embedded` (rendered inside another
+ * modal, e.g. the "New estimate" flow), it skips its own trigger button and
+ * Modal wrapper and renders the form directly — nesting one modal inside
+ * another is not something to do.
+ *
+ * Owns its own ProcessingOverlay, matching
+ * CapabilitiesAndEstimateBriefPanel's "Get suggestions" self-contained
+ * overlay pattern — this is what makes "add a role" feel like one explicit
+ * step even though it now runs the whole extraction+matching pipeline.
  */
 export function BuildEstimateInputForm({
   estimateId,
-  existingInputs,
   embedded = false,
   onSuccess,
 }: {
   estimateId: string;
-  existingInputs: EstimateCapabilityInputView[];
   embedded?: boolean;
   onSuccess?: (view: EstimateBuildViewData) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [capability, setCapability] = useState("");
   const [mode, setMode] = useState<InputMode>("paste");
+  const formRef = useRef<HTMLFormElement>(null);
+  const submitRef = useRef<HTMLButtonElement>(null);
+  const [overlayOpen, setOverlayOpen] = useState(false);
+  const [overlayStatus, setOverlayStatus] = useState<ProcessingOverlayStatus>("active");
 
-  const existingByKey = new Map(existingInputs.map((input) => [input.capability ?? "OTHER", input]));
-  const existingForSelected = capability ? existingByKey.get(capability) : undefined;
-
-  // Same reasoning as CapabilitiesAndEstimateBriefPanel's suggestAction /
-  // EstimateBuildWorkspace's analyzeAction: reset the selection and report
-  // the fresh view here, inside the action's own async function once a
-  // submission actually succeeds — not in a useEffect watching a
-  // pending->settled transition (react-hooks/set-state-in-effect).
-  // Deliberately does not close the modal, so the next capability can be
-  // added straight away.
+  // Same reasoning as CapabilitiesAndEstimateBriefPanel's suggestAction:
+  // report the fresh view and reset the form here, inside the action's own
+  // async function once a submission actually succeeds — not in a
+  // useEffect watching a pending->settled transition.
   async function submitAction(
     prevState: EstimateBuildActionState | undefined,
     formData: FormData
   ): Promise<EstimateBuildActionState> {
-    const result = await addOrReviseCapabilityInputAction(estimateId, prevState, formData);
-    if (!result.message) {
-      setCapability("");
-      setMode("paste");
-      if (result.view) {
-        onSuccess?.(result.view);
-      }
+    const result = await addEstimateRoleInputAction(estimateId, prevState, formData);
+    if (result.message) {
+      setOverlayStatus("error");
+      return result;
     }
+    formRef.current?.reset();
+    setMode("paste");
+    if (result.view) {
+      onSuccess?.(result.view);
+    }
+    setOverlayStatus("success");
     return result;
   }
 
@@ -79,191 +76,130 @@ export function BuildEstimateInputForm({
     undefined
   );
 
-  function closeModal() {
-    setIsOpen(false);
-    setCapability("");
-    setMode("paste");
+  const fallbackActive = overlayOpen && overlayStatus === "active";
+  const { stageIndex, isFinalHold, elapsedInFinalHoldMs } = useFallbackStageProgress(
+    fallbackActive,
+    ESTIMATE_ANALYSIS_STAGE_DURATIONS_MS
+  );
+
+  useEffect(() => {
+    if (overlayOpen && overlayStatus === "success") {
+      const timeout = setTimeout(() => setOverlayOpen(false), 1200);
+      return () => clearTimeout(timeout);
+    }
+  }, [overlayOpen, overlayStatus]);
+
+  function handleSubmit() {
+    setOverlayOpen(true);
+    setOverlayStatus("active");
   }
 
-  const captureContent = (
-    <div className="space-y-4">
-      {!embedded && (
-        <p className="text-sm text-muted-foreground">
-          Pick a capability team below, then paste or upload the estimate you&apos;ve received back
-          from them. Add as many teams as you have — one at a time — before closing.
-        </p>
-      )}
+  function handleRetry() {
+    submitRef.current?.click();
+  }
 
-      {capability ? (
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-medium text-foreground">
-            {capability === "OTHER"
-              ? "Other"
-              : MAP_CAPABILITIES.find((c) => c.id === capability)?.label}
-          </p>
-          <Button type="button" variant="ghost" className="text-xs" onClick={() => setCapability("")}>
-            Change
-          </Button>
-        </div>
+  function handleDismissError() {
+    setOverlayOpen(false);
+  }
+
+  function closeModal() {
+    setIsOpen(false);
+  }
+
+  const formContent = (
+    <form ref={formRef} action={formAction} onSubmit={handleSubmit} className="space-y-3">
+      <p className="text-sm text-muted-foreground">
+        Add as many team members to the project estimate as required. You can validate the role and
+        levels once submitted.
+      </p>
+
+      <div className="flex gap-4 text-xs text-foreground">
+        <label className="flex items-center gap-1.5">
+          <input
+            type="radio"
+            name="estimate-mode"
+            checked={mode === "paste"}
+            onChange={() => setMode("paste")}
+          />
+          Paste estimate
+        </label>
+        <label className="flex items-center gap-1.5">
+          <input
+            type="radio"
+            name="estimate-mode"
+            checked={mode === "upload"}
+            onChange={() => setMode("upload")}
+          />
+          Upload file
+        </label>
+      </div>
+
+      {mode === "paste" ? (
+        <textarea
+          name="content"
+          aria-label="Estimate"
+          rows={6}
+          placeholder="Paste the estimate content here…"
+          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+        />
       ) : (
-        <div>
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Capability team
-          </h4>
-          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {MAP_CAPABILITIES.map((c) => {
-              const isCaptured = existingByKey.has(c.id);
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setCapability(c.id)}
-                  className="flex items-center justify-center gap-1.5 rounded-full border border-border bg-surface px-3 py-2 text-center text-xs font-medium text-foreground transition-colors hover:border-primary/50 hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                >
-                  {c.label}
-                  {isCaptured && <span aria-hidden="true">✓</span>}
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              onClick={() => setCapability("OTHER")}
-              className="flex items-center justify-center gap-1.5 rounded-full border border-border bg-surface px-3 py-2 text-center text-xs font-medium text-foreground transition-colors hover:border-primary/50 hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            >
-              Other
-              {existingByKey.has("OTHER") && <span aria-hidden="true">✓</span>}
-            </button>
-          </div>
-        </div>
+        <input
+          name="file"
+          type="file"
+          aria-label="Estimate file"
+          accept=".docx,.pdf,.pptx,.xlsx,.txt"
+          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground"
+        />
       )}
 
-      {capability && (
-        <form action={formAction} className="space-y-3 border-t border-border pt-4">
-          <input type="hidden" name="capability" value={capability} />
+      <Button ref={submitRef} type="submit" disabled={pending} className="w-full">
+        {pending ? "Adding…" : "Add role"}
+      </Button>
+    </form>
+  );
 
-          {existingForSelected && (
-            <p className="rounded-md bg-accent px-3 py-2 text-xs text-accent-foreground" role="status">
-              This capability already has input captured — submitting below replaces it.
-            </p>
-          )}
-
-          {capability === "OTHER" && (
-            <div>
-              <label
-                htmlFor="estimate-other-label"
-                className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-              >
-                Name the capability team
-              </label>
-              <input
-                id="estimate-other-label"
-                name="otherLabel"
-                defaultValue={existingForSelected?.otherLabel ?? ""}
-                placeholder="e.g. Legal & Compliance"
-                className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
-              />
-            </div>
-          )}
-
-          <div className="flex gap-4 text-xs text-foreground">
-            <label className="flex items-center gap-1.5">
-              <input
-                type="radio"
-                name="estimate-mode"
-                checked={mode === "paste"}
-                onChange={() => setMode("paste")}
-              />
-              Paste estimate
-            </label>
-            <label className="flex items-center gap-1.5">
-              <input
-                type="radio"
-                name="estimate-mode"
-                checked={mode === "upload"}
-                onChange={() => setMode("upload")}
-              />
-              Upload file
-            </label>
-          </div>
-
-          {mode === "paste" ? (
-            <textarea
-              key={`content-${capability}`}
-              name="content"
-              aria-label="Estimate"
-              rows={6}
-              defaultValue={existingForSelected?.rawContent ?? ""}
-              placeholder="Paste the estimate content here…"
-              className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
-            />
-          ) : (
-            <input
-              name="file"
-              type="file"
-              aria-label="Estimate file"
-              accept=".docx,.pdf,.pptx,.xlsx,.txt"
-              className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground"
-            />
-          )}
-
-          {state?.message && (
-            <p className="text-sm text-danger" role="alert">
-              {state.message}
-            </p>
-          )}
-
-          <Button type="submit" disabled={pending} className="w-full">
-            {pending ? "Saving…" : existingForSelected ? "Update estimate input" : "Add estimate input"}
-          </Button>
-        </form>
-      )}
-
-      {!embedded && (
-        <div className="flex justify-end border-t border-border pt-3">
-          <Button type="button" variant="ghost" className="text-xs" onClick={closeModal}>
-            Done
-          </Button>
-        </div>
-      )}
-    </div>
+  const overlay = (
+    <ProcessingOverlay
+      isOpen={overlayOpen}
+      title="Adding your role"
+      stages={[...ESTIMATE_ANALYSIS_PROCESSING_STAGES]}
+      stageIndex={stageIndex}
+      status={overlayStatus}
+      isFinalHold={isFinalHold}
+      elapsedInFinalHoldMs={elapsedInFinalHoldMs}
+      errorMessage={state?.message}
+      successMessage="Role added — review below."
+      onRetry={handleRetry}
+      onDismissError={handleDismissError}
+    />
   );
 
   if (embedded) {
     return (
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-foreground">Upload the team estimates</h3>
-        {captureContent}
+        {formContent}
+        {overlay}
       </div>
     );
   }
 
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-semibold text-foreground">Upload the team estimates</h3>
-      <p className="text-sm text-muted-foreground">
-        Upload or paste the estimate you&apos;ve received back from each capability team.
-      </p>
-
       <Button type="button" variant="secondary" className="text-xs" onClick={() => setIsOpen(true)}>
-        + Add estimate input
+        + Add a new role
       </Button>
 
-      {existingInputs.length > 0 && (
-        <ul className="space-y-1 border-t border-border pt-3 text-xs text-foreground">
-          {existingInputs.map((input) => (
-            <li key={input.capability ?? "OTHER"}>
-              {input.capability ? capabilityLabel(input.capability) : input.otherLabel}
-              {input.sourceFileName && (
-                <span className="text-muted-foreground"> ({input.sourceFileName})</span>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <Modal isOpen={isOpen} title="Upload the team estimates" onClose={closeModal}>
-        {captureContent}
+      <Modal isOpen={isOpen} title="Add a new role" onClose={closeModal}>
+        <div className="space-y-4">
+          {formContent}
+          <div className="flex justify-end border-t border-border pt-3">
+            <Button type="button" variant="ghost" className="text-xs" onClick={closeModal}>
+              Done
+            </Button>
+          </div>
+        </div>
       </Modal>
+      {overlay}
     </div>
   );
 }

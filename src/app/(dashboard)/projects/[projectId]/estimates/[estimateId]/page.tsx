@@ -57,19 +57,29 @@ export default async function EstimateDetailPage({
           {" / "}
           <span>{estimate.label}</span>
         </nav>
-        <h1 className="mt-1 text-xl font-semibold text-foreground">{estimate.label}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Locked to {rateCardVersion.rateCard.name} (version {rateCardVersion.versionNumber})
-        </p>
+        <div className="mt-1 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-semibold text-foreground">{estimate.label}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Locked to {rateCardVersion.rateCard.name} (version {rateCardVersion.versionNumber})
+            </p>
+          </div>
+          <Link
+            href={`/projects/${project.id}`}
+            className="shrink-0 text-sm font-medium text-primary hover:underline"
+          >
+            ← Back to project
+          </Link>
+        </div>
       </div>
 
       <EstimateBuildWorkspace
         projectId={project.id}
         estimateId={estimate.id}
-        existingInputs={view.existingInputs}
         pendingResolutions={view.pendingResolutions}
         rateCardLines={view.rateCardLines}
         reviewContent={view.reviewContent}
+        latestVersion={view.latestVersion}
       />
     </div>
   );

@@ -6,33 +6,127 @@ import { Button } from "@/components/ui/Button";
 import { capabilityLabel } from "@/lib/mapCapabilities";
 import {
   saveEstimateVersionAction,
+  updateRoleResolutionQuantityAction,
+  type EstimateBuildActionState,
   type SaveEstimateVersionActionState,
 } from "@/app/(dashboard)/projects/[projectId]/estimates/actions";
+import type { EstimateBuildViewData } from "@/lib/estimateBuildViewData";
 import type { EstimateDocumentContent } from "@/types/estimates";
+import type { Capability } from "@/generated/prisma/enums";
+
+interface FlatLineItem {
+  capability: Capability;
+  role: string;
+  level: string | null;
+  rateType: "HOURLY" | "DAILY" | "WEEKLY";
+  rate: number;
+  quantity: number;
+  unit: string;
+  feeSubtotal: number;
+  roleResolutionId: string;
+}
+
+function EstimateReviewLineRow({
+  row,
+  onUpdated,
+}: {
+  row: FlatLineItem;
+  onUpdated?: (view: EstimateBuildViewData) => void;
+}) {
+  // Same reasoning as RoleResolutionRow: report the fresh view here, inside
+  // the action's own async function, once the update actually succeeds.
+  async function submitAction(
+    prevState: EstimateBuildActionState | undefined,
+    formData: FormData
+  ): Promise<EstimateBuildActionState> {
+    const result = await updateRoleResolutionQuantityAction(row.roleResolutionId, prevState, formData);
+    if (!result.message && result.view) {
+      onUpdated?.(result.view);
+    }
+    return result;
+  }
+
+  const [state, formAction, pending] = useActionState<EstimateBuildActionState | undefined, FormData>(
+    submitAction,
+    undefined
+  );
+
+  return (
+    <tr className="border-b border-border align-top text-foreground">
+      <td className="py-1.5 pr-2">{capabilityLabel(row.capability)}</td>
+      <td className="py-1.5 pr-2">{row.role}</td>
+      <td className="py-1.5 pr-2">{row.level ?? "—"}</td>
+      <td className="py-1.5 pr-2">
+        <form action={formAction} className="flex flex-wrap items-center gap-1">
+          <input
+            type="number"
+            name="quantity"
+            step="0.01"
+            min="0.01"
+            defaultValue={row.quantity}
+            aria-label={`Quantity for ${row.role}`}
+            className="w-16 rounded-md border border-border bg-surface px-1.5 py-0.5 text-xs text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+          />
+          <span className="text-muted-foreground">{row.unit}</span>
+          <Button type="submit" variant="ghost" className="px-2 py-0.5 text-xs" disabled={pending}>
+            {pending ? "…" : "Update"}
+          </Button>
+        </form>
+        {state?.message && (
+          <p className="mt-0.5 text-xs text-danger" role="alert">
+            {state.message}
+          </p>
+        )}
+      </td>
+      <td className="py-1.5 pr-2">
+        {row.rate.toFixed(2)} / {row.rateType.toLowerCase()}
+      </td>
+      <td className="py-1.5 pr-2">{row.feeSubtotal.toFixed(2)}</td>
+    </tr>
+  );
+}
 
 /**
- * The read-only generated preview — generate -> review -> Regenerate ->
- * download, matching ClarificationEmailCard/DraftScopeDocumentCard.
- * "Regenerate" isn't a control here at all: it's the same "Analyze & build"
- * trigger one level up in EstimateBuildWorkspace, since re-analyzing is what
- * produces a fresh version of this content. No inline editing anywhere —
- * the editable surface for this feature is RoleResolutionReview's dropdown,
- * not this document.
+ * The generated preview — generate -> review -> save -> download, matching
+ * ClarificationEmailCard/DraftScopeDocumentCard. A fresh role added or
+ * re-resolved one level up produces a fresh version of this content
+ * automatically (no separate "Regenerate" control here). One flat table
+ * across every resolved role — capability is a column, not a section
+ * divider — with an inline quantity "Update" per row; role/level/rate stay
+ * fixed since they come from the already-confirmed rate card match.
  */
 export function EstimateReviewCard({
   projectId,
   estimateId,
   content,
+  onUpdated,
+  onSaved,
 }: {
   projectId: string;
   estimateId: string;
   content: EstimateDocumentContent;
+  onUpdated?: (view: EstimateBuildViewData) => void;
+  onSaved?: (view: EstimateBuildViewData) => void;
 }) {
-  const action = saveEstimateVersionAction.bind(null, estimateId);
+  async function submitSave(
+    prevState: SaveEstimateVersionActionState | undefined,
+    formData: FormData
+  ): Promise<SaveEstimateVersionActionState> {
+    const result = await saveEstimateVersionAction(estimateId, prevState, formData);
+    if (!result.message && result.view) {
+      onSaved?.(result.view);
+    }
+    return result;
+  }
+
   const [state, formAction, pending] = useActionState<
     SaveEstimateVersionActionState | undefined,
     FormData
-  >(action, undefined);
+  >(submitSave, undefined);
+
+  const rows: FlatLineItem[] = content.capabilitySections.flatMap((section) =>
+    section.lineItems.map((line) => ({ ...line, capability: section.capability }))
+  );
 
   return (
     <Card className="space-y-4 p-5">
@@ -64,40 +158,23 @@ export function EstimateReviewCard({
         </dl>
       </div>
 
-      <div className="space-y-4">
-        {content.capabilitySections.map((section) => (
-          <div key={section.capability}>
-            <h5 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {capabilityLabel(section.capability)}
-            </h5>
-            <table className="mt-1 w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-border text-muted-foreground">
-                  <th className="py-1 pr-2 font-medium">Role</th>
-                  <th className="py-1 pr-2 font-medium">Level</th>
-                  <th className="py-1 pr-2 font-medium">Rate</th>
-                  <th className="py-1 pr-2 font-medium">Fee</th>
-                </tr>
-              </thead>
-              <tbody>
-                {section.lineItems.map((line, i) => (
-                  <tr key={i} className="border-b border-border text-foreground">
-                    <td className="py-1 pr-2">{line.role}</td>
-                    <td className="py-1 pr-2">{line.level ?? "—"}</td>
-                    <td className="py-1 pr-2">
-                      {line.rate.toFixed(2)} / {line.rateType.toLowerCase()}
-                    </td>
-                    <td className="py-1 pr-2">{line.feeSubtotal.toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <p className="mt-1 text-xs font-medium text-foreground">
-              Subtotal: {section.subtotal.toFixed(2)} {content.currency}
-            </p>
-          </div>
-        ))}
-      </div>
+      <table className="w-full text-left text-xs">
+        <thead>
+          <tr className="border-b border-border text-muted-foreground">
+            <th className="py-1.5 pr-2 font-medium">Capability</th>
+            <th className="py-1.5 pr-2 font-medium">Role</th>
+            <th className="py-1.5 pr-2 font-medium">Level</th>
+            <th className="py-1.5 pr-2 font-medium">Quantity</th>
+            <th className="py-1.5 pr-2 font-medium">Rate</th>
+            <th className="py-1.5 pr-2 font-medium">Fee</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <EstimateReviewLineRow key={row.roleResolutionId} row={row} onUpdated={onUpdated} />
+          ))}
+        </tbody>
+      </table>
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
         <p className="text-sm font-semibold text-foreground">

@@ -65,13 +65,10 @@ export async function buildEstimateContentDraft(
 
   const resolvedRoles = await prisma.roleResolution.findMany({
     where: { estimateId, resolvedAt: { not: null } },
-    include: {
-      resolvedRateCardLine: true,
-      estimateCapabilityInput: { select: { capability: true, otherLabel: true } },
-    },
+    include: { resolvedRateCardLine: true },
   });
   if (resolvedRoles.length === 0) {
-    return { message: "Add at least one capability input and run Analyze & build first." };
+    return { message: "Add at least one role to get started." };
   }
 
   const currencies = new Set(resolvedRoles.map((r) => r.resolvedRateCardLine?.currency).filter(Boolean));
@@ -86,7 +83,7 @@ export async function buildEstimateContentDraft(
     const line = role.resolvedRateCardLine!;
     const feeSubtotal = computeLineItemFee(role.extractedQuantity, line.rate);
     return {
-      capability: role.estimateCapabilityInput.capability ?? "CLIENT_ENGAGEMENT_AND_DELIVERY",
+      capability: role.capability,
       role: line.role,
       level: line.level,
       rateType: line.rateType,
@@ -131,6 +128,8 @@ export async function buildEstimateContentDraft(
         quantity: Number(i.quantity),
         unit: i.unit,
         feeSubtotal: Number(i.feeSubtotal),
+        roleResolutionId: i.roleResolutionId,
+        rateCardLineItemId: i.rateCardLineItemId,
       })),
       subtotal: items.reduce((sum, i) => sum + Number(i.feeSubtotal), 0),
     })),

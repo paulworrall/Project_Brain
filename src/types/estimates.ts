@@ -35,6 +35,9 @@ export const ExtractedRoleLineSchema = z.object({
     .string()
     .nullable()
     .describe("The seniority/level if stated or clearly implied by the input — null if genuinely not indicated. Never guess a level that wasn't stated."),
+  extractedCapability: CapabilityEnum.describe(
+    "Which ONE of the 12 fixed MAP capability teams this specific role most likely belongs to, based on what the role actually does — reason about the work, don't keyword-match. Always pick exactly one from the fixed list, even if the source text doesn't name a team explicitly. Never invent a value outside the fixed list, and never split one role across two capabilities."
+  ),
   quantity: z.number().describe("The numeric quantity, e.g. number of days or hours."),
   unit: z.string().describe("The unit the quantity is measured in, e.g. 'days', 'hours'."),
 });
@@ -80,6 +83,11 @@ export const EstimateDocumentLineItemSchema = z.object({
   quantity: z.number(),
   unit: z.string(),
   feeSubtotal: z.number(),
+  // Traces this line back to its source RoleResolution/RateCardLineItem —
+  // needed by the review grid's inline "Update quantity" control. Not used
+  // by document rendering (docx/xlsx) itself.
+  roleResolutionId: z.string(),
+  rateCardLineItemId: z.string(),
 });
 
 export const EstimateDocumentContentSchema = z.object({

@@ -6,8 +6,8 @@
  * two-stage capability-suggestion flow.
  */
 export const ESTIMATE_ANALYSIS_PROCESSING_STAGES = [
-  "Reading capability inputs",
-  "Extracting roles and quantities",
+  "Reading your input",
+  "Classifying roles",
   "Matching against the rate card",
   "Calculating pricing",
 ] as const;

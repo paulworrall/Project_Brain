@@ -2,8 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { anthropic, CLAUDE_MODEL } from "@/lib/anthropic";
 import { ExtractedRoleLineListSchema, type ExtractedRoleLine } from "@/types/estimates";
-import { capabilityLabel } from "@/lib/mapCapabilities";
-import type { Capability } from "@/generated/prisma/enums";
+import { formatCapabilitiesReferenceForPrompt } from "@/lib/mapCapabilities";
 
 export class EstimateRoleExtractionError extends Error {
   constructor(
@@ -16,17 +15,16 @@ export class EstimateRoleExtractionError extends Error {
 }
 
 /**
- * Extracts role/level/quantity/unit lines from one capability team's raw
- * estimate content (pasted text, or already-parsed file text — see
- * parseDocumentToText). Deliberately never infers a level that wasn't
- * stated: extractedLevel is null whenever the source text doesn't say one,
- * so the conservative matching gate (src/lib/estimateMatching.ts) can route
- * it to a PM instead of guessing.
+ * Extracts role/level/capability/quantity/unit lines from one raw batch of
+ * pasted/uploaded estimate content — a batch may describe roles across
+ * several different capability teams at once, so each role is classified
+ * individually rather than the caller tagging the whole batch upfront (see
+ * ExtractedRoleLineSchema.extractedCapability). Deliberately never infers a
+ * level that wasn't stated: extractedLevel is null whenever the source text
+ * doesn't say one, so the conservative matching gate
+ * (src/lib/estimateMatching.ts) can route it to a PM instead of guessing.
  */
-export async function extractRolesFromCapabilityInput(
-  rawContent: string,
-  capability: Capability
-): Promise<ExtractedRoleLine[]> {
+export async function extractEstimateRoles(rawContent: string): Promise<ExtractedRoleLine[]> {
   try {
     const message = await anthropic.messages.parse({
       model: CLAUDE_MODEL,
@@ -35,13 +33,13 @@ export async function extractRolesFromCapabilityInput(
       messages: [
         {
           role: "user",
-          content: `The text below is the ${capabilityLabel(capability)} team's estimate input for a project. Extract every distinct role/line item into structured rows: the role/title, the seniority/level ONLY if the text genuinely states or unambiguously implies one (leave it null otherwise — do not guess a "typical" or "most likely" level), and the quantity + unit (e.g. "5 days", "40 hours"). Keep rawRoleText as the exact original phrase for that role so it can be traced back to the source.\n\n<capability_estimate_content>\n${rawContent}\n</capability_estimate_content>`,
+          content: `Extract every distinct role/line item from the raw estimate text below into structured rows: the role/title, the seniority/level ONLY if the text genuinely states or unambiguously implies one (leave it null otherwise — do not guess a "typical" or "most likely" level), the quantity + unit (e.g. "5 days", "40 hours"), and which ONE of the 12 fixed MAP capability teams below that specific role most likely belongs to. Keep rawRoleText as the exact original phrase for that role so it can be traced back to the source.\n\n<map_capabilities_reference>\n${formatCapabilitiesReferenceForPrompt()}\n</map_capabilities_reference>\n\n<raw_estimate_content>\n${rawContent}\n</raw_estimate_content>`,
         },
       ],
     });
 
     if (!message.parsed_output) {
-      throw new Error("Claude returned no parsed output for the capability estimate roles.");
+      throw new Error("Claude returned no parsed output for the estimate roles.");
     }
     return message.parsed_output;
   } catch (error) {
@@ -53,12 +51,12 @@ export async function extractRolesFromCapabilityInput(
     }
     if (error instanceof Anthropic.APIError) {
       throw new EstimateRoleExtractionError(
-        "The AI service couldn't read this capability's estimate content. Please try again.",
+        "The AI service couldn't read this estimate content. Please try again.",
         error
       );
     }
     throw new EstimateRoleExtractionError(
-      "Something went wrong while reading this capability's estimate content.",
+      "Something went wrong while reading this estimate content.",
       error
     );
   }

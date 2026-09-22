@@ -28,8 +28,8 @@ const mockParse = anthropic.messages.parse as ReturnType<typeof vi.fn>;
 
 const {
   createEstimateAction,
-  addOrReviseCapabilityInputAction,
-  analyzeAndBuildEstimateAction,
+  addEstimateRoleInputAction,
+  updateRoleResolutionQuantityAction,
   resolveRoleResolutionAction,
   saveEstimateVersionAction,
 } = await import("@/app/(dashboard)/projects/[projectId]/estimates/actions");
@@ -51,9 +51,8 @@ const rateCardLines = [
   { role: "Designer", level: "Mid", rateType: "DAILY" as const, rate: 500, currency: "GBP" },
 ];
 
-function capabilityInputFormData(capability: string, content: string) {
+function roleInputFormData(content: string) {
   const formData = new FormData();
-  formData.set("capability", capability);
   formData.set("content", content);
   return formData;
 }
@@ -61,6 +60,12 @@ function capabilityInputFormData(capability: string, content: string) {
 function resolveFormData(rateCardLineItemId: string) {
   const formData = new FormData();
   formData.set("rateCardLineItemId", rateCardLineItemId);
+  return formData;
+}
+
+function quantityFormData(quantity: number) {
+  const formData = new FormData();
+  formData.set("quantity", String(quantity));
   return formData;
 }
 
@@ -139,10 +144,10 @@ describe("createEstimateAction", () => {
     expect(result.estimateId).toBeDefined();
     expect(result.label).toBe("Initial Estimate");
     expect(result.view).toEqual({
-      existingInputs: [],
       pendingResolutions: [],
       rateCardLines: [],
       reviewContent: null,
+      latestVersion: null,
     });
 
     const estimate = await prisma.estimate.findFirstOrThrow({
@@ -170,91 +175,111 @@ describe("createEstimateAction", () => {
   });
 });
 
-describe("addOrReviseCapabilityInputAction", () => {
-  it("adds a capability input, then revises it in place — deleting stale role resolutions", async () => {
+describe("addEstimateRoleInputAction", () => {
+  it("lazily parses+caches the rate card lines on the first-ever submission against a version, and doesn't repeat it on a second", async () => {
+    // A dedicated, throwaway estimate — its only job is to prove the
+    // lazy-parse-and-cache behavior in isolation, sharing the same
+    // rateCardVersionId the main flow test below relies on already being
+    // cached by the time it runs.
     const estimate = await prisma.estimate.create({
-      data: { projectId, label: "Revise Spec Estimate", rateCardVersionId },
+      data: { projectId, label: "Lazy Parse Cache Spec Estimate", rateCardVersionId },
     });
 
-    await addOrReviseCapabilityInputAction(
+    // First submission: 3 Claude calls (rate-card-line parse, extraction,
+    // matching) — a NO_MATCH result is used deliberately so this doesn't
+    // need to predict the seeded lines' ids, which don't exist until the
+    // parse step (inside this same call) creates them.
+    mockParse.mockResolvedValueOnce({ parsed_output: rateCardLines });
+    mockParse.mockResolvedValueOnce({
+      parsed_output: [
+        {
+          rawRoleText: "1 Copywriter for 2 days",
+          extractedRole: "Copywriter",
+          extractedLevel: null,
+          extractedCapability: "EXPERIENCE_STRATEGY",
+          quantity: 2,
+          unit: "days",
+        },
+      ],
+    });
+    mockParse.mockResolvedValueOnce({
+      parsed_output: [
+        {
+          rawRoleText: "1 Copywriter for 2 days",
+          matchType: "NO_MATCH" as const,
+          confidence: 0,
+          suggestedRateCardLineId: null,
+        },
+      ],
+    });
+
+    const firstAdd = await addEstimateRoleInputAction(
       estimate.id,
       undefined,
-      capabilityInputFormData("EXPERIENCE_DESIGN", "1 Mid Designer for 4 days.")
+      roleInputFormData("1 Copywriter for 2 days.")
     );
+    expect(firstAdd.message).toBeUndefined();
+    expect(mockParse).toHaveBeenCalledTimes(3);
 
-    let inputs = await prisma.estimateCapabilityInput.findMany({ where: { estimateId: estimate.id } });
-    expect(inputs).toHaveLength(1);
-    expect(inputs[0].rawContent).toBe("1 Mid Designer for 4 days.");
+    const seededLines = await prisma.rateCardLineItem.findMany({ where: { rateCardVersionId } });
+    expect(seededLines).toHaveLength(3);
 
-    // Simulate a prior analysis having already produced a RoleResolution for
-    // this input, to prove revising deletes it rather than leaving it stale.
-    await prisma.roleResolution.create({
-      data: {
-        estimateId: estimate.id,
-        estimateCapabilityInputId: inputs[0].id,
-        rawRoleText: "1 Mid Designer for 4 days.",
-        extractedRole: "Designer",
-        extractedLevel: "Mid",
-        extractedQuantity: 4,
-        extractedUnit: "days",
-        matchType: "ROLE_AND_LEVEL",
-        confidence: 0.9,
-        resolvedAt: new Date(),
-      },
+    const resolution = await prisma.roleResolution.findFirstOrThrow({
+      where: { estimateId: estimate.id },
     });
+    expect(resolution.capability).toBe("EXPERIENCE_STRATEGY");
+    expect(resolution.resolvedAt).toBeNull();
 
-    await addOrReviseCapabilityInputAction(
-      estimate.id,
-      undefined,
-      capabilityInputFormData("EXPERIENCE_DESIGN", "2 Mid Designers for 6 days each.")
-    );
-
-    inputs = await prisma.estimateCapabilityInput.findMany({ where: { estimateId: estimate.id } });
-    expect(inputs).toHaveLength(1);
-    expect(inputs[0].rawContent).toBe("2 Mid Designers for 6 days each.");
-
-    const staleResolutions = await prisma.roleResolution.findMany({
-      where: { estimateCapabilityInputId: inputs[0].id },
+    // Second submission on the same rate card version: only 2 Claude calls
+    // — the parse is NOT repeated, proving the cache held.
+    mockParse.mockResolvedValueOnce({
+      parsed_output: [
+        {
+          rawRoleText: "1 Copywriter for 1 day",
+          extractedRole: "Copywriter",
+          extractedLevel: null,
+          extractedCapability: "EXPERIENCE_STRATEGY",
+          quantity: 1,
+          unit: "days",
+        },
+      ],
     });
-    expect(staleResolutions).toHaveLength(0);
+    mockParse.mockResolvedValueOnce({
+      parsed_output: [
+        {
+          rawRoleText: "1 Copywriter for 1 day",
+          matchType: "NO_MATCH" as const,
+          confidence: 0,
+          suggestedRateCardLineId: null,
+        },
+      ],
+    });
+    const callsBeforeSecondAdd = mockParse.mock.calls.length;
+    await addEstimateRoleInputAction(estimate.id, undefined, roleInputFormData("1 Copywriter for 1 day."));
+    expect(mockParse.mock.calls.length - callsBeforeSecondAdd).toBe(2);
+
+    const lineCountAfterSecondAdd = await prisma.rateCardLineItem.count({ where: { rateCardVersionId } });
+    expect(lineCountAfterSecondAdd).toBe(3);
   });
-});
 
-describe("analyze & build, role resolution, and save", () => {
-  it("parses+caches the rate card lines only once, blocks the role-only case, auto-resolves the fully-specified case, then resolves/saves correctly and stays append-only on a second save", async () => {
+  it("blocks a role-only match, auto-resolves a role-and-level match (mixed in one submission), then resolves/saves correctly and stays append-only on a second save", async () => {
+    // By this point rateCardVersionId already has its 3 lines cached (from
+    // the lazy-parse test above), so this submission makes exactly 2
+    // Claude calls: extraction + matching, no repeated parse.
     const estimate = await prisma.estimate.create({
       data: { projectId, label: "Full Flow Estimate", rateCardVersionId },
     });
 
-    // --- Step A: first analyze run with no capability inputs yet — this is
-    // what triggers the lazy rate-card-line parse (nothing to extract/match
-    // yet, so exactly one Claude call happens: the line-item parse).
-    mockParse.mockResolvedValueOnce({ parsed_output: rateCardLines });
-    const firstAnalyze = await analyzeAndBuildEstimateAction(estimate.id, undefined, new FormData());
-    expect(firstAnalyze.view?.pendingResolutions).toHaveLength(0);
-    expect(mockParse).toHaveBeenCalledTimes(1);
-
     const seededLines = await prisma.rateCardLineItem.findMany({ where: { rateCardVersionId } });
-    expect(seededLines).toHaveLength(3);
     const juniorLine = seededLines.find((l) => l.level === "Junior")!;
     const seniorLine = seededLines.find((l) => l.level === "Senior")!;
-
-    // --- Step B: add one capability input describing two roles — one with
-    // no level stated (role-only, must block), one fully specified.
-    await addOrReviseCapabilityInputAction(
-      estimate.id,
-      undefined,
-      capabilityInputFormData(
-        "TECH_AND_DATA",
-        "Need 1 Developer for 5 days, and 1 Senior Developer for 3 days."
-      )
-    );
 
     const extractedRoles = [
       {
         rawRoleText: "1 Developer for 5 days",
         extractedRole: "Developer",
         extractedLevel: null,
+        extractedCapability: "TECH_AND_DATA" as const,
         quantity: 5,
         unit: "days",
       },
@@ -262,6 +287,7 @@ describe("analyze & build, role resolution, and save", () => {
         rawRoleText: "1 Senior Developer for 3 days",
         extractedRole: "Developer",
         extractedLevel: "Senior",
+        extractedCapability: "TECH_AND_DATA" as const,
         quantity: 3,
         unit: "days",
       },
@@ -280,41 +306,37 @@ describe("analyze & build, role resolution, and save", () => {
         suggestedRateCardLineId: seniorLine.id,
       },
     ];
-
-    // --- Step C: second analyze run — only 2 Claude calls this time
-    // (extraction + matching); the rate-card-line parse is NOT repeated,
-    // proving the cache from Step A held.
     mockParse.mockResolvedValueOnce({ parsed_output: extractedRoles });
     mockParse.mockResolvedValueOnce({ parsed_output: matchResults });
-    const callsBeforeSecondAnalyze = mockParse.mock.calls.length;
-    const secondAnalyze = await analyzeAndBuildEstimateAction(estimate.id, undefined, new FormData());
-    expect(mockParse.mock.calls.length - callsBeforeSecondAnalyze).toBe(2);
-    expect(secondAnalyze.view?.pendingResolutions).toHaveLength(1);
+
+    const added = await addEstimateRoleInputAction(
+      estimate.id,
+      undefined,
+      roleInputFormData("Need 1 Developer for 5 days, and 1 Senior Developer for 3 days.")
+    );
+    expect(mockParse).toHaveBeenCalledTimes(2);
+    expect(added.view?.pendingResolutions).toHaveLength(1);
 
     const resolutions = await prisma.roleResolution.findMany({ where: { estimateId: estimate.id } });
     expect(resolutions).toHaveLength(2);
 
     const roleOnly = resolutions.find((r) => r.matchType === "ROLE_ONLY")!;
+    expect(roleOnly.capability).toBe("TECH_AND_DATA");
     expect(roleOnly.resolvedAt).toBeNull();
     expect(roleOnly.resolvedRateCardLineId).toBeNull();
     expect(roleOnly.suggestedRateCardLineId).toBe(juniorLine.id);
 
     const roleAndLevel = resolutions.find((r) => r.matchType === "ROLE_AND_LEVEL")!;
+    expect(roleAndLevel.capability).toBe("TECH_AND_DATA");
     expect(roleAndLevel.resolvedAt).not.toBeNull();
     expect(roleAndLevel.resolvedById).toBeNull(); // system-resolved, not a PM choice
     expect(roleAndLevel.resolvedRateCardLineId).toBe(seniorLine.id);
 
-    // --- Step D: a third analyze run with nothing new should make zero
-    // additional Claude calls at all (both inputs already have resolutions).
-    const callsBeforeThirdAnalyze = mockParse.mock.calls.length;
-    await analyzeAndBuildEstimateAction(estimate.id, undefined, new FormData());
-    expect(mockParse.mock.calls.length).toBe(callsBeforeThirdAnalyze);
-
-    // --- Step E: save must refuse while the role-only case is unresolved.
+    // Save must refuse while the role-only case is unresolved.
     const blockedSave = await saveEstimateVersionAction(estimate.id, undefined, new FormData());
     expect(blockedSave.message).toMatch(/1 role still needs your review/i);
 
-    // --- Step F: PM confirms the role-only case against the Junior line.
+    // PM confirms the role-only case against the Junior line.
     await resolveRoleResolutionAction(roleOnly.id, undefined, resolveFormData(juniorLine.id));
     const afterResolve = await prisma.roleResolution.findUniqueOrThrow({ where: { id: roleOnly.id } });
     expect(afterResolve.resolvedAt).not.toBeNull();
@@ -325,11 +347,12 @@ describe("analyze & build, role resolution, and save", () => {
     });
     expect(pendingAfterResolve).toBe(0);
 
-    // --- Step G: save now succeeds, with deterministic pricing:
+    // Save now succeeds, with deterministic pricing:
     // Junior 400/day * 5 = 2000, Senior 700/day * 3 = 2100, total 4100.
     const saveResult = await saveEstimateVersionAction(estimate.id, undefined, new FormData());
     expect(saveResult.message).toBeUndefined();
     expect(saveResult.versionId).toBeDefined();
+    expect(saveResult.view?.latestVersion?.id).toBe(saveResult.versionId);
 
     const v1 = await prisma.estimateVersion.findUniqueOrThrow({
       where: { id: saveResult.versionId },
@@ -343,8 +366,8 @@ describe("analyze & build, role resolution, and save", () => {
     expect(Buffer.from(v1.fileBytes).subarray(0, 2).toString("utf-8")).toBe("PK");
     const v1LineItemIds = v1.lineItems.map((li) => li.id).sort();
 
-    // --- Step H: saving again (nothing changed) is append-only — a new
-    // version, version 1's own line items are untouched.
+    // Saving again (nothing changed) is append-only — a new version,
+    // version 1's own line items are untouched.
     const secondSave = await saveEstimateVersionAction(estimate.id, undefined, new FormData());
     const v2 = await prisma.estimateVersion.findUniqueOrThrow({
       where: { id: secondSave.versionId },
@@ -362,5 +385,152 @@ describe("analyze & build, role resolution, and save", () => {
 
     const allVersions = await prisma.estimateVersion.findMany({ where: { estimateId: estimate.id } });
     expect(allVersions).toHaveLength(2);
+  });
+
+  it("is atomic — a failed extraction leaves zero EstimateCapabilityInput/RoleResolution rows behind", async () => {
+    const estimate = await prisma.estimate.create({
+      data: { projectId, label: "Atomicity Spec Estimate (extraction failure)", rateCardVersionId },
+    });
+
+    mockParse.mockRejectedValueOnce(new Error("network exploded"));
+
+    const result = await addEstimateRoleInputAction(
+      estimate.id,
+      undefined,
+      roleInputFormData("Some content that will fail to extract.")
+    );
+
+    expect(result.message).toBeTruthy();
+    const inputs = await prisma.estimateCapabilityInput.findMany({ where: { estimateId: estimate.id } });
+    expect(inputs).toHaveLength(0);
+    const resolutions = await prisma.roleResolution.findMany({ where: { estimateId: estimate.id } });
+    expect(resolutions).toHaveLength(0);
+  });
+
+  it("is atomic — a failed matching call leaves zero EstimateCapabilityInput/RoleResolution rows behind", async () => {
+    const estimate = await prisma.estimate.create({
+      data: { projectId, label: "Atomicity Spec Estimate (matching failure)", rateCardVersionId },
+    });
+
+    mockParse.mockResolvedValueOnce({
+      parsed_output: [
+        {
+          rawRoleText: "1 Developer for 2 days",
+          extractedRole: "Developer",
+          extractedLevel: null,
+          extractedCapability: "TECH_AND_DATA",
+          quantity: 2,
+          unit: "days",
+        },
+      ],
+    });
+    mockParse.mockRejectedValueOnce(new Error("network exploded"));
+
+    const result = await addEstimateRoleInputAction(
+      estimate.id,
+      undefined,
+      roleInputFormData("1 Developer for 2 days.")
+    );
+
+    expect(result.message).toBeTruthy();
+    const inputs = await prisma.estimateCapabilityInput.findMany({ where: { estimateId: estimate.id } });
+    expect(inputs).toHaveLength(0);
+    const resolutions = await prisma.roleResolution.findMany({ where: { estimateId: estimate.id } });
+    expect(resolutions).toHaveLength(0);
+  });
+});
+
+describe("updateRoleResolutionQuantityAction", () => {
+  it("updates an already-resolved role's quantity and the recomputed fee/total flows through the fresh view", async () => {
+    const estimate = await prisma.estimate.create({
+      data: { projectId, label: "Quantity Update Spec Estimate", rateCardVersionId },
+    });
+    const seededLines = await prisma.rateCardLineItem.findMany({ where: { rateCardVersionId } });
+    const seniorLine = seededLines.find((l) => l.level === "Senior")!;
+
+    mockParse.mockResolvedValueOnce({
+      parsed_output: [
+        {
+          rawRoleText: "1 Senior Developer for 2 days",
+          extractedRole: "Developer",
+          extractedLevel: "Senior",
+          extractedCapability: "TECH_AND_DATA",
+          quantity: 2,
+          unit: "days",
+        },
+      ],
+    });
+    mockParse.mockResolvedValueOnce({
+      parsed_output: [
+        {
+          rawRoleText: "1 Senior Developer for 2 days",
+          matchType: "ROLE_AND_LEVEL" as const,
+          confidence: 0.97,
+          suggestedRateCardLineId: seniorLine.id,
+        },
+      ],
+    });
+    await addEstimateRoleInputAction(
+      estimate.id,
+      undefined,
+      roleInputFormData("1 Senior Developer for 2 days.")
+    );
+
+    const resolution = await prisma.roleResolution.findFirstOrThrow({ where: { estimateId: estimate.id } });
+    expect(Number(resolution.extractedQuantity)).toBe(2);
+
+    const updateResult = await updateRoleResolutionQuantityAction(
+      resolution.id,
+      undefined,
+      quantityFormData(4)
+    );
+    expect(updateResult.message).toBeUndefined();
+
+    const afterUpdate = await prisma.roleResolution.findUniqueOrThrow({ where: { id: resolution.id } });
+    expect(Number(afterUpdate.extractedQuantity)).toBe(4);
+
+    // 700/day * 4 days = 2800 after the update — proves the fresh view's
+    // reviewContent recomputed the fee/total from the new quantity, not a
+    // stale cached value.
+    expect(Number(updateResult.view?.reviewContent?.totalValue)).toBe(2800);
+  });
+
+  it("rejects updating a role that is still pending (not yet resolved)", async () => {
+    const estimate = await prisma.estimate.create({
+      data: { projectId, label: "Quantity Update Spec Estimate (pending reject)", rateCardVersionId },
+    });
+
+    mockParse.mockResolvedValueOnce({
+      parsed_output: [
+        {
+          rawRoleText: "1 Developer for 3 days",
+          extractedRole: "Developer",
+          extractedLevel: null,
+          extractedCapability: "TECH_AND_DATA",
+          quantity: 3,
+          unit: "days",
+        },
+      ],
+    });
+    mockParse.mockResolvedValueOnce({
+      parsed_output: [
+        {
+          rawRoleText: "1 Developer for 3 days",
+          matchType: "ROLE_ONLY" as const,
+          confidence: 0.5,
+          suggestedRateCardLineId: null,
+        },
+      ],
+    });
+    await addEstimateRoleInputAction(estimate.id, undefined, roleInputFormData("1 Developer for 3 days."));
+
+    const pending = await prisma.roleResolution.findFirstOrThrow({ where: { estimateId: estimate.id } });
+    expect(pending.resolvedAt).toBeNull();
+
+    const result = await updateRoleResolutionQuantityAction(pending.id, undefined, quantityFormData(10));
+    expect(result.message).toMatch(/must be resolved/i);
+
+    const unchanged = await prisma.roleResolution.findUniqueOrThrow({ where: { id: pending.id } });
+    expect(Number(unchanged.extractedQuantity)).toBe(3);
   });
 });

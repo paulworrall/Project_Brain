@@ -21,8 +21,7 @@ export interface RateCardLineOption {
 
 export interface PendingRoleResolutionView {
   id: string;
-  capability: Capability | null;
-  otherLabel: string | null;
+  capability: Capability;
   rawRoleText: string;
   extractedRole: string;
   extractedLevel: string | null;
@@ -69,7 +68,7 @@ function RoleResolutionRow({
     <li className="rounded-md border border-border bg-surface p-3">
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className="rounded-full bg-surface-muted px-2 py-0.5 font-medium text-foreground">
-          {resolution.capability ? capabilityLabel(resolution.capability) : resolution.otherLabel}
+          {capabilityLabel(resolution.capability)}
         </span>
         <span className="text-muted-foreground">&quot;{resolution.rawRoleText}&quot;</span>
       </div>

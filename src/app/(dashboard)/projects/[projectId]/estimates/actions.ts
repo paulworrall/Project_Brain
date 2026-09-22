@@ -5,14 +5,13 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { parseDocumentToText, UnsupportedBriefFormatError } from "@/services/parsing";
-import { CapabilityEnum } from "@/types/capabilities";
 import {
   RateCardLineItemAgentError,
   parseRateCardLineItems,
 } from "@/services/agents/rate-card-line-item-agent";
 import {
   EstimateRoleExtractionError,
-  extractRolesFromCapabilityInput,
+  extractEstimateRoles,
 } from "@/services/agents/estimate-role-extraction-agent";
 import {
   EstimateRoleMatchingError,
@@ -123,43 +122,38 @@ export async function createEstimateAction(
 }
 
 // ---------------------------------------------------------------------------
-// Add or revise a capability's input
+// Add a role — capture raw content and immediately extract + match it
 // ---------------------------------------------------------------------------
 
-const CapabilityInputSchema = z
-  .object({
-    capability: z.union([CapabilityEnum, z.literal("OTHER")], {
-      error: "Choose which capability this estimate input is from.",
-    }),
-    otherLabel: z.string().trim().optional(),
-    content: z.string().trim().optional(),
-  })
-  .refine((data) => data.capability !== "OTHER" || !!data.otherLabel, {
-    error: 'Name the capability team when selecting "Other".',
-    path: ["otherLabel"],
-  });
+const RoleInputSchema = z.object({
+  content: z.string().trim().optional(),
+});
 
 /**
- * Upsert-by-capability, revised in place — adding a new capability's input
- * and replacing an existing one are both this same action; neither creates
- * an EstimateVersion. Reuses parseDocumentToText for file uploads, same
- * try/catch pattern as uploadKnowledgeItemAction. Revising an existing
- * input deletes its stale RoleResolution rows — extracted roles from the
- * old text must not silently keep counting as resolved.
+ * Adds one raw batch of pasted/uploaded estimate content and immediately
+ * runs the full extraction + matching pipeline against it in the same
+ * request — there's no separate manual "Analyze & build" step, and no
+ * "revise this capability's input" concept (capability isn't a property of
+ * the batch anymore, see RoleResolution.capability) — every submission is
+ * simply appended. Lazily parses+caches the locked rate card version's
+ * lines (once per version, unchanged from the old two-step flow).
+ *
+ * Atomic from the user's point of view: if extraction or matching fails
+ * after the EstimateCapabilityInput row is created, that row is deleted
+ * before returning the error — a failed submission must not leave an
+ * orphaned, never-surfaced row behind now that there's no "Re-analyze"
+ * button left to retry it.
  */
-export async function addOrReviseCapabilityInputAction(
+export async function addEstimateRoleInputAction(
   estimateId: string,
   _prevState: EstimateBuildActionState | undefined,
   formData: FormData
 ): Promise<EstimateBuildActionState> {
-  const parsed = CapabilityInputSchema.safeParse({
-    capability: formData.get("capability"),
-    otherLabel: formData.get("otherLabel") || undefined,
+  const parsed = RoleInputSchema.safeParse({
     content: formData.get("content"),
   });
   if (!parsed.success) {
-    const errors = z.flattenError(parsed.error).fieldErrors;
-    return { message: errors.capability?.[0] ?? errors.otherLabel?.[0] ?? "Invalid capability input." };
+    return { message: "Invalid input." };
   }
 
   const file = formData.get("file");
@@ -197,79 +191,9 @@ export async function addOrReviseCapabilityInputAction(
     return { message: "That input appears to be empty." };
   }
 
-  const capability = parsed.data.capability === "OTHER" ? null : parsed.data.capability;
-  const otherLabel = parsed.data.capability === "OTHER" ? parsed.data.otherLabel! : null;
-
-  const existing = await prisma.estimateCapabilityInput.findFirst({
-    where: { estimateId, capability },
-    select: { id: true },
-  });
-
-  await prisma.$transaction(async (tx) => {
-    if (existing) {
-      await tx.roleResolution.deleteMany({ where: { estimateCapabilityInputId: existing.id } });
-      await tx.estimateCapabilityInput.update({
-        where: { id: existing.id },
-        data: {
-          otherLabel,
-          source: hasFile ? "FILE" : "PASTE",
-          rawContent,
-          sourceFileName,
-          addedById: session?.user?.id,
-        },
-      });
-    } else {
-      await tx.estimateCapabilityInput.create({
-        data: {
-          estimateId,
-          capability,
-          otherLabel,
-          source: hasFile ? "FILE" : "PASTE",
-          rawContent,
-          sourceFileName,
-          addedById: session?.user?.id,
-        },
-      });
-    }
-  });
-
   const estimate = await prisma.estimate.findUnique({
     where: { id: estimateId },
-    select: { projectId: true },
-  });
-  if (estimate) {
-    revalidatePath(`/projects/${estimate.projectId}/estimates/${estimateId}`);
-  }
-
-  const view = await getEstimateBuildViewData(estimateId);
-  return { view: view ?? undefined };
-}
-
-// ---------------------------------------------------------------------------
-// Analyze & build — parse, extract, match, surface pending resolutions
-// ---------------------------------------------------------------------------
-
-/**
- * Runs the estimate-analysis pipeline: lazily parses the locked rate card
- * version's lines (once, cached — see rate-card-line-item-agent.ts), then
- * for every capability input that hasn't been analyzed yet (has zero
- * RoleResolution rows), extracts roles and matches them against the rate
- * card. Auto-resolved rows (per the conservative gate in
- * estimateMatching.ts) get resolvedAt set immediately with resolvedById
- * null, to distinguish a system resolution from a PM's explicit choice;
- * everything else is created pending, for RoleResolutionReview to surface.
- */
-export async function analyzeAndBuildEstimateAction(
-  estimateId: string,
-  _prevState: EstimateBuildActionState | undefined,
-  _formData: FormData
-): Promise<EstimateBuildActionState> {
-  const estimate = await prisma.estimate.findUnique({
-    where: { id: estimateId },
-    include: {
-      rateCardVersion: true,
-      capabilityInputs: { include: { roleResolutions: { select: { id: true } } } },
-    },
+    include: { rateCardVersion: true },
   });
   if (!estimate) {
     return { message: "Estimate not found." };
@@ -308,68 +232,134 @@ export async function analyzeAndBuildEstimateAction(
     select: { id: true, role: true, level: true },
   });
 
-  const pendingInputs = estimate.capabilityInputs.filter((input) => input.roleResolutions.length === 0);
+  const input = await prisma.estimateCapabilityInput.create({
+    data: {
+      estimateId,
+      source: hasFile ? "FILE" : "PASTE",
+      rawContent,
+      sourceFileName,
+      addedById: session?.user?.id,
+    },
+  });
 
-  for (const input of pendingInputs) {
-    let extractedRoles;
-    try {
-      extractedRoles = await extractRolesFromCapabilityInput(
-        input.rawContent,
-        input.capability ?? "CLIENT_ENGAGEMENT_AND_DELIVERY"
-      );
-    } catch (error) {
-      if (error instanceof EstimateRoleExtractionError) {
-        return { message: error.message };
-      }
-      throw error;
+  let extractedRoles;
+  try {
+    extractedRoles = await extractEstimateRoles(rawContent);
+  } catch (error) {
+    await prisma.estimateCapabilityInput.delete({ where: { id: input.id } });
+    if (error instanceof EstimateRoleExtractionError) {
+      return { message: error.message };
     }
-
-    if (extractedRoles.length === 0) {
-      continue;
-    }
-
-    let matchResults;
-    try {
-      matchResults = await matchRolesAgainstRateCard(extractedRoles, candidateLines);
-    } catch (error) {
-      if (error instanceof EstimateRoleMatchingError) {
-        return { message: error.message };
-      }
-      throw error;
-    }
-    const matchByRawText = new Map(matchResults.map((m) => [m.rawRoleText, m]));
-
-    await prisma.$transaction(
-      extractedRoles.map((role) => {
-        const match = matchByRawText.get(role.rawRoleText) ?? {
-          matchType: "NO_MATCH" as const,
-          confidence: 0,
-          suggestedRateCardLineId: null,
-        };
-        const { autoResolve } = resolveMatchRouting(match, ROLE_MATCH_CONFIDENCE_THRESHOLD);
-
-        return prisma.roleResolution.create({
-          data: {
-            estimateId,
-            estimateCapabilityInputId: input.id,
-            rawRoleText: role.rawRoleText,
-            extractedRole: role.extractedRole,
-            extractedLevel: role.extractedLevel,
-            extractedQuantity: role.quantity,
-            extractedUnit: role.unit,
-            matchType: match.matchType,
-            confidence: match.confidence,
-            suggestedRateCardLineId: match.suggestedRateCardLineId,
-            resolvedRateCardLineId: autoResolve ? match.suggestedRateCardLineId : null,
-            resolvedAt: autoResolve ? new Date() : null,
-          },
-        });
-      })
-    );
+    throw error;
   }
+
+  if (extractedRoles.length === 0) {
+    await prisma.estimateCapabilityInput.delete({ where: { id: input.id } });
+    return { message: "No roles could be identified in that input — try rephrasing or check the file content." };
+  }
+
+  let matchResults;
+  try {
+    matchResults = await matchRolesAgainstRateCard(extractedRoles, candidateLines);
+  } catch (error) {
+    await prisma.estimateCapabilityInput.delete({ where: { id: input.id } });
+    if (error instanceof EstimateRoleMatchingError) {
+      return { message: error.message };
+    }
+    throw error;
+  }
+  const matchByRawText = new Map(matchResults.map((m) => [m.rawRoleText, m]));
+
+  await prisma.$transaction(
+    extractedRoles.map((role) => {
+      const match = matchByRawText.get(role.rawRoleText) ?? {
+        matchType: "NO_MATCH" as const,
+        confidence: 0,
+        suggestedRateCardLineId: null,
+      };
+      const { autoResolve } = resolveMatchRouting(match, ROLE_MATCH_CONFIDENCE_THRESHOLD);
+
+      return prisma.roleResolution.create({
+        data: {
+          estimateId,
+          estimateCapabilityInputId: input.id,
+          capability: role.extractedCapability,
+          rawRoleText: role.rawRoleText,
+          extractedRole: role.extractedRole,
+          extractedLevel: role.extractedLevel,
+          extractedQuantity: role.quantity,
+          extractedUnit: role.unit,
+          matchType: match.matchType,
+          confidence: match.confidence,
+          suggestedRateCardLineId: match.suggestedRateCardLineId,
+          resolvedRateCardLineId: autoResolve ? match.suggestedRateCardLineId : null,
+          resolvedAt: autoResolve ? new Date() : null,
+        },
+      });
+    })
+  );
 
   revalidatePath(`/projects/${estimate.projectId}/estimates/${estimateId}`);
   const view = await getEstimateBuildViewData(estimateId);
+  return { view: view ?? undefined };
+}
+
+// ---------------------------------------------------------------------------
+// Update the quantity of an already-resolved role
+// ---------------------------------------------------------------------------
+
+const UpdateQuantitySchema = z.object({
+  quantity: z.coerce
+    .number({ error: "Enter a valid quantity." })
+    .positive({ error: "Quantity must be greater than zero." }),
+});
+
+/**
+ * Lets a PM correct an already-resolved role's allocated quantity (e.g. 20
+ * hours -> 40 hours) without re-running extraction/matching — role, level,
+ * and the matched rate card line are already confirmed and stay fixed; only
+ * the quantity changes. buildEstimateContentDraft recomputes every
+ * fee/total from extractedQuantity on every call, so the fresh view
+ * returned here already reflects the new numbers.
+ */
+export async function updateRoleResolutionQuantityAction(
+  roleResolutionId: string,
+  _prevState: EstimateBuildActionState | undefined,
+  formData: FormData
+): Promise<EstimateBuildActionState> {
+  const parsed = UpdateQuantitySchema.safeParse({
+    quantity: formData.get("quantity"),
+  });
+  if (!parsed.success) {
+    const errors = z.flattenError(parsed.error).fieldErrors;
+    return { message: errors.quantity?.[0] ?? "Enter a valid quantity." };
+  }
+
+  const roleResolution = await prisma.roleResolution.findUnique({
+    where: { id: roleResolutionId },
+    select: { estimateId: true, resolvedAt: true },
+  });
+  if (!roleResolution) {
+    return { message: "Role not found." };
+  }
+  if (!roleResolution.resolvedAt) {
+    return { message: "This role must be resolved before its quantity can be updated." };
+  }
+
+  await prisma.roleResolution.update({
+    where: { id: roleResolutionId },
+    data: { extractedQuantity: parsed.data.quantity },
+  });
+
+  const estimate = await prisma.estimate.findUnique({
+    where: { id: roleResolution.estimateId },
+    select: { projectId: true },
+  });
+  if (estimate) {
+    revalidatePath(`/projects/${estimate.projectId}/estimates/${roleResolution.estimateId}`);
+  }
+
+  const view = await getEstimateBuildViewData(roleResolution.estimateId);
   return { view: view ?? undefined };
 }
 
@@ -440,7 +430,7 @@ export async function resolveRoleResolutionAction(
 // Save as version
 // ---------------------------------------------------------------------------
 
-export interface SaveEstimateVersionActionState extends ActionState {
+export interface SaveEstimateVersionActionState extends EstimateBuildActionState {
   versionId?: string;
 }
 
@@ -505,5 +495,6 @@ export async function saveEstimateVersionAction(
   });
 
   revalidatePath(`/projects/${estimate.projectId}/estimates/${estimateId}`);
-  return { versionId: version.id };
+  const view = await getEstimateBuildViewData(estimateId);
+  return { versionId: version.id, view: view ?? undefined };
 }
