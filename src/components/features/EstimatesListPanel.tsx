@@ -29,7 +29,11 @@ export interface EstimateListItem {
 }
 
 /** Estimate tracks shown inline before the list defers to the "See more" modal. */
-const MAX_VISIBLE_ESTIMATES = 5;
+const MAX_VISIBLE_ESTIMATES = 3;
+
+/** Matches Button's secondary variant, sized down for an inline link. */
+const OPEN_LINK_CLASS =
+  "inline-flex shrink-0 items-center gap-1 rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
 
 function formatDate(date: Date): string {
   return new Intl.DateTimeFormat("en-GB", {
@@ -190,48 +194,47 @@ function NewEstimateForm({
   );
 }
 
+/**
+ * Kept deliberately compact — one line of identifying info plus a clearly
+ * button-styled "Open" (continue building / add a new version, in the live
+ * workspace) versus a separate, explicitly-labelled disclosure for
+ * downloading any past saved version. The two are easy to conflate
+ * ("Open" isn't "open a version," it's "open the estimate"), so the
+ * disclosure's own summary text spells that difference out rather than
+ * relying on visual position alone.
+ */
 function EstimateTrackCard({ projectId, estimate }: { projectId: string; estimate: EstimateListItem }) {
   const latest = estimate.versions[0] as EstimateVersionListItem | undefined;
 
   return (
-    <Card className="p-4">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="text-sm font-semibold text-foreground">{estimate.label}</p>
-          {latest ? (
-            <>
-              <p className="text-xs text-muted-foreground">
-                {formatDate(latest.createdAt)} · {latest.description}
-              </p>
-              <p className="text-sm font-medium text-foreground">
-                {latest.totalValue.toFixed(2)} {latest.currency}
-              </p>
-            </>
-          ) : (
-            <p className="text-xs text-muted-foreground">No version saved yet.</p>
-          )}
+    <Card className="p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-foreground">{estimate.label}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {latest
+              ? `${formatDate(latest.createdAt)} · ${latest.description} · ${latest.totalValue.toFixed(2)} ${latest.currency}`
+              : "No version saved yet"}
+          </p>
         </div>
-        <a
-          href={`/projects/${projectId}/estimates/${estimate.id}`}
-          className="shrink-0 text-xs font-medium text-primary hover:underline"
-        >
+        <a href={`/projects/${projectId}/estimates/${estimate.id}`} className={OPEN_LINK_CLASS}>
           Open →
         </a>
       </div>
 
       {estimate.versions.length > 0 && (
-        <details className="mt-3 border-t border-border pt-2">
+        <details className="mt-2">
           <summary className="cursor-pointer text-xs font-medium text-primary">
-            {estimate.versions.length === 1 ? "1 version" : `${estimate.versions.length} versions`}
+            Download a past version ({estimate.versions.length})
           </summary>
-          <ul className="mt-2 space-y-1.5">
+          <ul className="mt-1.5 space-y-1 border-t border-border pt-1.5">
             {estimate.versions.map((version) => (
               <li
                 key={version.id}
                 className="flex flex-wrap items-center justify-between gap-2 text-xs text-foreground"
               >
                 <span>
-                  Version {version.versionNumber} — {formatDate(version.createdAt)} ·{" "}
+                  v{version.versionNumber} — {formatDate(version.createdAt)} ·{" "}
                   {version.totalValue.toFixed(2)} {version.currency}
                 </span>
                 <a
@@ -274,10 +277,12 @@ export function EstimatesListPanel({
 
   return (
     <div className="space-y-3">
+      <NewEstimateForm projectId={projectId} rateCardOptions={rateCardOptions} />
+
       {estimates.length === 0 ? (
         <p className="text-sm text-muted-foreground">No estimates started yet.</p>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {visibleEstimates.map((estimate) => (
             <EstimateTrackCard key={estimate.id} projectId={projectId} estimate={estimate} />
           ))}
@@ -295,10 +300,8 @@ export function EstimatesListPanel({
         </Button>
       )}
 
-      <NewEstimateForm projectId={projectId} rateCardOptions={rateCardOptions} />
-
       <Modal isOpen={showAllOpen} title="All estimates" onClose={() => setShowAllOpen(false)}>
-        <div className="space-y-3">
+        <div className="space-y-2">
           {estimates.map((estimate) => (
             <EstimateTrackCard key={estimate.id} projectId={projectId} estimate={estimate} />
           ))}
