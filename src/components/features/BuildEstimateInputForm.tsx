@@ -46,6 +46,7 @@ export function BuildEstimateInputForm({
 
   return (
     <div className="space-y-3">
+      <h3 className="text-sm font-semibold text-foreground">Upload the team estimates</h3>
       <p className="text-sm text-muted-foreground">
         Upload or paste the estimate you&apos;ve received back from each capability team here.
       </p>
