@@ -11,6 +11,7 @@ import {
 } from "@/types/intake";
 import { DraftScopeDocumentSchema } from "@/types/triage";
 import { DeliverablesServicesDocumentSchema } from "@/types/deliverables-services";
+import { getBriefCompleteness } from "@/lib/briefCompleteness";
 
 export default async function ProjectDetailPage({
   params,
@@ -165,6 +166,8 @@ export default async function ProjectDetailPage({
     ? "COMPLETE"
     : "ACTIVE";
 
+  const briefCompleteness = await getBriefCompleteness(project.id);
+
   const confirmedCapabilities = capabilities.map((c) => c.capability);
   const latestEstimateBriefVersion = estimateBrief?.versions[0] ?? null;
   const estimateBriefVersion = latestEstimateBriefVersion
@@ -275,8 +278,7 @@ export default async function ProjectDetailPage({
         sowVersions={
           sow?.versions.map((v) => ({ id: v.id, versionNumber: v.versionNumber, createdAt: v.createdAt })) ?? []
         }
-        kickOffDate={project.kickOffDate}
-        targetCompletionDate={project.targetCompletionDate}
+        briefCompleteness={briefCompleteness}
         confirmedCapabilities={confirmedCapabilities}
         estimateBriefVersion={estimateBriefVersion}
         estimates={estimates.map((estimate) => ({

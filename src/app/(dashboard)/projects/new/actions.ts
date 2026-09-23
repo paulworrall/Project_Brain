@@ -10,6 +10,12 @@ import {
   runIntakeAgent,
 } from "@/services/agents/intake-agent";
 import type { Prisma } from "@/generated/prisma/client";
+import {
+  KeyAttributeExtractionError,
+  extractKeyAttributes,
+  type KeyAttributeExtraction,
+} from "@/services/agents/key-attribute-extraction";
+import { saveKeyAttributeSuggestions } from "@/lib/briefAttributeSuggestions";
 
 const CreateProjectSchema = z.object({
   workstreamId: z.string().min(1, { error: "Select a workstream." }),
@@ -294,6 +300,19 @@ export async function createProjectAction(
     throw error;
   }
 
+  // Proposed key attributes (suggestions only — a PM confirms them). A
+  // failure here mustn't block creating the project; the PM can run
+  // "Suggest from brief & inputs" on the project later.
+  let keyAttributes: KeyAttributeExtraction | null = null;
+  try {
+    keyAttributes = await extractKeyAttributes(briefRawText, "brief");
+  } catch (error) {
+    if (!(error instanceof KeyAttributeExtractionError)) {
+      throw error;
+    }
+    console.error("Key attribute extraction failed:", error.cause ?? error);
+  }
+
   const project = await prisma.$transaction(async (tx) => {
     const project = await tx.project.create({
       data: {
@@ -397,6 +416,10 @@ export async function createProjectAction(
 
     return project;
   });
+
+  if (keyAttributes) {
+    await saveKeyAttributeSuggestions(project.id, [{ extraction: keyAttributes, source: "BRIEF" }]);
+  }
 
   redirect(`/projects/${project.id}`);
 }

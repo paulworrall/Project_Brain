@@ -178,13 +178,33 @@ beforeEach(() => {
   mockParse.mockReset();
 });
 
+/** Key-attribute extraction output: every configured attribute null unless overridden. */
+function keyAttributes(overrides: Record<string, unknown> = {}) {
+  return {
+    budget: null,
+    objective: null,
+    timeline: null,
+    clientContact: null,
+    scope: null,
+    markets: null,
+    languages: null,
+    channels: null,
+    ...overrides,
+  };
+}
+
 describe("Stage 1-5 happy path", () => {
   it("carries a project from brief upload through the Deliverables + Services Document", async () => {
-    // Stage 1 — Intake: classify, extract, draft email (3 Claude calls).
+    // Stage 1 — Intake: classify, extract, draft email, then key attributes (4 Claude calls).
     mockParse
       .mockResolvedValueOnce({ parsed_output: briefClassification })
       .mockResolvedValueOnce({ parsed_output: positionFieldsV1 })
-      .mockResolvedValueOnce({ parsed_output: clarificationEmail });
+      .mockResolvedValueOnce({ parsed_output: clarificationEmail })
+      .mockResolvedValueOnce({
+        parsed_output: keyAttributes({
+          budget: { amount: "50,000", currency: "GBP", evidence: "budget of £50,000" },
+        }),
+      });
 
     await expect(createProjectAction(undefined, briefFormData())).rejects.toThrow(
       "NEXT_REDIRECT_MOCK"
@@ -195,8 +215,9 @@ describe("Stage 1-5 happy path", () => {
     });
 
     // Stage 3 — Get Clarifications: add a client update via the merged
-    // Additional Inputs action, extraction (1 Claude call).
+    // Additional Inputs action — Position Document update, then key attributes (2 Claude calls).
     mockParse.mockResolvedValueOnce({ parsed_output: positionFieldsV2 });
+    mockParse.mockResolvedValueOnce({ parsed_output: keyAttributes() });
     await uploadKnowledgeItemAction(
       project.id,
       undefined,
@@ -215,8 +236,13 @@ describe("Stage 1-5 happy path", () => {
       feedbackFormData("Design and Tech & Data are needed; no dedicated architecture work.")
     );
 
-    // Final state: all 6 Claude calls consumed in order, nothing left over.
-    expect(mockParse).toHaveBeenCalledTimes(6);
+    // Final state: all 8 Claude calls consumed in order, nothing left over.
+    expect(mockParse).toHaveBeenCalledTimes(8);
+
+    // The brief's budget was captured as a suggestion only — never confirmed.
+    const keyAttributeRows = await prisma.briefAttributeValue.findMany({ where: { projectId: project.id } });
+    expect(keyAttributeRows).toHaveLength(1);
+    expect(keyAttributeRows[0]).toMatchObject({ attributeId: "budget", kind: "SUGGESTION", source: "BRIEF" });
 
     const stageStatuses = await prisma.projectStageStatus.findMany({
       where: { projectId: project.id },

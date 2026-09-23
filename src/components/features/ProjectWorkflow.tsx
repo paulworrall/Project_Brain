@@ -10,7 +10,8 @@ import { StageTracker, type Phase1Status } from "./StageTracker";
 import { Phase1Workspace } from "./Phase1Workspace";
 import type { EstimateBriefVersionMeta } from "./CapabilitiesAndEstimateBriefPanel";
 import { BriefReadinessIndicator } from "./BriefReadinessIndicator";
-import { deriveFoundationDetails } from "@/lib/foundationDetails";
+import { BriefCompletenessWarning } from "./BriefGateNotice";
+import type { BriefCompleteness } from "@/lib/briefCompleteness";
 import type { ClientUpdateLogEntry } from "./Phase1Workspace";
 import type { DraftScopeDocumentMeta } from "./DraftScopeDocumentCard";
 import { ChatPanel } from "./ChatPanel";
@@ -120,8 +121,7 @@ interface ProjectWorkflowProps {
   currentSowTemplateVersion: { id: string } | null;
   sowTemplateOptions: SowTemplateSelectOption[];
   sowVersions: SowVersionMeta[];
-  kickOffDate: Date | null;
-  targetCompletionDate: Date | null;
+  briefCompleteness: BriefCompleteness;
   confirmedCapabilities: Capability[];
   estimateBriefVersion: EstimateBriefVersionMeta | null;
   estimates: EstimateListItem[];
@@ -168,8 +168,7 @@ export function ProjectWorkflow({
   currentSowTemplateVersion,
   sowTemplateOptions,
   sowVersions,
-  kickOffDate,
-  targetCompletionDate,
+  briefCompleteness,
   confirmedCapabilities,
   estimateBriefVersion,
   estimates,
@@ -193,6 +192,7 @@ export function ProjectWorkflow({
         currentTemplateVersion={currentSowTemplateVersion}
         templateOptions={sowTemplateOptions}
         sowVersions={sowVersions}
+        briefCompleteness={briefCompleteness}
       />
     ),
     9: <PlaceholderStepContent taskRef="Level 3 (post-MVP)" actionLabel="Run Agent" />,
@@ -213,8 +213,7 @@ export function ProjectWorkflow({
       draftScopeDocument={draftScopeDocument}
       draftScopeDocumentMeta={draftScopeDocumentMeta}
       checklistItems={checklistItems}
-      kickOffDate={kickOffDate}
-      targetCompletionDate={targetCompletionDate}
+      briefCompleteness={briefCompleteness}
       confirmedCapabilities={confirmedCapabilities}
       estimateBriefVersion={estimateBriefVersion}
     />
@@ -226,21 +225,20 @@ export function ProjectWorkflow({
   // supplied explicitly; Phase 2/3 have no entry here and fall back to
   // StageTracker's own auto-built per-stage strip, keeping all three uniform.
   const headerExtraByPhaseKey = {
-    clarifying: positionDocument ? (
-      <BriefReadinessIndicator
-        categories={deriveFoundationDetails(positionDocument, kickOffDate, targetCompletionDate).categories}
-      />
-    ) : null,
+    clarifying: <BriefReadinessIndicator completeness={briefCompleteness} />,
   };
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
+      <div className="min-w-0 space-y-4">
+      <BriefCompletenessWarning completeness={briefCompleteness} />
       <StageTracker
         steps={steps}
         phase1Status={derivePhase1Status(stages, draftScopeDocument)}
         phase1Content={phase1Content}
         headerExtraByPhaseKey={headerExtraByPhaseKey}
       />
+      </div>
       <div className="space-y-4 lg:sticky lg:top-6 lg:self-start">
         <ChatPanel projectId={projectId} projectName={projectName} />
         <KnowledgeUpload projectId={projectId} items={knowledgeItems} />

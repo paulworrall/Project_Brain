@@ -83,6 +83,17 @@ beforeAll(async () => {
   });
   projectId = project.id;
 
+  // Generate SOW is gated on the 4 required key details being PM-confirmed
+  // (see brief-key-attributes.test.ts for the gate itself).
+  await prisma.briefAttributeValue.createMany({
+    data: [
+      { attributeId: "budget", values: { amount: "£50k", currency: "GBP" } },
+      { attributeId: "objective", values: { objective: "Relaunch", successMeasures: "More actives" } },
+      { attributeId: "timeline", values: { startDate: "2026-10-01" } },
+      { attributeId: "clientContact", values: { name: "Caroline", email: "caroline@fizzy.example" } },
+    ].map((row) => ({ ...row, projectId, kind: "CONFIRMED" as const, source: "PM_ENTRY" as const })),
+  });
+
   const templateA = await prisma.sOWTemplate.create({
     data: { name: "Template A", scope: "CLIENT_SPECIFIC", clientId, isBaseline: false },
   });

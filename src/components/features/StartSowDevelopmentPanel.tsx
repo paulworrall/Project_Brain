@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ProcessingOverlay, type ProcessingOverlayStatus } from "@/components/ui/ProcessingOverlay";
@@ -13,7 +13,10 @@ import {
   startSowDevelopmentAction,
   generateSowAction,
   type ActionState,
+  type GenerateSowActionState,
 } from "@/app/(dashboard)/projects/[projectId]/actions";
+import type { BriefCompleteness } from "@/lib/briefCompleteness";
+import { BriefGateAlert } from "./BriefGateNotice";
 
 export interface SowTemplateVersionSelectOption {
   id: string;
@@ -71,12 +74,15 @@ export function StartSowDevelopmentPanel({
   currentTemplateVersion,
   templateOptions,
   sowVersions,
+  briefCompleteness,
 }: {
   projectId: string;
   currentTemplate: { id: string; name: string } | null;
   currentTemplateVersion: { id: string } | null;
   templateOptions: SowTemplateSelectOption[];
   sowVersions: SowVersionMeta[];
+  /** Generate SOW is refused until every required key detail is confirmed. */
+  briefCompleteness: BriefCompleteness;
 }) {
   const action = startSowDevelopmentAction.bind(null, projectId);
   const [state, formAction, pending] = useActionState<ActionState | undefined, FormData>(
@@ -105,21 +111,30 @@ export function StartSowDevelopmentPanel({
   const generateSubmitRef = useRef<HTMLButtonElement>(null);
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [overlayStatus, setOverlayStatus] = useState<ProcessingOverlayStatus>("active");
+  const [showBriefGate, setShowBriefGate] = useState(false);
+  const outstanding = briefCompleteness.requiredOutstanding;
 
   // Same reasoning as CapabilitiesAndEstimateBriefPanel's suggestAction:
   // setState here, synchronously inside the action's own async function,
   // not in a useEffect keyed off a pending->settled transition.
   async function generateAction(
-    prevState: ActionState | undefined,
+    prevState: GenerateSowActionState | undefined,
     formData: FormData
-  ): Promise<ActionState | undefined> {
+  ): Promise<GenerateSowActionState | undefined> {
     const result = await generateSowAction(projectId, prevState, formData);
+    if (result?.missingAttributes) {
+      // Refused by the server-side brief gate — explain it in the alert,
+      // not the processing overlay.
+      setOverlayOpen(false);
+      setShowBriefGate(true);
+      return result;
+    }
     setOverlayStatus(result?.message ? "error" : "success");
     return result;
   }
 
   const [generateState, generateFormAction, generatePending] = useActionState<
-    ActionState | undefined,
+    GenerateSowActionState | undefined,
     FormData
   >(generateAction, undefined);
 
@@ -136,7 +151,13 @@ export function StartSowDevelopmentPanel({
     }
   }, [overlayOpen, overlayStatus]);
 
-  function handleGenerateSubmit() {
+  function handleGenerateSubmit(event: FormEvent<HTMLFormElement>) {
+    if (!briefCompleteness.canProceed) {
+      event.preventDefault();
+      setShowBriefGate(true);
+      return;
+    }
+    setShowBriefGate(false);
     setOverlayOpen(true);
     setOverlayStatus("active");
   }
@@ -243,6 +264,21 @@ export function StartSowDevelopmentPanel({
           <p className="mt-1 text-xs text-muted-foreground">
             Select a SOW Template above before generating.
           </p>
+        )}
+        {currentTemplate && !briefCompleteness.canProceed && !showBriefGate && (
+          <p className="mt-1 text-xs text-warning">
+            {outstanding.length} required key detail{outstanding.length === 1 ? "" : "s"} still need
+            {outstanding.length === 1 ? "s" : ""} confirming before a SOW can be generated.
+          </p>
+        )}
+        {showBriefGate && outstanding.length > 0 && (
+          <div className="mt-3">
+            <BriefGateAlert
+              projectId={projectId}
+              outstanding={outstanding}
+              onDismiss={() => setShowBriefGate(false)}
+            />
+          </div>
         )}
 
         {latestSowVersion ? (

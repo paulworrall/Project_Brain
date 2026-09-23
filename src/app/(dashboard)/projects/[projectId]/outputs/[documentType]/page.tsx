@@ -101,8 +101,6 @@ export default async function DocumentVersionHistoryPage({
                   projectId={project.id}
                   type={documentType}
                   content={version.content}
-                  kickOffDate={project.kickOffDate}
-                  targetCompletionDate={project.targetCompletionDate}
                 />
               </div>
             </details>

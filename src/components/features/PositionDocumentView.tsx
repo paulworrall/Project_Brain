@@ -1,7 +1,6 @@
 import type { PositionDocumentFields } from "@/types/intake";
 import { Card } from "@/components/ui/Card";
-import { deriveFoundationDetails } from "@/lib/foundationDetails";
-import { FoundationDetailsBlock } from "./FoundationDetailsBlock";
+import { Disclosure } from "@/components/ui/Disclosure";
 
 // Lists longer than this show only the first VISIBLE_ITEM_COUNT by default,
 // with a "Show N more" <details> toggle for the rest — keeps the primary
@@ -46,19 +45,41 @@ function TruncatedList({ items }: { items: string[] }) {
 
 export interface PositionDocumentViewProps {
   fields: PositionDocumentFields;
-  kickOffDate: Date | null;
-  targetCompletionDate: Date | null;
 }
 
-export function PositionDocumentView({ fields, kickOffDate, targetCompletionDate }: PositionDocumentViewProps) {
-  const { categories, secondaryWhatWeKnow } = deriveFoundationDetails(fields, kickOffDate, targetCompletionDate);
-
+/**
+ * The general brief context — everything the Intake Agent captured, kept
+ * even when it doesn't fit a key attribute. The key attributes themselves
+ * (and brief readiness) live in KeyAttributesPanel.
+ */
+export function PositionDocumentView({ fields }: PositionDocumentViewProps) {
   return (
     <div className="space-y-4">
-      {/* The Brief Readiness strip lives in the step card's header row (always
-          visible, expanded or not) — see ProjectWorkflow/StageTracker — not
-          here, to avoid showing it twice while this body is expanded. */}
-      <FoundationDetailsBlock categories={categories} additionalDetails={secondaryWhatWeKnow} />
+      <Card className="p-5">
+        <h3 className="text-sm font-semibold text-foreground">Other details from the brief</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Everything else captured from the brief and later inputs.
+        </p>
+        {fields.whatWeKnow.length === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">Nothing captured yet.</p>
+        ) : (
+          <Disclosure
+            className="mt-2"
+            summary={`${fields.whatWeKnow.length} detail${fields.whatWeKnow.length === 1 ? "" : "s"} captured`}
+          >
+            <dl className="space-y-2">
+              {fields.whatWeKnow.map((item, i) => (
+                <div key={i}>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    {item.topic}
+                  </dt>
+                  <dd className="text-sm text-foreground">{item.detail}</dd>
+                </div>
+              ))}
+            </dl>
+          </Disclosure>
+        )}
+      </Card>
 
       <Card className="p-5">
         <h3 className="text-sm font-semibold text-foreground">What We Need to Find Out</h3>

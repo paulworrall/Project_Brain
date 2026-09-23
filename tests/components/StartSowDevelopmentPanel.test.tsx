@@ -9,11 +9,17 @@ const generateSowAction = vi.fn(async () => undefined);
 vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
   startSowDevelopmentAction,
   generateSowAction,
+  confirmBriefAttributeAction: vi.fn(),
+  suggestBriefAttributesAction: vi.fn(),
 }));
 
 const { StartSowDevelopmentPanel } = await import(
   "@/components/features/StartSowDevelopmentPanel"
 );
+const { ALL_REQUIRED_CONFIRMED, briefCompleteness, briefRecord } = await import(
+  "../fixtures/briefCompleteness"
+);
+const COMPLETE = briefCompleteness(ALL_REQUIRED_CONFIRMED);
 
 const templateOptions = [
   {
@@ -39,6 +45,7 @@ describe("StartSowDevelopmentPanel", () => {
   it("disables 'Generate SOW' until a template is selected", () => {
     render(
       <StartSowDevelopmentPanel
+        briefCompleteness={COMPLETE}
         projectId="proj_1"
         currentTemplate={null}
         currentTemplateVersion={null}
@@ -55,6 +62,7 @@ describe("StartSowDevelopmentPanel", () => {
     const user = userEvent.setup();
     render(
       <StartSowDevelopmentPanel
+        briefCompleteness={COMPLETE}
         projectId="proj_1"
         currentTemplate={{ id: "sow_baseline", name: "Standard SOW Template" }}
         currentTemplateVersion={{ id: "sow_baseline_v1" }}
@@ -73,6 +81,7 @@ describe("StartSowDevelopmentPanel", () => {
   it("shows the latest version + download link, and labels the button 'Regenerate SOW' once one exists", () => {
     render(
       <StartSowDevelopmentPanel
+        briefCompleteness={COMPLETE}
         projectId="proj_1"
         currentTemplate={{ id: "sow_baseline", name: "Standard SOW Template" }}
         currentTemplateVersion={{ id: "sow_baseline_v1" }}
@@ -92,6 +101,7 @@ describe("StartSowDevelopmentPanel", () => {
   it("lists every earlier version in the 'Download a past version' disclosure", () => {
     render(
       <StartSowDevelopmentPanel
+        briefCompleteness={COMPLETE}
         projectId="proj_1"
         currentTemplate={{ id: "sow_baseline", name: "Standard SOW Template" }}
         currentTemplateVersion={{ id: "sow_baseline_v1" }}
@@ -111,6 +121,7 @@ describe("StartSowDevelopmentPanel", () => {
   it("shows 'No SOW generated yet' when no version exists", () => {
     render(
       <StartSowDevelopmentPanel
+        briefCompleteness={COMPLETE}
         projectId="proj_1"
         currentTemplate={{ id: "sow_baseline", name: "Standard SOW Template" }}
         currentTemplateVersion={{ id: "sow_baseline_v1" }}
@@ -125,6 +136,7 @@ describe("StartSowDevelopmentPanel", () => {
   it("lists the baseline and any client-specific variant, labeling the baseline", () => {
     render(
       <StartSowDevelopmentPanel
+        briefCompleteness={COMPLETE}
         projectId="proj_1"
         currentTemplate={null}
         currentTemplateVersion={null}
@@ -142,6 +154,7 @@ describe("StartSowDevelopmentPanel", () => {
   it("shows 'Select SOW Template' when no template is selected yet", () => {
     render(
       <StartSowDevelopmentPanel
+        briefCompleteness={COMPLETE}
         projectId="proj_1"
         currentTemplate={null}
         currentTemplateVersion={null}
@@ -156,6 +169,7 @@ describe("StartSowDevelopmentPanel", () => {
   it("shows the current selection and 'Change SOW Template' once one is set", () => {
     render(
       <StartSowDevelopmentPanel
+        briefCompleteness={COMPLETE}
         projectId="proj_1"
         currentTemplate={{ id: "sow_baseline", name: "Standard SOW Template" }}
         currentTemplateVersion={{ id: "sow_baseline_v1" }}
@@ -172,6 +186,7 @@ describe("StartSowDevelopmentPanel", () => {
     const user = userEvent.setup();
     render(
       <StartSowDevelopmentPanel
+        briefCompleteness={COMPLETE}
         projectId="proj_1"
         currentTemplate={null}
         currentTemplateVersion={null}
@@ -190,6 +205,7 @@ describe("StartSowDevelopmentPanel", () => {
     const user = userEvent.setup();
     render(
       <StartSowDevelopmentPanel
+        briefCompleteness={COMPLETE}
         projectId="proj_1"
         currentTemplate={null}
         currentTemplateVersion={null}
@@ -209,6 +225,7 @@ describe("StartSowDevelopmentPanel", () => {
   it("pre-selects the Project's own recorded version, not just whichever is flagged current, when it still belongs to that template", () => {
     render(
       <StartSowDevelopmentPanel
+        briefCompleteness={COMPLETE}
         projectId="proj_1"
         currentTemplate={{ id: "sow_variant", name: "Acme-specific SOW" }}
         currentTemplateVersion={{ id: "sow_variant_v2" }}
@@ -218,5 +235,81 @@ describe("StartSowDevelopmentPanel", () => {
     );
 
     expect(screen.getByLabelText("Version")).toHaveValue("sow_variant_v2");
+  });
+
+  describe("brief gate", () => {
+    const selectedTemplate = { id: "sow_baseline", name: "Standard SOW Template" };
+
+    it("refuses on click when required key details aren't confirmed, listing exactly what's missing — without calling the action", async () => {
+      const user = userEvent.setup();
+      generateSowAction.mockClear();
+      render(
+        <StartSowDevelopmentPanel
+          briefCompleteness={briefCompleteness([
+            ALL_REQUIRED_CONFIRMED[0],
+            briefRecord("objective", { objective: "Relaunch" }),
+          ])}
+          projectId="proj_1"
+          currentTemplate={selectedTemplate}
+          currentTemplateVersion={{ id: "sow_baseline_v1" }}
+          templateOptions={templateOptions}
+          sowVersions={[]}
+        />
+      );
+
+      expect(screen.getByText(/3 required key details still need confirming/)).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Generate SOW" }));
+
+      const alert = screen.getByRole("alert");
+      expect(alert).toHaveTextContent("We can't generate the SOW yet");
+      expect(alert).toHaveTextContent("Objective (partial), Timeline and Key Milestones (missing), Client Contact (missing)");
+      expect(screen.queryByRole("heading", { name: "Budget" })).not.toBeInTheDocument();
+      expect(screen.getByText("Still needed: Success measures (OKRs/KPIs)")).toBeInTheDocument();
+      expect(screen.getAllByText("Fill in →")).toHaveLength(2);
+      expect(generateSowAction).not.toHaveBeenCalled();
+    });
+
+    it("lets the PM fill a missing detail in right from the alert", async () => {
+      const user = userEvent.setup();
+      render(
+        <StartSowDevelopmentPanel
+          briefCompleteness={briefCompleteness(ALL_REQUIRED_CONFIRMED.slice(0, 3))}
+          projectId="proj_1"
+          currentTemplate={selectedTemplate}
+          currentTemplateVersion={{ id: "sow_baseline_v1" }}
+          templateOptions={templateOptions}
+          sowVersions={[]}
+        />
+      );
+
+      await user.click(screen.getByRole("button", { name: "Generate SOW" }));
+      await user.click(screen.getByText("Fill in →"));
+
+      expect(screen.getByLabelText(/^Name/)).toBeVisible();
+      expect(screen.getByLabelText(/^Email/)).toBeVisible();
+      expect(screen.getByLabelText(/^Role/)).toBeVisible();
+      expect(screen.getByRole("button", { name: "Confirm" })).toBeVisible();
+    });
+
+    it("generates normally once every required key detail is confirmed", async () => {
+      const user = userEvent.setup();
+      generateSowAction.mockClear();
+      render(
+        <StartSowDevelopmentPanel
+          briefCompleteness={COMPLETE}
+          projectId="proj_1"
+          currentTemplate={selectedTemplate}
+          currentTemplateVersion={{ id: "sow_baseline_v1" }}
+          templateOptions={templateOptions}
+          sowVersions={[]}
+        />
+      );
+
+      expect(screen.queryByText(/still need/)).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Generate SOW" }));
+
+      expect(generateSowAction).toHaveBeenCalledTimes(1);
+      expect(screen.queryByText("We can't generate the SOW yet")).not.toBeInTheDocument();
+    });
   });
 });

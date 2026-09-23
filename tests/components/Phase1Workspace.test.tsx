@@ -9,9 +9,12 @@ vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
   suggestCapabilitiesAction: vi.fn(),
   updateConfirmedCapabilitiesAction: vi.fn(),
   generateEstimateBriefAction: vi.fn(),
+  confirmBriefAttributeAction: vi.fn(),
+  suggestBriefAttributesAction: vi.fn(),
 }));
 
 const { Phase1Workspace } = await import("@/components/features/Phase1Workspace");
+const { briefCompleteness, briefRecord } = await import("../fixtures/briefCompleteness");
 
 const positionDocument = {
   primaryContactName: "Jamie Chen",
@@ -32,18 +35,18 @@ function baseProps() {
     draftScopeDocument: null,
     draftScopeDocumentMeta: null,
     checklistItems: [],
-    kickOffDate: null,
-    targetCompletionDate: null,
+    briefCompleteness: briefCompleteness(),
     confirmedCapabilities: [],
     estimateBriefVersion: null,
   };
 }
 
 describe("Phase1Workspace", () => {
-  it("shows the Foundation Details block and What We Need to Find Out, straight from the Position Document", () => {
+  it("shows the Key details panel, the other brief details and What We Need to Find Out", () => {
     render(<Phase1Workspace {...baseProps()} />);
 
-    expect(screen.getByText("Foundation Details")).toBeInTheDocument();
+    expect(screen.getByText("Key details")).toBeInTheDocument();
+    expect(screen.getByText("Other details from the brief")).toBeInTheDocument();
     expect(screen.getByText("What We Need to Find Out")).toBeInTheDocument();
     expect(screen.getByText("Refresh the campaign.")).toBeInTheDocument();
     expect(screen.getByText("Target audience")).toBeInTheDocument();
@@ -135,21 +138,37 @@ describe("Phase1Workspace", () => {
     expect(summary).toHaveTextContent("0/0 checklist items complete");
   });
 
-  it("passes the real Project dates into Foundation Details' Timeline category", () => {
+  it("lists the 4 required key details with their status and question", () => {
     render(
       <Phase1Workspace
         {...baseProps()}
-        kickOffDate={new Date("2026-09-01T00:00:00Z")}
-        targetCompletionDate={new Date("2026-12-01T00:00:00Z")}
+        briefCompleteness={briefCompleteness([briefRecord("budget", { amount: "£50,000", currency: "GBP" })])}
       />
     );
 
-    expect(screen.getByText(/Start: 1 Sept 2026/)).toBeInTheDocument();
+    expect(screen.getByText("1 of 4 required details confirmed", { exact: false })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Budget" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Timeline and Key Milestones" })).toBeInTheDocument();
+    expect(screen.getByText("Who is the client contact who will be running the project?")).toBeInTheDocument();
+    expect(screen.getByText("£50,000")).toBeInTheDocument();
   });
 
-  it("shows Client Name in Foundation Details as the Position Document's primary contact", () => {
-    render(<Phase1Workspace {...baseProps()} />);
+  it("shows an AI-extracted value as an unconfirmed suggestion, not as a confirmed detail", () => {
+    render(
+      <Phase1Workspace
+        {...baseProps()}
+        briefCompleteness={briefCompleteness([
+          briefRecord(
+            "clientContact",
+            { name: "Jamie Chen", email: "jamie@example.com" },
+            { kind: "SUGGESTION", source: "BRIEF", evidence: "Contact: Jamie Chen" }
+          ),
+        ])}
+      />
+    );
 
-    expect(screen.getByText("Jamie Chen — jamie@example.com")).toBeInTheDocument();
+    expect(screen.getByText("AI suggestion from the brief — not confirmed")).toBeInTheDocument();
+    expect(screen.getByText("Review and confirm →")).toBeInTheDocument();
+    expect(screen.getByText("0 of 4 required details confirmed", { exact: false })).toBeInTheDocument();
   });
 });

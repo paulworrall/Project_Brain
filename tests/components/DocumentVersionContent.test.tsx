@@ -17,8 +17,6 @@ describe("DocumentVersionContent", () => {
         projectId="proj_1"
         type="CLARIFICATION_EMAIL"
         content={{ subject: "Following up on your brief", bodyText: "Hi there," }}
-        kickOffDate={null}
-        targetCompletionDate={null}
       />
     );
 
@@ -34,15 +32,14 @@ describe("DocumentVersionContent", () => {
           primaryContactName: "Jamie Chen",
           primaryContactEmail: null,
           whatWeKnow: [],
-          whatWeNeedToFindOut: [],
+          whatWeNeedToFindOut: ["Target audience"],
           clientFlaggedOpenItems: [],
         }}
-        kickOffDate={null}
-        targetCompletionDate={null}
       />
     );
 
-    expect(screen.getByText("Jamie Chen")).toBeInTheDocument();
+    expect(screen.getByText("Other details from the brief")).toBeInTheDocument();
+    expect(screen.getByText("Target audience")).toBeInTheDocument();
   });
 
   it("renders a Set-Up Checklist version read-only", () => {
@@ -51,8 +48,6 @@ describe("DocumentVersionContent", () => {
         projectId="proj_1"
         type="CHECKLIST"
         content={{ items: ["Assign job code"] }}
-        kickOffDate={null}
-        targetCompletionDate={null}
       />
     );
 
@@ -78,8 +73,6 @@ describe("DocumentVersionContent", () => {
           openQuestionsRisks: [],
           outstandingGapsCarriedForward: [],
         }}
-        kickOffDate={null}
-        targetCompletionDate={null}
       />
     );
 
@@ -93,8 +86,6 @@ describe("DocumentVersionContent", () => {
         projectId="proj_1"
         type="POSITION_DOCUMENT"
         content={{ bogus: true }}
-        kickOffDate={null}
-        targetCompletionDate={null}
       />
     );
 

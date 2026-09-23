@@ -16,8 +16,6 @@ function renderView(overrides: Partial<Parameters<typeof PositionDocumentView>[0
   return render(
     <PositionDocumentView
       fields={{ ...baseFields, ...overrides.fields }}
-      kickOffDate={overrides.kickOffDate ?? null}
-      targetCompletionDate={overrides.targetCompletionDate ?? null}
     />
   );
 }
@@ -68,157 +66,37 @@ describe("PositionDocumentView", () => {
     expect(screen.queryByText(/Show \d+ more/)).not.toBeInTheDocument();
   });
 
-  describe("Foundation Details", () => {
-    it("always shows all five categories, even with a nearly empty position document", () => {
-      renderView({
-        fields: {
-          ...baseFields,
-          primaryContactName: null,
-          primaryContactEmail: null,
-          whatWeKnow: [],
-          clientFlaggedOpenItems: [],
-          whatWeNeedToFindOut: [],
-        },
-      });
-
-      expect(screen.getByText("Foundation Details")).toBeInTheDocument();
-      expect(screen.getByText("Client Name")).toBeInTheDocument();
-      expect(screen.getByText("Problem / Objective")).toBeInTheDocument();
-      expect(screen.getByText("Timeline")).toBeInTheDocument();
-      expect(screen.getByText("Budget & commercial shape")).toBeInTheDocument();
-      expect(screen.getByText("Scope")).toBeInTheDocument();
-    });
-
-    it("shows Client Name as the client-side contact managing the project, not a separate 'Primary Contact' card", () => {
-      renderView();
-
-      // Exactly one place shows this — no duplicate "Primary Contact" card.
-      expect(screen.getByText("Jamie Chen — jamie@example.com")).toBeInTheDocument();
-      expect(screen.queryByText("Primary Contact")).not.toBeInTheDocument();
-    });
-
-    it("shows Client Name as Missing when no contact is named in the brief", () => {
-      renderView({
-        fields: {
-          ...baseFields,
-          primaryContactName: null,
-          primaryContactEmail: null,
-          clientFlaggedOpenItems: [],
-        },
-      });
-
-      const clientNameRow = screen.getByText("Client Name").closest("div")!;
-      expect(clientNameRow).toHaveTextContent("Missing");
-    });
-
-    it("shows a category as Confirmed when a whatWeKnow topic matches its keywords", () => {
-      renderView({ fields: { ...baseFields, whatWeKnow: [{ topic: "Objective", detail: "Refresh the campaign." }] } });
-
-      expect(screen.getByText("Refresh the campaign.")).toBeInTheDocument();
-    });
-
-    it("shows a category as Partial when only flagged as an open item, not confirmed in the brief", () => {
-      renderView({
-        fields: { ...baseFields, whatWeKnow: [], clientFlaggedOpenItems: ["Budget"], whatWeNeedToFindOut: [] },
-      });
-
-      expect(screen.getByText("Flagged as open: Budget")).toBeInTheDocument();
-    });
-
-    it("shows a category as Missing with a prompt-style placeholder when nothing matches", () => {
-      renderView({
-        fields: {
-          ...baseFields,
-          primaryContactName: null,
-          primaryContactEmail: null,
-          whatWeKnow: [],
-          clientFlaggedOpenItems: [],
-          whatWeNeedToFindOut: [],
-        },
-      });
-
-      expect(screen.getAllByText("Not yet provided — ask in first client discussion").length).toBeGreaterThan(0);
-    });
-
-    it("shows Timeline as Partial when only a start date is known, with no deadline", () => {
-      renderView({
-        fields: { ...baseFields, whatWeKnow: [], clientFlaggedOpenItems: [], whatWeNeedToFindOut: [] },
-        kickOffDate: new Date("2026-09-01T00:00:00Z"),
-        targetCompletionDate: null,
-      });
-
-      expect(screen.getByText(/target completion not yet set/)).toBeInTheDocument();
-    });
-
-    it("shows Timeline as Confirmed when both a start and target completion date are known", () => {
-      renderView({
-        fields: { ...baseFields, whatWeKnow: [], clientFlaggedOpenItems: [], whatWeNeedToFindOut: [] },
-        kickOffDate: new Date("2026-09-01T00:00:00Z"),
-        targetCompletionDate: new Date("2026-12-01T00:00:00Z"),
-      });
-
-      expect(screen.getByText(/Start: 1 Sept 2026/)).toBeInTheDocument();
-    });
-
-    it("does not render the Brief Readiness strip here — it lives in the step card's header row instead", () => {
-      renderView();
-
-      expect(screen.queryByText(/Brief Readiness/)).not.toBeInTheDocument();
-    });
-  });
-
-  describe("secondary details expander", () => {
-    it("does not render a separate 'What We Know' card — secondary details fold into Foundation Details", () => {
-      renderView({
-        fields: {
-          ...baseFields,
-          whatWeKnow: [
-            { topic: "Objective", detail: "Refresh the campaign." },
-            { topic: "Attendees", detail: "Jamie, Sam, Priya" },
-          ],
-        },
-      });
-
-      expect(screen.queryByText("What We Know")).not.toBeInTheDocument();
-    });
-
-    it("moves whatWeKnow items that don't map to a Foundation category into a collapsed expander", () => {
-      renderView({
-        fields: {
-          ...baseFields,
-          whatWeKnow: [
-            { topic: "Objective", detail: "Refresh the campaign." },
-            { topic: "Attendees", detail: "Jamie, Sam, Priya" },
-            { topic: "Meeting Type", detail: "Kickoff call" },
-          ],
-        },
-      });
-
-      expect(screen.getByText("2 additional details captured")).toBeInTheDocument();
-      expect(screen.queryByText("Jamie, Sam, Priya")).not.toBeVisible();
-    });
-
-    it("expands the secondary details on click and shows them", async () => {
+  describe("other details from the brief", () => {
+    it("keeps every captured detail as general brief context, collapsed by default", async () => {
       const user = userEvent.setup();
       renderView({
         fields: {
           ...baseFields,
           whatWeKnow: [
             { topic: "Objective", detail: "Refresh the campaign." },
-            { topic: "Attendees", detail: "Jamie, Sam, Priya" },
+            { topic: "Audience", detail: "18-34 year olds" },
           ],
         },
       });
 
-      await user.click(screen.getByText("1 additional detail captured"));
+      expect(screen.getByText("Other details from the brief")).toBeInTheDocument();
+      expect(screen.getByText("2 details captured")).toBeInTheDocument();
+      expect(screen.getByText("18-34 year olds")).not.toBeVisible();
 
-      expect(screen.getByText("Jamie, Sam, Priya")).toBeVisible();
+      await user.click(screen.getByText("2 details captured"));
+      expect(screen.getByText("18-34 year olds")).toBeVisible();
+      expect(screen.getByText("Refresh the campaign.")).toBeVisible();
     });
 
-    it("renders no expander at all when there are no secondary details", () => {
-      renderView({ fields: { ...baseFields, whatWeKnow: [{ topic: "Objective", detail: "Refresh the campaign." }] } });
+    it("says so when nothing has been captured yet", () => {
+      renderView({ fields: { ...baseFields, whatWeKnow: [] } });
+      expect(screen.getByText("Nothing captured yet.")).toBeInTheDocument();
+    });
 
-      expect(screen.queryByText(/additional detail.*captured$/)).not.toBeInTheDocument();
+    it("no longer derives readiness categories itself — key details live in KeyAttributesPanel", () => {
+      renderView();
+      expect(screen.queryByText("Foundation Details")).not.toBeInTheDocument();
+      expect(screen.queryByText(/Brief Readiness/)).not.toBeInTheDocument();
     });
   });
 });

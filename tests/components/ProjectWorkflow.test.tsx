@@ -16,6 +16,8 @@ vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
   suggestCapabilitiesAction: vi.fn(),
   updateConfirmedCapabilitiesAction: vi.fn(),
   generateEstimateBriefAction: vi.fn(),
+  confirmBriefAttributeAction: vi.fn(),
+  suggestBriefAttributesAction: vi.fn(),
 }));
 
 vi.mock("@/app/(dashboard)/projects/[projectId]/estimates/actions", () => ({
@@ -27,6 +29,9 @@ vi.mock("@/app/(dashboard)/projects/[projectId]/estimates/actions", () => ({
 }));
 
 const { ProjectWorkflow } = await import("@/components/features/ProjectWorkflow");
+const { ALL_REQUIRED_CONFIRMED, briefCompleteness, briefRecord } = await import(
+  "../fixtures/briefCompleteness"
+);
 
 const STAGE_NAMES = [
   "Intake",
@@ -134,8 +139,7 @@ function baseProps() {
       versions: { id: string; versionNumber: number; fileName: string; status: "ENABLED" | "DISABLED" }[];
     }[],
     sowVersions: [] as { id: string; versionNumber: number; createdAt: Date }[],
-    kickOffDate: null as Date | null,
-    targetCompletionDate: null as Date | null,
+    briefCompleteness: briefCompleteness([briefRecord("budget", { amount: "£50,000", currency: "GBP" })]),
     confirmedCapabilities: [] as Capability[],
     estimateBriefVersion: null as {
       id: string;
@@ -292,10 +296,33 @@ describe("ProjectWorkflow", () => {
     expect(screen.getByText("Legal & Regulatory")).toBeInTheDocument();
   });
 
-  it("shows the Brief Readiness strip in Phase 1's header row, derived from the live Position Document", () => {
+  it("shows the Brief Readiness strip in Phase 1's header row, counting the 4 required key details", () => {
     render(<ProjectWorkflow {...baseProps()} />);
 
-    expect(screen.getByText(/Brief Readiness — \d of 5 confirmed/)).toBeInTheDocument();
+    expect(screen.getByText("Brief Readiness — 1 of 4 confirmed")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /1 of 4 required key details confirmed/ })).toBeInTheDocument();
+  });
+
+  it("warns a project already past Phase 1 about missing key details, without locking anything", () => {
+    render(
+      <ProjectWorkflow
+        {...baseProps()}
+        briefCompleteness={briefCompleteness(ALL_REQUIRED_CONFIRMED.slice(0, 2), 6)}
+      />
+    );
+
+    const warning = screen.getByRole("status");
+    expect(warning).toHaveTextContent("Some key details for this project haven't been confirmed");
+    expect(warning).toHaveTextContent("Timeline and Key Milestones is missing");
+    expect(warning).toHaveTextContent("Client Contact is missing");
+    expect(warning).toHaveTextContent("Nothing is locked");
+    // Phase 2/3 still render — only Generate SOW itself is gated.
+    expect(screen.getByText("Estimation and team planning")).toBeInTheDocument();
+  });
+
+  it("shows no warning for a project still in Phase 1", () => {
+    render(<ProjectWorkflow {...baseProps()} />);
+    expect(screen.queryByText(/haven't been confirmed/)).not.toBeInTheDocument();
   });
 
   it("keeps the Brief Readiness strip visible in the header even after Phase 1 collapses", () => {
@@ -309,7 +336,7 @@ describe("ProjectWorkflow", () => {
 
     const clarifyingDetails = screen.getByText("Clarifying the brief and scope").closest("details");
     expect(clarifyingDetails?.open).toBe(false);
-    expect(screen.getByText(/Brief Readiness — \d of 5 confirmed/)).toBeInTheDocument();
+    expect(screen.getByText(/Brief Readiness — \d of 4 confirmed/)).toBeInTheDocument();
   });
 
   it("does not show the Brief Readiness strip once inside the expanded body — only in the header", () => {
@@ -317,6 +344,6 @@ describe("ProjectWorkflow", () => {
 
     // Only one occurrence: the header-row version. The expanded "Current
     // position" body no longer renders its own copy.
-    expect(screen.getAllByText(/Brief Readiness — \d of 5 confirmed/)).toHaveLength(1);
+    expect(screen.getAllByText(/Brief Readiness — \d of 4 confirmed/)).toHaveLength(1);
   });
 });

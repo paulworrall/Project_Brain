@@ -34,6 +34,20 @@ import { assembleSowContext } from "@/lib/sow-context";
 import type { SOWContent, SOWDocumentContent } from "@/types/sow";
 import type { Capability } from "@/generated/prisma/enums";
 import { Prisma } from "@/generated/prisma/client";
+import { BRIEF_ATTRIBUTES, getBriefAttribute, type BriefAttributeValues } from "@/lib/briefAttributes";
+import {
+  attributeValuesEqual,
+  attributeValuesFromFormData,
+  normalizeAttributeValues,
+  validateAttributeValues,
+} from "@/lib/briefAttributeValues";
+import { getBriefCompleteness, type BriefAttributeStatus } from "@/lib/briefCompleteness";
+import { saveKeyAttributeSuggestions } from "@/lib/briefAttributeSuggestions";
+import {
+  KeyAttributeExtractionError,
+  extractKeyAttributes,
+  type KeyAttributeExtraction,
+} from "@/services/agents/key-attribute-extraction";
 
 export interface ActionState {
   message?: string;
@@ -97,20 +111,77 @@ export async function updateProjectSummaryAction(
     rateCardId = validRateCard.id;
   }
 
+  const dates = {
+    kickOffDate: parsed.data.kickOffDate ? new Date(parsed.data.kickOffDate) : null,
+    targetCompletionDate: parsed.data.targetCompletionDate
+      ? new Date(parsed.data.targetCompletionDate)
+      : null,
+  };
+  const before = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { kickOffDate: true, targetCompletionDate: true },
+  });
+
   await prisma.project.update({
     where: { id: projectId },
     data: {
       jobCode: emptyToNull(parsed.data.jobCode),
-      kickOffDate: parsed.data.kickOffDate ? new Date(parsed.data.kickOffDate) : null,
-      targetCompletionDate: parsed.data.targetCompletionDate
-        ? new Date(parsed.data.targetCompletionDate)
-        : null,
+      ...dates,
       projectManagerId: emptyToNull(parsed.data.projectManagerId),
       rateCardId,
     },
   });
 
+  if (before) {
+    await recordProjectDateEdits(projectId, before, dates);
+  }
+
   revalidatePath(`/projects/${projectId}`);
+}
+
+type ProjectDateColumns = { kickOffDate: Date | null; targetCompletionDate: Date | null };
+
+function isoDate(date: Date | null): string | null {
+  return date ? date.toISOString().slice(0, 10) : null;
+}
+
+/**
+ * Editing kick-off/target dates in the project summary is a PM entry for
+ * any attribute whose sub-fields mirror those columns (projectDateFields in
+ * src/lib/briefAttributes.ts) — recorded as a new confirmed value that
+ * keeps the attribute's other confirmed sub-fields.
+ */
+async function recordProjectDateEdits(
+  projectId: string,
+  before: ProjectDateColumns,
+  after: ProjectDateColumns
+) {
+  const session = await auth();
+  const completeness = await getBriefCompleteness(projectId);
+
+  for (const attribute of BRIEF_ATTRIBUTES) {
+    const mapping = Object.entries(attribute.projectDateFields ?? {}).flatMap(([subFieldId, column]) =>
+      column ? [[subFieldId, column] as const] : []
+    );
+    if (!mapping.some(([, column]) => isoDate(before[column]) !== isoDate(after[column]))) continue;
+
+    const current = completeness.attributes.find((a) => a.id === attribute.id)?.confirmed?.values;
+    const values: BriefAttributeValues = normalizeAttributeValues(attribute, current ?? {});
+    for (const [subFieldId, column] of mapping) {
+      values[subFieldId] = isoDate(after[column]);
+    }
+
+    await prisma.briefAttributeValue.create({
+      data: {
+        projectId,
+        attributeId: attribute.id,
+        kind: "CONFIRMED",
+        source: "PM_ENTRY",
+        values: values as Prisma.InputJsonValue,
+        createdById: session?.user?.id,
+      },
+    });
+  }
 }
 
 const StartSowDevelopmentSchema = z.object({
@@ -191,11 +262,24 @@ export async function startSowDevelopmentAction(
  * changing which template is pinned is a legitimate standalone action a PM
  * may take without wanting an immediate regeneration.
  */
+export interface MissingBriefAttribute {
+  id: string;
+  label: string;
+  question: string;
+  status: BriefAttributeStatus;
+  missingSubFields: { id: string; label: string }[];
+}
+
+export interface GenerateSowActionState extends ActionState {
+  /** Set when the SOW was refused because required key attributes aren't confirmed. */
+  missingAttributes?: MissingBriefAttribute[];
+}
+
 export async function generateSowAction(
   projectId: string,
-  _prevState: ActionState | undefined,
+  _prevState: GenerateSowActionState | undefined,
   _formData: FormData
-): Promise<ActionState | undefined> {
+): Promise<GenerateSowActionState | undefined> {
   const session = await auth();
 
   const project = await prisma.project.findUnique({
@@ -215,6 +299,22 @@ export async function generateSowAction(
   });
   if (!templateVersion) {
     return { message: "Selected SOW Template version no longer exists." };
+  }
+
+  // The brief gate: every required key attribute must be PM-confirmed.
+  // Enforced here, server-side — the panel's alert is just the explanation.
+  const completeness = await getBriefCompleteness(projectId);
+  if (!completeness.canProceed) {
+    return {
+      message: "We can't generate the SOW yet — confirm these key details first.",
+      missingAttributes: completeness.requiredOutstanding.map((a) => ({
+        id: a.id,
+        label: a.label,
+        question: a.question,
+        status: a.status,
+        missingSubFields: a.missingSubFields,
+      })),
+    };
   }
 
   const { narrativeContext, coverDetails } = await assembleSowContext(projectId);
@@ -679,8 +779,13 @@ export async function uploadKnowledgeItemAction(
     }
   }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.knowledgeItem.create({
+  // Key attributes are a bonus here, not the point of the upload — if this
+  // call fails the input is still saved, and the PM can re-run "Suggest from
+  // brief & inputs" later.
+  const keyAttributes = await tryExtractKeyAttributes(content, "update");
+
+  const knowledgeItem = await prisma.$transaction(async (tx) => {
+    const item = await tx.knowledgeItem.create({
       data: {
         projectId,
         type: hasFile ? "DOCUMENT" : "NOTE",
@@ -711,7 +816,163 @@ export async function uploadKnowledgeItemAction(
         },
       });
     }
+    return item;
   });
+
+  if (keyAttributes) {
+    await saveKeyAttributeSuggestions(projectId, [
+      { extraction: keyAttributes, source: "UPDATE", knowledgeItemId: knowledgeItem.id },
+    ]);
+  }
+
+  revalidatePath(`/projects/${projectId}`);
+}
+
+async function tryExtractKeyAttributes(
+  text: string,
+  sourceKind: "brief" | "update"
+): Promise<KeyAttributeExtraction | null> {
+  try {
+    return await extractKeyAttributes(text, sourceKind);
+  } catch (error) {
+    if (error instanceof KeyAttributeExtractionError) {
+      console.error("Key attribute extraction failed:", error.cause ?? error);
+      return null;
+    }
+    throw error;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Brief key attributes
+// ---------------------------------------------------------------------------
+
+/**
+ * The only way an attribute becomes confirmed: a PM submits its values
+ * (typed in, or an AI suggestion accepted as-is or edited). Saving a
+ * partial value is allowed — the attribute just stays "partial". Source is
+ * the suggestion's own (e.g. BRIEF) when accepted unchanged, otherwise
+ * PM_ENTRY. Attributes whose sub-fields mirror project dates write those
+ * columns too, so there's one source of truth for them.
+ */
+export async function confirmBriefAttributeAction(
+  projectId: string,
+  attributeId: string,
+  _prevState: ActionState | undefined,
+  formData: FormData
+): Promise<ActionState | undefined> {
+  const attribute = getBriefAttribute(attributeId);
+  if (!attribute) {
+    return { message: "Unknown key detail." };
+  }
+
+  const values = attributeValuesFromFormData(attribute, formData);
+  const formatError = validateAttributeValues(attribute, values);
+  if (formatError) {
+    return { message: formatError };
+  }
+
+  let source: Prisma.BriefAttributeValueCreateInput["source"] = "PM_ENTRY";
+  const suggestionId = formData.get("suggestionId");
+  if (typeof suggestionId === "string" && suggestionId) {
+    const suggestion = await prisma.briefAttributeValue.findFirst({
+      where: { id: suggestionId, projectId, attributeId, kind: "SUGGESTION" },
+    });
+    if (
+      suggestion &&
+      attributeValuesEqual(normalizeAttributeValues(attribute, suggestion.values), values)
+    ) {
+      source = suggestion.source;
+    }
+  }
+
+  const session = await auth();
+  const dateColumns = Object.entries(attribute.projectDateFields ?? {}).flatMap(
+    ([subFieldId, column]) => (column ? [[subFieldId, column] as const] : [])
+  );
+
+  await prisma.$transaction(async (tx) => {
+    await tx.briefAttributeValue.create({
+      data: {
+        projectId,
+        attributeId,
+        kind: "CONFIRMED",
+        source,
+        values: values as Prisma.InputJsonValue,
+        createdById: session?.user?.id,
+      },
+    });
+    if (dateColumns.length > 0) {
+      await tx.project.update({
+        where: { id: projectId },
+        data: Object.fromEntries(
+          dateColumns.map(([subFieldId, column]) => {
+            const value = values[subFieldId];
+            return [column, typeof value === "string" ? new Date(value) : null];
+          })
+        ),
+      });
+    }
+  });
+
+  revalidatePath(`/projects/${projectId}`);
+}
+
+/**
+ * On demand: re-reads the stored brief and every Additional Input (oldest
+ * first) and proposes key-attribute values from them — e.g. for projects
+ * created before key attributes existed. Suggestions only; nothing is
+ * confirmed.
+ */
+export async function suggestBriefAttributesAction(
+  projectId: string,
+  _prevState: ActionState | undefined,
+  _formData: FormData
+): Promise<ActionState | undefined> {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: {
+      briefRawText: true,
+      knowledgeItems: { orderBy: { uploadedAt: "asc" }, select: { id: true, content: true } },
+    },
+  });
+  if (!project) {
+    return { message: "Project not found." };
+  }
+
+  const sources = [
+    ...(project.briefRawText
+      ? [{ text: project.briefRawText, kind: "brief" as const, source: "BRIEF" as const, knowledgeItemId: null }]
+      : []),
+    ...project.knowledgeItems.map((item) => ({
+      text: item.content,
+      kind: "update" as const,
+      source: "UPDATE" as const,
+      knowledgeItemId: item.id,
+    })),
+  ];
+  if (sources.length === 0) {
+    return { message: "There's no brief or input on this project to read yet." };
+  }
+
+  let extractions: KeyAttributeExtraction[];
+  try {
+    extractions = await Promise.all(sources.map((s) => extractKeyAttributes(s.text, s.kind)));
+  } catch (error) {
+    if (error instanceof KeyAttributeExtractionError) {
+      return { message: error.message };
+    }
+    throw error;
+  }
+
+  await saveKeyAttributeSuggestions(
+    projectId,
+    sources.map((s, index) => ({
+      extraction: extractions[index],
+      source: s.source,
+      knowledgeItemId: s.knowledgeItemId,
+    }))
+  );
 
   revalidatePath(`/projects/${projectId}`);
 }

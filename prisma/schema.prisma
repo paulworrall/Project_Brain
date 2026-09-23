@@ -127,6 +127,7 @@ model Project {
   estimateBrief          EstimateBrief?
   estimates              Estimate[]
   sow                    SOW?
+  briefAttributeValues   BriefAttributeValue[]
 
   @@unique([workstreamId, name])
 }
@@ -670,27 +671,27 @@ model EstimateVersion {
 // (hours * hourly-equivalent rate = feeSubtotal) is always deterministic code — see
 // src/services/pricing/estimate-pricing.ts — never LLM output.
 model EstimateLineItem {
-  id                 String     @id @default(cuid())
+  id                 String        @id @default(cuid())
   estimateVersionId  String
   capability         Capability
   role               String
   level              String?
   rateType           RateType
-  rate               Decimal    @db.Decimal(12, 2)
-  quantity           Decimal    @db.Decimal(10, 2)
+  rate               Decimal       @db.Decimal(12, 2)
+  quantity           Decimal       @db.Decimal(10, 2)
   // Always set on new lines. null only on legacy lines whose free-text
   // unit (kept in rawUnitText) couldn't be mapped.
   unit               EstimateUnit?
   rawUnitText        String?
   // quantity converted to hours at the version's hoursPerDay/daysPerWeek —
   // null only on legacy lines.
-  hours              Decimal?   @db.Decimal(12, 4)
-  feeSubtotal        Decimal    @db.Decimal(14, 2)
+  hours              Decimal?      @db.Decimal(12, 4)
+  feeSubtotal        Decimal       @db.Decimal(14, 2)
   // Audit traceability back to the human decision and rate-card row that
   // produced this fee — never used to mutate this row after creation.
   roleResolutionId   String?
   rateCardLineItemId String?
-  createdAt          DateTime   @default(now())
+  createdAt          DateTime      @default(now())
 
   estimateVersion  EstimateVersion   @relation(fields: [estimateVersionId], references: [id], onDelete: Cascade)
   rateCardLineItem RateCardLineItem? @relation(fields: [rateCardLineItemId], references: [id], onDelete: SetNull)
@@ -766,8 +767,57 @@ model KnowledgeItem {
   uploadedById     String?
   uploadedAt       DateTime          @default(now())
 
-  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  uploadedBy User?   @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  project              Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploadedBy           User?                 @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  briefAttributeValues BriefAttributeValue[]
+}
+
+// ---------------------------------------------------------------------------
+// Brief key attributes (budget, objective, timeline, client contact, plus
+// optional ones). WHICH attributes exist, and their sub-fields, is defined
+// only in src/lib/briefAttributes.ts — attributeId is deliberately a plain
+// string referencing that config, not an enum, so the config stays the one
+// definition. Status (missing/partial/confirmed) is never stored: it is
+// derived by getBriefCompleteness (src/lib/briefCompleteness.ts).
+// ---------------------------------------------------------------------------
+
+enum BriefAttributeValueKind {
+  // Proposed by the extraction agent — shown to the PM, never counts as confirmed.
+  SUGGESTION
+  // Written only by a PM action.
+  CONFIRMED
+}
+
+enum BriefAttributeSource {
+  BRIEF
+  UPDATE
+  CLARIFICATION_ANSWER
+  PM_ENTRY
+}
+
+// Append-only history: every suggestion and every PM confirmation is a new
+// row, so where each value came from, and when, is never lost. The current
+// state is the latest CONFIRMED row, plus the latest SUGGESTION if newer.
+model BriefAttributeValue {
+  id              String                  @id @default(cuid())
+  projectId       String
+  attributeId     String
+  kind            BriefAttributeValueKind
+  source          BriefAttributeSource
+  // Keyed by sub-field id from src/lib/briefAttributes.ts.
+  values          Json
+  // AI suggestions: the short passage the value was read from.
+  evidence        String?
+  // The Additional Input it was extracted from (source UPDATE).
+  knowledgeItemId String?
+  createdById     String?
+  createdAt       DateTime                @default(now())
+
+  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  knowledgeItem KnowledgeItem? @relation(fields: [knowledgeItemId], references: [id], onDelete: SetNull)
+  createdBy     User?          @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([projectId, attributeId, createdAt])
 }
 
 // ---------------------------------------------------------------------------
@@ -801,4 +851,5 @@ model User {
   roleResolutionsResolved        RoleResolution[]
   estimateVersionsCreated        EstimateVersion[]
   sowVersionsCreated             SOWVersion[]
+  briefAttributeValuesCreated    BriefAttributeValue[]
 }

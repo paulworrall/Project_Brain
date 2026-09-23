@@ -9,6 +9,8 @@ import {
   type EstimateBriefVersionMeta,
 } from "./CapabilitiesAndEstimateBriefPanel";
 import type { ChecklistItemView } from "./ChecklistView";
+import { KeyAttributesPanel } from "./KeyAttributesPanel";
+import type { BriefCompleteness } from "@/lib/briefCompleteness";
 
 function pluralize(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
@@ -42,8 +44,7 @@ export interface Phase1WorkspaceProps {
   draftScopeDocument: DraftScopeDocument | null;
   draftScopeDocumentMeta: DraftScopeDocumentMeta | null;
   checklistItems: ChecklistItemView[];
-  kickOffDate: Date | null;
-  targetCompletionDate: Date | null;
+  briefCompleteness: BriefCompleteness;
   confirmedCapabilities: Capability[];
   estimateBriefVersion: EstimateBriefVersionMeta | null;
 }
@@ -56,8 +57,7 @@ export function Phase1Workspace({
   draftScopeDocument,
   draftScopeDocumentMeta,
   checklistItems,
-  kickOffDate,
-  targetCompletionDate,
+  briefCompleteness,
   confirmedCapabilities,
   estimateBriefVersion,
 }: Phase1WorkspaceProps) {
@@ -82,16 +82,14 @@ export function Phase1Workspace({
         </span>
       </div>
 
+      <KeyAttributesPanel projectId={projectId} completeness={briefCompleteness} />
+
       <div>
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Current position
         </h3>
         {positionDocument ? (
-          <PositionDocumentView
-            fields={positionDocument}
-            kickOffDate={kickOffDate}
-            targetCompletionDate={targetCompletionDate}
-          />
+          <PositionDocumentView fields={positionDocument} />
         ) : (
           <p className="text-sm text-muted-foreground">Not generated yet.</p>
         )}
