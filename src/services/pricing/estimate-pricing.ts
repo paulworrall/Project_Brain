@@ -1,17 +1,41 @@
 import { Prisma } from "@/generated/prisma/client";
-import type { Capability } from "@/generated/prisma/enums";
+import type { Capability, EstimateUnit, RateType } from "@/generated/prisma/enums";
 import { capabilityLabel } from "@/lib/mapCapabilities";
+import { hoursPerUnit, toHours, type ConversionFactors } from "@/services/pricing/unit-conversion";
 
 /** Anything Prisma.Decimal's constructor accepts — avoids importing decimal.js directly just for its Value type. */
 type DecimalInput = number | string | Prisma.Decimal;
 
+export interface LineItemPricingInput {
+  quantity: DecimalInput;
+  unit: EstimateUnit;
+  rate: DecimalInput;
+  rateType: RateType;
+}
+
+export interface LineItemPricing {
+  hours: Prisma.Decimal;
+  fee: Prisma.Decimal;
+}
+
 /**
- * Deterministic pricing — plain code, never LLM output. quantity * rate,
- * summed to a total. Every value is normalized through Prisma.Decimal (not
- * native +/* after a float conversion) to avoid float drift on money.
+ * Deterministic pricing — plain code, never LLM output. The quantity is
+ * converted to hours first, then fee = hours x hourly-equivalent rate
+ * (a daily/weekly rate is divided by its hours; multiplying before dividing
+ * keeps e.g. 11.25 hrs x 500/7.5 exactly 750). Every value goes through
+ * Prisma.Decimal (not native floats) to avoid drift on money; the fee is
+ * rounded to 2dp.
  */
-export function computeLineItemFee(quantity: DecimalInput, rate: DecimalInput): Prisma.Decimal {
-  return new Prisma.Decimal(quantity).times(new Prisma.Decimal(rate));
+export function computeLineItemFee(
+  line: LineItemPricingInput,
+  factors: ConversionFactors
+): LineItemPricing {
+  const hours = toHours(line.quantity, line.unit, factors);
+  const fee = hours
+    .times(new Prisma.Decimal(line.rate))
+    .dividedBy(hoursPerUnit(line.rateType, factors))
+    .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+  return { hours, fee };
 }
 
 export function computeEstimateTotals(lines: { feeSubtotal: DecimalInput }[]): Prisma.Decimal {

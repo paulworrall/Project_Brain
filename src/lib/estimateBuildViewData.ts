@@ -1,13 +1,16 @@
 import { prisma } from "@/lib/prisma";
-import { buildEstimateContentDraft } from "@/lib/estimateContentDraft";
-import type { PendingRoleResolutionView, RateCardLineOption } from "@/components/features/RoleResolutionReview";
+import { buildEstimateContentDraft, roleNeedsReviewWhere } from "@/lib/estimateContentDraft";
+import type {
+  PendingRoleResolutionView,
+  RateCardLineOption,
+} from "@/components/features/RoleResolutionReview";
 import type { EstimateDocumentContent } from "@/types/estimates";
 
 export interface EstimateBuildViewData {
   pendingResolutions: PendingRoleResolutionView[];
   rateCardLines: RateCardLineOption[];
   reviewContent: EstimateDocumentContent | null;
-  latestVersion: { id: string; versionNumber: number } | null;
+  latestVersion: { id: string; versionNumber: number; needsRecalculation: boolean } | null;
 }
 
 /**
@@ -19,20 +22,19 @@ export interface EstimateBuildViewData {
  * needs to navigate to that page or trust a stale revalidatePath to reach
  * it.
  */
-export async function getEstimateBuildViewData(estimateId: string): Promise<EstimateBuildViewData | null> {
-  const estimate = await prisma.estimate.findUnique({
-    where: { id: estimateId },
-    include: {
-      roleResolutions: {
-        where: { resolvedAt: null },
-        include: { suggestedRateCardLine: true },
-        orderBy: { createdAt: "asc" },
-      },
-    },
-  });
+export async function getEstimateBuildViewData(
+  estimateId: string
+): Promise<EstimateBuildViewData | null> {
+  const estimate = await prisma.estimate.findUnique({ where: { id: estimateId } });
   if (!estimate) {
     return null;
   }
+  // Unconfirmed rate card line OR missing unit — see roleNeedsReviewWhere.
+  const pendingRoleResolutions = await prisma.roleResolution.findMany({
+    where: roleNeedsReviewWhere(estimateId),
+    include: { suggestedRateCardLine: true },
+    orderBy: { createdAt: "asc" },
+  });
 
   const rateCardLines = await prisma.rateCardLineItem.findMany({
     where: { rateCardVersionId: estimate.rateCardVersionId },
@@ -42,7 +44,7 @@ export async function getEstimateBuildViewData(estimateId: string): Promise<Esti
   const latestVersion = await prisma.estimateVersion.findFirst({
     where: { estimateId },
     orderBy: { versionNumber: "desc" },
-    select: { id: true, versionNumber: true },
+    select: { id: true, versionNumber: true, needsRecalculation: true },
   });
 
   // buildEstimateContentDraft returns { message } instead of content
@@ -52,7 +54,7 @@ export async function getEstimateBuildViewData(estimateId: string): Promise<Esti
   const reviewContent = "content" in draft ? draft.content : null;
 
   return {
-    pendingResolutions: estimate.roleResolutions.map((resolution) => ({
+    pendingResolutions: pendingRoleResolutions.map((resolution) => ({
       id: resolution.id,
       capability: resolution.capability,
       rawRoleText: resolution.rawRoleText,
@@ -60,6 +62,9 @@ export async function getEstimateBuildViewData(estimateId: string): Promise<Esti
       extractedLevel: resolution.extractedLevel,
       extractedQuantity: Number(resolution.extractedQuantity),
       extractedUnit: resolution.extractedUnit,
+      rawUnitText: resolution.rawUnitText,
+      // Already confirmed (only the unit is missing) — preselect it rather than the suggestion.
+      resolvedLineId: resolution.resolvedAt ? resolution.resolvedRateCardLineId : null,
       matchType: resolution.matchType,
       confidence: resolution.confidence,
       suggestedLine: resolution.suggestedRateCardLine

@@ -58,7 +58,7 @@ export async function assembleSowContext(projectId: string): Promise<SowContext>
       prisma.estimateVersion.findFirst({
         where: { estimate: { projectId } },
         orderBy: { createdAt: "desc" },
-        select: { totalValue: true, currency: true, description: true },
+        select: { totalValue: true, currency: true, description: true, needsRecalculation: true },
       }),
     ]);
 
@@ -91,8 +91,12 @@ export async function assembleSowContext(projectId: string): Promise<SowContext>
 
   sections.push(
     latestEstimateVersion
-      ? `## Latest saved estimate\n${latestEstimateVersion.totalValue} ${latestEstimateVersion.currency} — ${latestEstimateVersion.description}`
-      : "## Latest saved estimate\nNo estimate has been saved for this project yet."
+      ? `## Latest saved estimate\n${latestEstimateVersion.totalValue} ${latestEstimateVersion.currency} — ${latestEstimateVersion.description}${
+          latestEstimateVersion.needsRecalculation
+            ? "\nWARNING: this estimate was calculated before hours/days/weeks were converted to hours and is flagged for recalculation — do not treat its total as final; say the commercials are pending a recalculated estimate."
+            : ""
+        }`
+      :"## Latest saved estimate\nNo estimate has been saved for this project yet."
   );
 
   const narrativeContext =
@@ -112,6 +116,7 @@ export async function assembleSowContext(projectId: string): Promise<SowContext>
           totalValue: Number(latestEstimateVersion.totalValue),
           currency: latestEstimateVersion.currency,
           description: latestEstimateVersion.description,
+          needsRecalculation: latestEstimateVersion.needsRecalculation,
         }
       : null,
   };

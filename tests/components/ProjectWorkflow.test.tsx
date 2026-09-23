@@ -153,6 +153,7 @@ function baseProps() {
         totalValue: number;
         currency: string;
         description: string;
+        needsRecalculation: boolean;
       }[];
     }[],
     rateCardOptions: [] as {

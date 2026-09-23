@@ -20,7 +20,9 @@ export async function renderSowDocx({ coverDetails, body }: SOWContent): Promise
     new Paragraph({ text: `Client: ${coverDetails.clientName}` }),
     ...(coverDetails.jobCode ? [new Paragraph({ text: `Job code: ${coverDetails.jobCode}` })] : []),
     new Paragraph({ text: `Prepared: ${coverDetails.preparedDate}` }),
-    ...(coverDetails.kickOffDate ? [new Paragraph({ text: `Kick-off: ${coverDetails.kickOffDate}` })] : []),
+    ...(coverDetails.kickOffDate
+      ? [new Paragraph({ text: `Kick-off: ${coverDetails.kickOffDate}` })]
+      : []),
     ...(coverDetails.targetCompletionDate
       ? [new Paragraph({ text: `Target completion: ${coverDetails.targetCompletionDate}` })]
       : []),
@@ -28,7 +30,9 @@ export async function renderSowDocx({ coverDetails, body }: SOWContent): Promise
       ? [
           new Paragraph({
             text: `Client contact: ${coverDetails.primaryClientContactName}${
-              coverDetails.primaryClientContactEmail ? ` (${coverDetails.primaryClientContactEmail})` : ""
+              coverDetails.primaryClientContactEmail
+                ? ` (${coverDetails.primaryClientContactEmail})`
+                : ""
             }`,
           }),
         ]
@@ -51,7 +55,11 @@ export async function renderSowDocx({ coverDetails, body }: SOWContent): Promise
 
     new Paragraph({ text: "Milestones", heading: HeadingLevel.HEADING_1 }),
     ...body.milestones.map(
-      (m) => new Paragraph({ text: `${m.name}${m.dueDate ? ` — ${m.dueDate}` : ""}`, bullet: { level: 0 } })
+      (m) =>
+        new Paragraph({
+          text: `${m.name}${m.dueDate ? ` — ${m.dueDate}` : ""}`,
+          bullet: { level: 0 },
+        })
     ),
 
     new Paragraph({ text: "Roles & Responsibilities", heading: HeadingLevel.HEADING_1 }),
@@ -82,6 +90,18 @@ export async function renderSowDocx({ coverDetails, body }: SOWContent): Promise
               }),
             ],
           }),
+          ...(coverDetails.commercials.needsRecalculation
+            ? [
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: "Provisional: the source estimate is flagged for recalculation (its units were not converted to hours). Save a new estimate version and regenerate this SOW before sharing.",
+                      italics: true,
+                    }),
+                  ],
+                }),
+              ]
+            : []),
         ]
       : []),
   ];

@@ -498,6 +498,15 @@ enum RateType {
   WEEKLY
 }
 
+// The unit an estimate quantity was supplied in. Always explicit — never
+// assumed to be hours. Converted to hours for pricing via
+// src/services/pricing/unit-conversion.ts (fee = hours x hourly rate).
+enum EstimateUnit {
+  HOURS
+  DAYS
+  WEEKS
+}
+
 // Structured role/level/rate rows for a RateCardVersion, since
 // RateCardVersion itself only stores a raw file + one extractedText blob
 // (see FB-001) — parsed lazily by rate-card-line-item-agent.ts the first
@@ -590,7 +599,12 @@ model RoleResolution {
   extractedRole             String
   extractedLevel            String?
   extractedQuantity         Decimal       @db.Decimal(10, 2)
-  extractedUnit             String
+  // null = the unit was missing or ambiguous in the source text: the role
+  // is held for PM review and blocks saving until a PM picks one — never
+  // defaulted to hours.
+  extractedUnit             EstimateUnit?
+  // The unit exactly as the capability wrote it, for traceability.
+  rawUnitText               String?
   matchType                 RoleMatchType
   confidence                Float
   suggestedRateCardLineId   String?
@@ -622,6 +636,15 @@ model EstimateVersion {
   capabilitiesIncluded Capability[]
   totalValue           Decimal      @db.Decimal(14, 2)
   currency             String
+  // The conversion factors this version was priced at, so it stays
+  // reproducible if the default (or a future per-client MSA value)
+  // changes. null only on versions saved before unit conversion existed.
+  hoursPerDay          Decimal?     @db.Decimal(5, 2)
+  daysPerWeek          Decimal?     @db.Decimal(5, 2)
+  // true = priced before unit conversion existed (quantity x rate,
+  // ignoring units). Never recalculated in place — the PM saves a new
+  // version instead.
+  needsRecalculation   Boolean      @default(false)
   // Auto-generated one-line summary (e.g. "3 capabilities: CEAD, ED, MO") —
   // plain code (src/services/pricing/estimate-pricing.ts), never agent
   // output.
@@ -644,7 +667,7 @@ model EstimateVersion {
 }
 
 // Belongs to exactly one version, never mutated after creation. Pricing
-// (rate * quantity = feeSubtotal) is always deterministic code — see
+// (hours * hourly-equivalent rate = feeSubtotal) is always deterministic code — see
 // src/services/pricing/estimate-pricing.ts — never LLM output.
 model EstimateLineItem {
   id                 String     @id @default(cuid())
@@ -655,7 +678,13 @@ model EstimateLineItem {
   rateType           RateType
   rate               Decimal    @db.Decimal(12, 2)
   quantity           Decimal    @db.Decimal(10, 2)
-  unit               String
+  // Always set on new lines. null only on legacy lines whose free-text
+  // unit (kept in rawUnitText) couldn't be mapped.
+  unit               EstimateUnit?
+  rawUnitText        String?
+  // quantity converted to hours at the version's hoursPerDay/daysPerWeek —
+  // null only on legacy lines.
+  hours              Decimal?   @db.Decimal(12, 4)
   feeSubtotal        Decimal    @db.Decimal(14, 2)
   // Audit traceability back to the human decision and rate-card row that
   // produced this fee — never used to mutate this row after creation.

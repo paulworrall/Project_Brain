@@ -82,7 +82,8 @@ export interface SowCoverDetails {
   targetCompletionDate: string | null;
   primaryClientContactName: string | null;
   primaryClientContactEmail: string | null;
-  commercials: { totalValue: number; currency: string; description: string } | null;
+  // needsRecalculation: the estimate was priced before unit conversion existed — its total may be wrong.
+  commercials: { totalValue: number; currency: string; description: string; needsRecalculation?: boolean } | null;
 }
 
 /** The full shape stored in SOWVersion.content. */

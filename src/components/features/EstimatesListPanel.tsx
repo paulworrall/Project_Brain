@@ -19,6 +19,8 @@ export interface EstimateVersionListItem {
   totalValue: number;
   currency: string;
   description: string;
+  /** Priced before unit conversion existed — left as saved, flagged for the PM. */
+  needsRecalculation: boolean;
 }
 
 export interface EstimateListItem {
@@ -90,10 +92,10 @@ function NewEstimateForm({
     return result;
   }
 
-  const [state, formAction, pending] = useActionState<CreateEstimateActionState | undefined, FormData>(
-    submitAction,
-    undefined
-  );
+  const [state, formAction, pending] = useActionState<
+    CreateEstimateActionState | undefined,
+    FormData
+  >(submitAction, undefined);
 
   function closeModal() {
     setIsOpen(false);
@@ -203,7 +205,13 @@ function NewEstimateForm({
  * disclosure's own summary text spells that difference out rather than
  * relying on visual position alone.
  */
-function EstimateTrackCard({ projectId, estimate }: { projectId: string; estimate: EstimateListItem }) {
+function EstimateTrackCard({
+  projectId,
+  estimate,
+}: {
+  projectId: string;
+  estimate: EstimateListItem;
+}) {
   const latest = estimate.versions[0] as EstimateVersionListItem | undefined;
 
   return (
@@ -216,6 +224,11 @@ function EstimateTrackCard({ projectId, estimate }: { projectId: string; estimat
               ? `${formatDate(latest.createdAt)} · ${latest.description} · ${latest.totalValue.toFixed(2)} ${latest.currency}`
               : "No version saved yet"}
           </p>
+          {latest?.needsRecalculation && (
+            <p className="mt-0.5 text-xs font-medium text-warning">
+              Needs recalculation — open and save a new version
+            </p>
+          )}
         </div>
         <a href={`/projects/${projectId}/estimates/${estimate.id}`} className={OPEN_LINK_CLASS}>
           Open →
@@ -236,6 +249,9 @@ function EstimateTrackCard({ projectId, estimate }: { projectId: string; estimat
                 <span>
                   v{version.versionNumber} — {formatDate(version.createdAt)} ·{" "}
                   {version.totalValue.toFixed(2)} {version.currency}
+                  {version.needsRecalculation && (
+                    <span className="ml-1 font-medium text-warning">· needs recalculation</span>
+                  )}
                 </span>
                 <a
                   href={`/api/projects/${projectId}/estimates/${estimate.id}/versions/${version.id}`}

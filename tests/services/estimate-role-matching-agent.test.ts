@@ -25,7 +25,8 @@ const extractedRoles = [
     extractedLevel: "Senior",
     extractedCapability: "TECH_AND_DATA" as const,
     quantity: 5,
-    unit: "days",
+    unit: "days" as const,
+    rawUnitText: "days",
   },
 ];
 

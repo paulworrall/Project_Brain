@@ -23,6 +23,10 @@ import { ROLE_MATCH_CONFIDENCE_THRESHOLD } from "@/lib/estimateMatchingConfig";
 import { buildEstimateContentDraft } from "@/lib/estimateContentDraft";
 import { getEstimateBuildViewData, type EstimateBuildViewData } from "@/lib/estimateBuildViewData";
 import { renderEstimateDocumentDocx } from "@/services/documents/estimate-document-docx";
+import { parseEstimateUnit } from "@/lib/estimateUnits";
+import { EstimateUnit } from "@/generated/prisma/enums";
+
+const EstimateUnitSchema = z.enum(EstimateUnit, { error: "Choose hours, days or weeks." });
 
 export interface ActionState {
   message?: string;
@@ -79,7 +83,9 @@ export async function createEstimateAction(
   });
   if (!parsed.success) {
     const errors = z.flattenError(parsed.error).fieldErrors;
-    return { message: errors.label?.[0] ?? errors.rateCardVersionId?.[0] ?? "Invalid estimate details." };
+    return {
+      message: errors.label?.[0] ?? errors.rateCardVersionId?.[0] ?? "Invalid estimate details.",
+    };
   }
 
   const project = await prisma.project.findUnique({
@@ -255,7 +261,10 @@ export async function addEstimateRoleInputAction(
 
   if (extractedRoles.length === 0) {
     await prisma.estimateCapabilityInput.delete({ where: { id: input.id } });
-    return { message: "No roles could be identified in that input — try rephrasing or check the file content." };
+    return {
+      message:
+        "No roles could be identified in that input — try rephrasing or check the file content.",
+    };
   }
 
   let matchResults;
@@ -288,7 +297,9 @@ export async function addEstimateRoleInputAction(
           extractedRole: role.extractedRole,
           extractedLevel: role.extractedLevel,
           extractedQuantity: role.quantity,
-          extractedUnit: role.unit,
+          // null (missing/ambiguous) holds the role for PM review — never defaulted to hours.
+          extractedUnit: parseEstimateUnit(role.unit),
+          rawUnitText: role.rawUnitText ?? role.unit,
           matchType: match.matchType,
           confidence: match.confidence,
           suggestedRateCardLineId: match.suggestedRateCardLineId,
@@ -312,13 +323,15 @@ const UpdateQuantitySchema = z.object({
   quantity: z.coerce
     .number({ error: "Enter a valid quantity." })
     .positive({ error: "Quantity must be greater than zero." }),
+  // Optional: omitted keeps the role's current unit.
+  unit: EstimateUnitSchema.optional(),
 });
 
 /**
- * Lets a PM correct an already-resolved role's allocated quantity (e.g. 20
- * hours -> 40 hours) without re-running extraction/matching — role, level,
- * and the matched rate card line are already confirmed and stay fixed; only
- * the quantity changes. buildEstimateContentDraft recomputes every
+ * Lets a PM correct an already-resolved role's allocated quantity and/or
+ * unit (e.g. 20 hours -> 40 hours, or 5 days -> 1 week) without re-running
+ * extraction/matching — role, level, and the matched rate card line are
+ * already confirmed and stay fixed. buildEstimateContentDraft recomputes every
  * fee/total from extractedQuantity on every call, so the fresh view
  * returned here already reflects the new numbers.
  */
@@ -329,10 +342,11 @@ export async function updateRoleResolutionQuantityAction(
 ): Promise<EstimateBuildActionState> {
   const parsed = UpdateQuantitySchema.safeParse({
     quantity: formData.get("quantity"),
+    unit: formData.get("unit") || undefined,
   });
   if (!parsed.success) {
     const errors = z.flattenError(parsed.error).fieldErrors;
-    return { message: errors.quantity?.[0] ?? "Enter a valid quantity." };
+    return { message: errors.quantity?.[0] ?? errors.unit?.[0] ?? "Enter a valid quantity." };
   }
 
   const roleResolution = await prisma.roleResolution.findUnique({
@@ -348,7 +362,10 @@ export async function updateRoleResolutionQuantityAction(
 
   await prisma.roleResolution.update({
     where: { id: roleResolutionId },
-    data: { extractedQuantity: parsed.data.quantity },
+    data: {
+      extractedQuantity: parsed.data.quantity,
+      ...(parsed.data.unit ? { extractedUnit: parsed.data.unit } : {}),
+    },
   });
 
   const estimate = await prisma.estimate.findUnique({
@@ -369,10 +386,13 @@ export async function updateRoleResolutionQuantityAction(
 
 const ResolveRoleSchema = z.object({
   rateCardLineItemId: z.string().trim().min(1, { error: "Choose a rate card line." }),
+  // Required only when the role has no unit yet; otherwise optional (a correction).
+  unit: EstimateUnitSchema.optional(),
 });
 
 /**
- * A PM confirms or overrides one pending RoleResolution. Re-validates
+ * A PM confirms or overrides one pending RoleResolution — its rate card
+ * line, and its unit when that was missing/ambiguous (required then). Re-validates
  * server-side that the chosen line belongs to this estimate's locked rate
  * card version — defense in depth beyond the review UI's own scoped
  * dropdown.
@@ -384,9 +404,11 @@ export async function resolveRoleResolutionAction(
 ): Promise<EstimateBuildActionState> {
   const parsed = ResolveRoleSchema.safeParse({
     rateCardLineItemId: formData.get("rateCardLineItemId"),
+    unit: formData.get("unit") || undefined,
   });
   if (!parsed.success) {
-    return { message: "Choose a rate card line before confirming." };
+    const errors = z.flattenError(parsed.error).fieldErrors;
+    return { message: errors.unit?.[0] ?? "Choose a rate card line before confirming." };
   }
 
   const roleResolution = await prisma.roleResolution.findUnique({
@@ -395,6 +417,12 @@ export async function resolveRoleResolutionAction(
   });
   if (!roleResolution) {
     return { message: "Role resolution not found." };
+  }
+  const unit = parsed.data.unit ?? roleResolution.extractedUnit;
+  if (!unit) {
+    return {
+      message: "Choose the unit (hours, days or weeks) this quantity is in before confirming.",
+    };
   }
 
   const validLine = await prisma.rateCardLineItem.findFirst({
@@ -414,6 +442,7 @@ export async function resolveRoleResolutionAction(
     where: { id: roleResolutionId },
     data: {
       resolvedRateCardLineId: validLine.id,
+      extractedUnit: unit,
       resolvedById: session?.user?.id,
       resolvedAt: new Date(),
     },
@@ -455,7 +484,15 @@ export async function saveEstimateVersionAction(
   if ("message" in draft) {
     return { message: draft.message };
   }
-  const { content, lineItems, totalValue, currency, description, capabilitiesIncluded } = draft;
+  const {
+    content,
+    lineItems,
+    totalValue,
+    currency,
+    description,
+    capabilitiesIncluded,
+    conversionFactors,
+  } = draft;
 
   const session = await auth();
 
@@ -476,6 +513,9 @@ export async function saveEstimateVersionAction(
         capabilitiesIncluded,
         totalValue,
         currency,
+        // Recorded so this version stays reproducible if the factors change later.
+        hoursPerDay: conversionFactors.hoursPerDay,
+        daysPerWeek: conversionFactors.daysPerWeek,
         description,
         fileName,
         fileBytes,

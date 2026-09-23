@@ -1,21 +1,35 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
-import type { Capability } from "@/generated/prisma/enums";
+import type { Capability, EstimateUnit, RateType } from "@/generated/prisma/enums";
 import {
   buildEstimateDescription,
   computeEstimateTotals,
   computeLineItemFee,
 } from "@/services/pricing/estimate-pricing";
+import { getConversionFactors, type ConversionFactors } from "@/services/pricing/unit-conversion";
 import type { EstimateDocumentContent } from "@/types/estimates";
+
+/**
+ * A RoleResolution needs a PM before it can be priced when EITHER its rate
+ * card line is unconfirmed OR its unit is missing/ambiguous (never
+ * defaulted to hours). The one definition of "pending" — shared by the
+ * save gate below and the review list (estimateBuildViewData.ts) so they
+ * can never disagree.
+ */
+export function roleNeedsReviewWhere(estimateId: string): Prisma.RoleResolutionWhereInput {
+  return { estimateId, OR: [{ resolvedAt: null }, { extractedUnit: null }] };
+}
 
 export interface EstimateLineItemDraft {
   capability: Capability;
   role: string;
   level: string | null;
-  rateType: "HOURLY" | "DAILY" | "WEEKLY";
+  rateType: RateType;
   rate: Prisma.Decimal;
   quantity: Prisma.Decimal;
-  unit: string;
+  unit: EstimateUnit;
+  rawUnitText: string | null;
+  hours: Prisma.Decimal;
   feeSubtotal: Prisma.Decimal;
   roleResolutionId: string;
   rateCardLineItemId: string;
@@ -28,6 +42,8 @@ export interface EstimateContentDraft {
   currency: string;
   description: string;
   capabilitiesIncluded: Capability[];
+  /** The factors every fee here was priced at — stored on the saved version. */
+  conversionFactors: ConversionFactors;
 }
 
 /**
@@ -36,7 +52,9 @@ export interface EstimateContentDraft {
  * by two callers that must never drift apart: saveEstimateVersionAction
  * (persists this) and the review page (previews it before the PM commits).
  * Returns a plain { message } on any condition that should block either
- * caller — pending resolutions, no resolved roles yet, or mixed currencies.
+ * caller — pending resolutions (including a missing unit), no resolved
+ * roles yet, or mixed currencies. Every fee is priced from hours at the
+ * factors getConversionFactors() resolves for this project.
  */
 export async function buildEstimateContentDraft(
   estimateId: string
@@ -53,7 +71,7 @@ export async function buildEstimateContentDraft(
   }
 
   const pendingCount = await prisma.roleResolution.count({
-    where: { estimateId, resolvedAt: null },
+    where: roleNeedsReviewWhere(estimateId),
   });
   if (pendingCount > 0) {
     return {
@@ -71,7 +89,9 @@ export async function buildEstimateContentDraft(
     return { message: "Add at least one role to get started." };
   }
 
-  const currencies = new Set(resolvedRoles.map((r) => r.resolvedRateCardLine?.currency).filter(Boolean));
+  const currencies = new Set(
+    resolvedRoles.map((r) => r.resolvedRateCardLine?.currency).filter(Boolean)
+  );
   if (currencies.size > 1) {
     return {
       message: `This estimate's resolved roles span more than one currency (${[...currencies].join(", ")}) — this isn't supported yet.`,
@@ -79,9 +99,19 @@ export async function buildEstimateContentDraft(
   }
   const currency = [...currencies][0] ?? estimate.rateCardVersion.rateCard.currency ?? "GBP";
 
+  const conversionFactors = await getConversionFactors({
+    id: estimate.project.id,
+    clientId: estimate.project.workstream.clientId,
+  });
+
   const lineItems: EstimateLineItemDraft[] = resolvedRoles.map((role) => {
     const line = role.resolvedRateCardLine!;
-    const feeSubtotal = computeLineItemFee(role.extractedQuantity, line.rate);
+    // Non-null: the pending gate above already excluded any role without a unit.
+    const unit = role.extractedUnit!;
+    const { hours, fee: feeSubtotal } = computeLineItemFee(
+      { quantity: role.extractedQuantity, unit, rate: line.rate, rateType: line.rateType },
+      conversionFactors
+    );
     return {
       capability: role.capability,
       role: line.role,
@@ -89,7 +119,9 @@ export async function buildEstimateContentDraft(
       rateType: line.rateType,
       rate: line.rate,
       quantity: role.extractedQuantity,
-      unit: role.extractedUnit,
+      unit,
+      rawUnitText: role.rawUnitText,
+      hours,
       feeSubtotal,
       roleResolutionId: role.id,
       rateCardLineItemId: line.id,
@@ -127,15 +159,26 @@ export async function buildEstimateContentDraft(
         rate: Number(i.rate),
         quantity: Number(i.quantity),
         unit: i.unit,
+        hours: Number(i.hours),
         feeSubtotal: Number(i.feeSubtotal),
         roleResolutionId: i.roleResolutionId,
         rateCardLineItemId: i.rateCardLineItemId,
       })),
-      subtotal: items.reduce((sum, i) => sum + Number(i.feeSubtotal), 0),
+      subtotal: computeEstimateTotals(items).toNumber(),
     })),
     currency,
     totalValue: totalValue.toNumber(),
+    hoursPerDay: conversionFactors.hoursPerDay,
+    daysPerWeek: conversionFactors.daysPerWeek,
   };
 
-  return { content, lineItems, totalValue, currency, description, capabilitiesIncluded };
+  return {
+    content,
+    lineItems,
+    totalValue,
+    currency,
+    description,
+    capabilitiesIncluded,
+    conversionFactors,
+  };
 }

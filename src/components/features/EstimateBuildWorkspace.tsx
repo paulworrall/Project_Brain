@@ -42,7 +42,7 @@ export function EstimateBuildWorkspace({
   pendingResolutions: PendingRoleResolutionView[];
   rateCardLines: RateCardLineOption[];
   reviewContent: EstimateDocumentContent | null;
-  latestVersion: { id: string; versionNumber: number } | null;
+  latestVersion: EstimateBuildViewData["latestVersion"];
   embedded?: boolean;
 }) {
   const [pendingResolutions, setPendingResolutions] = useState(initialPendingResolutions);
@@ -61,7 +61,9 @@ export function EstimateBuildWorkspace({
     <div className="space-y-4">
       {latestVersion && (
         <div className="flex flex-wrap items-center gap-3 rounded-md bg-surface-muted p-3 text-xs">
-          <span className="font-medium text-foreground">Latest saved: v{latestVersion.versionNumber}</span>
+          <span className="font-medium text-foreground">
+            Latest saved: v{latestVersion.versionNumber}
+          </span>
           <a
             href={`/api/projects/${projectId}/estimates/${estimateId}/versions/${latestVersion.id}`}
             className="font-medium text-primary hover:underline"
@@ -74,10 +76,21 @@ export function EstimateBuildWorkspace({
           >
             Download Excel →
           </a>
+          {latestVersion.needsRecalculation && (
+            <p role="status" className="basis-full font-medium text-warning">
+              This version was calculated before units (hours, days, weeks) were converted to hours,
+              so its fees may be wrong. It hasn&apos;t been changed — review the roles below and
+              save a new version to recalculate.
+            </p>
+          )}
         </div>
       )}
 
-      <BuildEstimateInputForm estimateId={estimateId} embedded={embedded} onSuccess={handleViewUpdate} />
+      <BuildEstimateInputForm
+        estimateId={estimateId}
+        embedded={embedded}
+        onSuccess={handleViewUpdate}
+      />
 
       <RoleResolutionReview
         pendingResolutions={pendingResolutions}

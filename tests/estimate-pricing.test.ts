@@ -5,18 +5,40 @@ import {
   computeLineItemFee,
 } from "@/services/pricing/estimate-pricing";
 
+// Unit conversion itself (hours/days/weeks, the Fizzy example) is covered
+// in estimate-unit-conversion.test.ts.
+const FACTORS = { hoursPerDay: 7.5, daysPerWeek: 5 };
+
 describe("computeLineItemFee", () => {
-  it("multiplies quantity by rate", () => {
-    expect(computeLineItemFee(3, 425.5).toNumber()).toBe(1276.5);
+  it("multiplies quantity by rate when the unit matches the rate basis", () => {
+    expect(
+      computeLineItemFee(
+        { quantity: 3, unit: "DAYS", rate: 425.5, rateType: "DAILY" },
+        FACTORS
+      ).fee.toNumber()
+    ).toBe(1276.5);
   });
 
   it("handles decimal quantities (e.g. half a day)", () => {
-    expect(computeLineItemFee(0.5, 800).toNumber()).toBe(400);
+    expect(
+      computeLineItemFee(
+        { quantity: 0.5, unit: "DAYS", rate: 800, rateType: "DAILY" },
+        FACTORS
+      ).fee.toNumber()
+    ).toBe(400);
   });
 
   it("avoids float drift on money-sensitive values", () => {
     // 0.1 + 0.2 famously != 0.3 in native floating point.
-    expect(computeLineItemFee(3, 0.1).plus(computeLineItemFee(3, 0.2)).toNumber()).toBe(0.9);
+    const a = computeLineItemFee(
+      { quantity: 3, unit: "HOURS", rate: 0.1, rateType: "HOURLY" },
+      FACTORS
+    ).fee;
+    const b = computeLineItemFee(
+      { quantity: 3, unit: "HOURS", rate: 0.2, rateType: "HOURLY" },
+      FACTORS
+    ).fee;
+    expect(a.plus(b).toNumber()).toBe(0.9);
   });
 });
 

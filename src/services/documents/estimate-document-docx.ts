@@ -11,9 +11,12 @@ import {
 } from "docx";
 import type { EstimateDocumentContent } from "@/types/estimates";
 import { capabilityLabel } from "@/lib/mapCapabilities";
+import { conversionBasisNote, formatQuantityWithHours } from "@/lib/estimateUnits";
 
 function headerCell(text: string): TableCell {
-  return new TableCell({ children: [new Paragraph({ children: [new TextRun({ text, bold: true })] })] });
+  return new TableCell({
+    children: [new Paragraph({ children: [new TextRun({ text, bold: true })] })],
+  });
 }
 
 function cell(text: string): TableCell {
@@ -36,6 +39,7 @@ function lineItemsTable(
       children: [
         headerCell("Role"),
         headerCell("Level"),
+        headerCell("Quantity"),
         headerCell("Rate"),
         headerCell("Fee"),
         headerCell("Running Total"),
@@ -48,6 +52,7 @@ function lineItemsTable(
         children: [
           cell(line.role),
           cell(line.level ?? "—"),
+          cell(formatQuantityWithHours(line.quantity, line.unit, line.hours)),
           cell(rateLabel),
           cell(line.feeSubtotal.toFixed(2)),
           cell(running.toFixed(2)),
@@ -55,7 +60,10 @@ function lineItemsTable(
       });
     }),
   ];
-  return { table: new Table({ rows, width: { size: 100, type: WidthType.PERCENTAGE } }), runningTotal: running };
+  return {
+    table: new Table({ rows, width: { size: 100, type: WidthType.PERCENTAGE } }),
+    runningTotal: running,
+  };
 }
 
 /**
@@ -65,7 +73,9 @@ function lineItemsTable(
  * already computed deterministically by estimate-pricing.ts before this is
  * called (see saveEstimateVersionAction).
  */
-export async function renderEstimateDocumentDocx(content: EstimateDocumentContent): Promise<Buffer> {
+export async function renderEstimateDocumentDocx(
+  content: EstimateDocumentContent
+): Promise<Buffer> {
   const { overview, capabilitySections, currency, totalValue } = content;
 
   const children: (Paragraph | Table)[] = [
@@ -82,8 +92,13 @@ export async function renderEstimateDocumentDocx(content: EstimateDocumentConten
 
   let runningTotal = 0;
   for (const section of capabilitySections) {
-    children.push(new Paragraph({ text: capabilityLabel(section.capability), heading: HeadingLevel.HEADING_1 }));
-    const { table, runningTotal: updatedRunningTotal } = lineItemsTable(section.lineItems, runningTotal);
+    children.push(
+      new Paragraph({ text: capabilityLabel(section.capability), heading: HeadingLevel.HEADING_1 })
+    );
+    const { table, runningTotal: updatedRunningTotal } = lineItemsTable(
+      section.lineItems,
+      runningTotal
+    );
     runningTotal = updatedRunningTotal;
     children.push(table);
     children.push(
@@ -101,9 +116,15 @@ export async function renderEstimateDocumentDocx(content: EstimateDocumentConten
   children.push(
     new Paragraph({
       heading: HeadingLevel.HEADING_1,
-      children: [new TextRun({ text: `Total estimate value: ${totalValue.toFixed(2)} ${currency}` })],
+      children: [
+        new TextRun({ text: `Total estimate value: ${totalValue.toFixed(2)} ${currency}` }),
+      ],
     })
   );
+  const basis = conversionBasisNote(content);
+  if (basis) {
+    children.push(new Paragraph({ children: [new TextRun({ text: basis, italics: true })] }));
+  }
 
   const document = new Document({ sections: [{ children }] });
   return Packer.toBuffer(document);

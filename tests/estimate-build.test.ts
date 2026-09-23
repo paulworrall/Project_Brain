@@ -22,9 +22,17 @@ vi.mock("@anthropic-ai/sdk", () => {
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ auth: vi.fn().mockResolvedValue(null) }));
+// Real implementation by default — individual tests override the resolved
+// factors to prove a saved version keeps the hours-per-day it was priced at.
+vi.mock("@/services/pricing/unit-conversion", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/services/pricing/unit-conversion")>();
+  return { ...actual, getConversionFactors: vi.fn(actual.getConversionFactors) };
+});
 
 const { anthropic } = await import("@/lib/anthropic");
 const mockParse = anthropic.messages.parse as ReturnType<typeof vi.fn>;
+const { getConversionFactors } = await import("@/services/pricing/unit-conversion");
+const mockGetConversionFactors = getConversionFactors as ReturnType<typeof vi.fn>;
 
 const {
   createEstimateAction,
@@ -69,12 +77,52 @@ function quantityFormData(quantity: number) {
   return formData;
 }
 
+function resolveWithUnitFormData(rateCardLineItemId: string, unit: string) {
+  const formData = resolveFormData(rateCardLineItemId);
+  formData.set("unit", unit);
+  return formData;
+}
+
+/** One confidently-matched Senior Developer role, via the real add-role action. */
+async function addSeniorDeveloperRole(
+  estimateId: string,
+  seniorLineId: string,
+  role: { rawRoleText: string; quantity: number; unit: string | null; rawUnitText: string | null }
+) {
+  mockParse.mockResolvedValueOnce({
+    parsed_output: [
+      {
+        rawRoleText: role.rawRoleText,
+        extractedRole: "Developer",
+        extractedLevel: "Senior",
+        extractedCapability: "TECH_AND_DATA",
+        quantity: role.quantity,
+        unit: role.unit,
+        rawUnitText: role.rawUnitText,
+      },
+    ],
+  });
+  mockParse.mockResolvedValueOnce({
+    parsed_output: [
+      {
+        rawRoleText: role.rawRoleText,
+        matchType: "ROLE_AND_LEVEL" as const,
+        confidence: 0.97,
+        suggestedRateCardLineId: seniorLineId,
+      },
+    ],
+  });
+  return addEstimateRoleInputAction(estimateId, undefined, roleInputFormData(role.rawRoleText));
+}
+
 beforeAll(async () => {
   const hub = await prisma.hub.create({ data: { name: TEST_HUB_NAME } });
   hubId = hub.id;
   const client = await prisma.client.create({ data: { name: "EstimateBuildSpecClient", hubId } });
   clientId = client.id;
-  const otherClient = await prisma.client.create({ data: { name: "OtherClient_EstimateBuildSpec", hubId } });
+  const otherClient = await prisma.client.create({
+    data: { name: "OtherClient_EstimateBuildSpec", hubId },
+  });
   const workstream = await prisma.workstream.create({
     data: { name: "EstimateBuildSpecWorkstream", clientId },
   });
@@ -255,10 +303,16 @@ describe("addEstimateRoleInputAction", () => {
       ],
     });
     const callsBeforeSecondAdd = mockParse.mock.calls.length;
-    await addEstimateRoleInputAction(estimate.id, undefined, roleInputFormData("1 Copywriter for 1 day."));
+    await addEstimateRoleInputAction(
+      estimate.id,
+      undefined,
+      roleInputFormData("1 Copywriter for 1 day.")
+    );
     expect(mockParse.mock.calls.length - callsBeforeSecondAdd).toBe(2);
 
-    const lineCountAfterSecondAdd = await prisma.rateCardLineItem.count({ where: { rateCardVersionId } });
+    const lineCountAfterSecondAdd = await prisma.rateCardLineItem.count({
+      where: { rateCardVersionId },
+    });
     expect(lineCountAfterSecondAdd).toBe(3);
   });
 
@@ -317,7 +371,9 @@ describe("addEstimateRoleInputAction", () => {
     expect(mockParse).toHaveBeenCalledTimes(2);
     expect(added.view?.pendingResolutions).toHaveLength(1);
 
-    const resolutions = await prisma.roleResolution.findMany({ where: { estimateId: estimate.id } });
+    const resolutions = await prisma.roleResolution.findMany({
+      where: { estimateId: estimate.id },
+    });
     expect(resolutions).toHaveLength(2);
 
     const roleOnly = resolutions.find((r) => r.matchType === "ROLE_ONLY")!;
@@ -338,7 +394,9 @@ describe("addEstimateRoleInputAction", () => {
 
     // PM confirms the role-only case against the Junior line.
     await resolveRoleResolutionAction(roleOnly.id, undefined, resolveFormData(juniorLine.id));
-    const afterResolve = await prisma.roleResolution.findUniqueOrThrow({ where: { id: roleOnly.id } });
+    const afterResolve = await prisma.roleResolution.findUniqueOrThrow({
+      where: { id: roleOnly.id },
+    });
     expect(afterResolve.resolvedAt).not.toBeNull();
     expect(afterResolve.resolvedRateCardLineId).toBe(juniorLine.id);
 
@@ -383,7 +441,9 @@ describe("addEstimateRoleInputAction", () => {
     expect(v1Reloaded.lineItems.map((li) => li.id).sort()).toEqual(v1LineItemIds);
     expect(Number(v1Reloaded.totalValue)).toBe(4100);
 
-    const allVersions = await prisma.estimateVersion.findMany({ where: { estimateId: estimate.id } });
+    const allVersions = await prisma.estimateVersion.findMany({
+      where: { estimateId: estimate.id },
+    });
     expect(allVersions).toHaveLength(2);
   });
 
@@ -401,9 +461,13 @@ describe("addEstimateRoleInputAction", () => {
     );
 
     expect(result.message).toBeTruthy();
-    const inputs = await prisma.estimateCapabilityInput.findMany({ where: { estimateId: estimate.id } });
+    const inputs = await prisma.estimateCapabilityInput.findMany({
+      where: { estimateId: estimate.id },
+    });
     expect(inputs).toHaveLength(0);
-    const resolutions = await prisma.roleResolution.findMany({ where: { estimateId: estimate.id } });
+    const resolutions = await prisma.roleResolution.findMany({
+      where: { estimateId: estimate.id },
+    });
     expect(resolutions).toHaveLength(0);
   });
 
@@ -433,9 +497,13 @@ describe("addEstimateRoleInputAction", () => {
     );
 
     expect(result.message).toBeTruthy();
-    const inputs = await prisma.estimateCapabilityInput.findMany({ where: { estimateId: estimate.id } });
+    const inputs = await prisma.estimateCapabilityInput.findMany({
+      where: { estimateId: estimate.id },
+    });
     expect(inputs).toHaveLength(0);
-    const resolutions = await prisma.roleResolution.findMany({ where: { estimateId: estimate.id } });
+    const resolutions = await prisma.roleResolution.findMany({
+      where: { estimateId: estimate.id },
+    });
     expect(resolutions).toHaveLength(0);
   });
 });
@@ -476,7 +544,9 @@ describe("updateRoleResolutionQuantityAction", () => {
       roleInputFormData("1 Senior Developer for 2 days.")
     );
 
-    const resolution = await prisma.roleResolution.findFirstOrThrow({ where: { estimateId: estimate.id } });
+    const resolution = await prisma.roleResolution.findFirstOrThrow({
+      where: { estimateId: estimate.id },
+    });
     expect(Number(resolution.extractedQuantity)).toBe(2);
 
     const updateResult = await updateRoleResolutionQuantityAction(
@@ -486,7 +556,9 @@ describe("updateRoleResolutionQuantityAction", () => {
     );
     expect(updateResult.message).toBeUndefined();
 
-    const afterUpdate = await prisma.roleResolution.findUniqueOrThrow({ where: { id: resolution.id } });
+    const afterUpdate = await prisma.roleResolution.findUniqueOrThrow({
+      where: { id: resolution.id },
+    });
     expect(Number(afterUpdate.extractedQuantity)).toBe(4);
 
     // 700/day * 4 days = 2800 after the update — proves the fresh view's
@@ -497,7 +569,11 @@ describe("updateRoleResolutionQuantityAction", () => {
 
   it("rejects updating a role that is still pending (not yet resolved)", async () => {
     const estimate = await prisma.estimate.create({
-      data: { projectId, label: "Quantity Update Spec Estimate (pending reject)", rateCardVersionId },
+      data: {
+        projectId,
+        label: "Quantity Update Spec Estimate (pending reject)",
+        rateCardVersionId,
+      },
     });
 
     mockParse.mockResolvedValueOnce({
@@ -522,15 +598,148 @@ describe("updateRoleResolutionQuantityAction", () => {
         },
       ],
     });
-    await addEstimateRoleInputAction(estimate.id, undefined, roleInputFormData("1 Developer for 3 days."));
+    await addEstimateRoleInputAction(
+      estimate.id,
+      undefined,
+      roleInputFormData("1 Developer for 3 days.")
+    );
 
-    const pending = await prisma.roleResolution.findFirstOrThrow({ where: { estimateId: estimate.id } });
+    const pending = await prisma.roleResolution.findFirstOrThrow({
+      where: { estimateId: estimate.id },
+    });
     expect(pending.resolvedAt).toBeNull();
 
-    const result = await updateRoleResolutionQuantityAction(pending.id, undefined, quantityFormData(10));
+    const result = await updateRoleResolutionQuantityAction(
+      pending.id,
+      undefined,
+      quantityFormData(10)
+    );
     expect(result.message).toMatch(/must be resolved/i);
 
     const unchanged = await prisma.roleResolution.findUniqueOrThrow({ where: { id: pending.id } });
     expect(Number(unchanged.extractedQuantity)).toBe(3);
+  });
+});
+
+describe("estimate units", () => {
+  async function seniorLineId(): Promise<string> {
+    const lines = await prisma.rateCardLineItem.findMany({ where: { rateCardVersionId } });
+    return lines.find((l) => l.level === "Senior")!.id;
+  }
+
+  it("flags a role with a missing unit for PM review instead of defaulting to hours", async () => {
+    const estimate = await prisma.estimate.create({
+      data: { projectId, label: "Missing Unit Spec Estimate", rateCardVersionId },
+    });
+    const lineId = await seniorLineId();
+
+    // A confident rate-card match — the missing unit alone must still hold it for review.
+    const added = await addSeniorDeveloperRole(estimate.id, lineId, {
+      rawRoleText: "Senior Developer x 2",
+      quantity: 2,
+      unit: null,
+      rawUnitText: null,
+    });
+    expect(added.message).toBeUndefined();
+
+    const resolution = await prisma.roleResolution.findFirstOrThrow({
+      where: { estimateId: estimate.id },
+    });
+    expect(resolution.extractedUnit).toBeNull();
+    expect(added.view?.pendingResolutions).toHaveLength(1);
+    expect(added.view?.pendingResolutions[0].extractedUnit).toBeNull();
+    expect(added.view?.reviewContent).toBeNull();
+
+    const blockedSave = await saveEstimateVersionAction(estimate.id, undefined, new FormData());
+    expect(blockedSave.message).toMatch(/needs your review/i);
+
+    // Confirming the rate card line without choosing a unit is refused.
+    const noUnit = await resolveRoleResolutionAction(
+      resolution.id,
+      undefined,
+      resolveFormData(lineId)
+    );
+    expect(noUnit.message).toMatch(/unit/i);
+    const stillFlagged = await prisma.roleResolution.findUniqueOrThrow({
+      where: { id: resolution.id },
+    });
+    expect(stillFlagged.extractedUnit).toBeNull();
+
+    const resolved = await resolveRoleResolutionAction(
+      resolution.id,
+      undefined,
+      resolveWithUnitFormData(lineId, "DAYS")
+    );
+    expect(resolved.message).toBeUndefined();
+    expect(resolved.view?.pendingResolutions).toHaveLength(0);
+
+    const saved = await saveEstimateVersionAction(estimate.id, undefined, new FormData());
+    const version = await prisma.estimateVersion.findUniqueOrThrow({
+      where: { id: saved.versionId },
+      include: { lineItems: true },
+    });
+    expect(version.lineItems[0].unit).toBe("DAYS");
+    expect(Number(version.lineItems[0].hours)).toBe(15);
+    expect(Number(version.totalValue)).toBe(1400); // 2 days @ 700/day
+  });
+
+  it("stores the hours-per-day used on each saved version, and a later change doesn't alter past versions", async () => {
+    const estimate = await prisma.estimate.create({
+      data: { projectId, label: "Hours Per Day Spec Estimate", rateCardVersionId },
+    });
+    // Hours against a DAILY rate, so the hours-per-day value actually moves the fee.
+    await addSeniorDeveloperRole(estimate.id, await seniorLineId(), {
+      rawRoleText: "Senior Developer, 15 hours",
+      quantity: 15,
+      unit: "hours",
+      rawUnitText: "hours",
+    });
+
+    const first = await saveEstimateVersionAction(estimate.id, undefined, new FormData());
+    const v1 = await prisma.estimateVersion.findUniqueOrThrow({ where: { id: first.versionId } });
+    expect(Number(v1.hoursPerDay)).toBe(7.5);
+    expect(Number(v1.daysPerWeek)).toBe(5);
+    expect(v1.needsRecalculation).toBe(false);
+    expect(Number(v1.totalValue)).toBe(1400); // 15 hrs = 2 days @ 700/day
+
+    // e.g. a future per-client MSA value of 8 hrs/day.
+    mockGetConversionFactors.mockResolvedValueOnce({ hoursPerDay: 8, daysPerWeek: 5 });
+    const second = await saveEstimateVersionAction(estimate.id, undefined, new FormData());
+    const v2 = await prisma.estimateVersion.findUniqueOrThrow({ where: { id: second.versionId } });
+    expect(Number(v2.hoursPerDay)).toBe(8);
+    expect(Number(v2.totalValue)).toBe(1312.5); // 15 hrs @ 700/8 per hr
+
+    const v1Reloaded = await prisma.estimateVersion.findUniqueOrThrow({
+      where: { id: v1.id },
+      include: { lineItems: true },
+    });
+    expect(Number(v1Reloaded.hoursPerDay)).toBe(7.5);
+    expect(Number(v1Reloaded.totalValue)).toBe(1400);
+    expect(Number(v1Reloaded.lineItems[0].feeSubtotal)).toBe(1400);
+    expect((v1Reloaded.content as { hoursPerDay?: number }).hoursPerDay).toBe(7.5);
+  });
+
+  it("lets the PM correct a resolved role's unit, recomputing the fee", async () => {
+    const estimate = await prisma.estimate.create({
+      data: { projectId, label: "Unit Update Spec Estimate", rateCardVersionId },
+    });
+    await addSeniorDeveloperRole(estimate.id, await seniorLineId(), {
+      rawRoleText: "Senior Developer 1",
+      quantity: 1,
+      unit: "days",
+      rawUnitText: "days",
+    });
+    const resolution = await prisma.roleResolution.findFirstOrThrow({
+      where: { estimateId: estimate.id },
+    });
+
+    const formData = quantityFormData(1);
+    formData.set("unit", "WEEKS");
+    const result = await updateRoleResolutionQuantityAction(resolution.id, undefined, formData);
+    expect(result.message).toBeUndefined();
+    expect(result.view?.reviewContent?.totalValue).toBe(3500); // 1 week = 5 days @ 700/day
+    const line = result.view?.reviewContent?.capabilitySections[0].lineItems[0];
+    expect(line?.unit).toBe("WEEKS");
+    expect(line?.hours).toBe(37.5);
   });
 });

@@ -141,7 +141,12 @@ describe("assembleSowContext", () => {
     expect(coverDetails.targetCompletionDate).toBe("31 March 2027");
     expect(coverDetails.primaryClientContactName).toBe("Jamie Chen");
     expect(coverDetails.primaryClientContactEmail).toBe("jamie@example.com");
-    expect(coverDetails.commercials).toEqual({ totalValue: 5700, currency: "GBP", description: "1 capability: TAD" });
+    expect(coverDetails.commercials).toEqual({
+      totalValue: 5700,
+      currency: "GBP",
+      description: "1 capability: TAD",
+      needsRecalculation: false,
+    });
   });
 
   it("degrades gracefully when no documents, capabilities, or estimate exist yet", async () => {

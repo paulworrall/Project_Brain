@@ -289,6 +289,7 @@ export default async function ProjectDetailPage({
             totalValue: Number(version.totalValue),
             currency: version.currency,
             description: version.description,
+            needsRecalculation: version.needsRecalculation,
           })),
         }))}
         rateCardOptions={rateCardOptions}

@@ -13,6 +13,12 @@ import {
 import type { EstimateBuildViewData } from "@/lib/estimateBuildViewData";
 import type { EstimateDocumentContent } from "@/types/estimates";
 import type { Capability } from "@/generated/prisma/enums";
+import { ESTIMATE_UNIT_OPTIONS, formatQuantityWithHours } from "@/lib/estimateUnits";
+
+const moneyFormat = new Intl.NumberFormat("en-GB", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
 interface FlatLineItem {
   capability: Capability;
@@ -22,6 +28,7 @@ interface FlatLineItem {
   rate: number;
   quantity: number;
   unit: string;
+  hours?: number | null;
   feeSubtotal: number;
   roleResolutionId: string;
 }
@@ -39,17 +46,21 @@ function EstimateReviewLineRow({
     prevState: EstimateBuildActionState | undefined,
     formData: FormData
   ): Promise<EstimateBuildActionState> {
-    const result = await updateRoleResolutionQuantityAction(row.roleResolutionId, prevState, formData);
+    const result = await updateRoleResolutionQuantityAction(
+      row.roleResolutionId,
+      prevState,
+      formData
+    );
     if (!result.message && result.view) {
       onUpdated?.(result.view);
     }
     return result;
   }
 
-  const [state, formAction, pending] = useActionState<EstimateBuildActionState | undefined, FormData>(
-    submitAction,
-    undefined
-  );
+  const [state, formAction, pending] = useActionState<
+    EstimateBuildActionState | undefined,
+    FormData
+  >(submitAction, undefined);
 
   return (
     <tr className="border-b border-border align-top text-foreground">
@@ -67,11 +78,25 @@ function EstimateReviewLineRow({
             aria-label={`Quantity for ${row.role}`}
             className="w-16 rounded-md border border-border bg-surface px-1.5 py-0.5 text-xs text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
           />
-          <span className="text-muted-foreground">{row.unit}</span>
+          <select
+            name="unit"
+            defaultValue={row.unit}
+            aria-label={`Unit for ${row.role}`}
+            className="rounded-md border border-border bg-surface px-1 py-0.5 text-xs text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+          >
+            {ESTIMATE_UNIT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
           <Button type="submit" variant="ghost" className="px-2 py-0.5 text-xs" disabled={pending}>
             {pending ? "…" : "Update"}
           </Button>
         </form>
+        <p className="mt-0.5 text-muted-foreground">
+          {formatQuantityWithHours(row.quantity, row.unit, row.hours)}
+        </p>
         {state?.message && (
           <p className="mt-0.5 text-xs text-danger" role="alert">
             {state.message}
@@ -79,9 +104,9 @@ function EstimateReviewLineRow({
         )}
       </td>
       <td className="py-1.5 pr-2">
-        {row.rate.toFixed(2)} / {row.rateType.toLowerCase()}
+        {moneyFormat.format(row.rate)} / {row.rateType.toLowerCase()}
       </td>
-      <td className="py-1.5 pr-2">{row.feeSubtotal.toFixed(2)}</td>
+      <td className="py-1.5 pr-2 tabular-nums">{moneyFormat.format(row.feeSubtotal)}</td>
     </tr>
   );
 }
@@ -158,28 +183,38 @@ export function EstimateReviewCard({
         </dl>
       </div>
 
-      <table className="w-full text-left text-xs">
-        <thead>
-          <tr className="border-b border-border text-muted-foreground">
-            <th className="py-1.5 pr-2 font-medium">Capability</th>
-            <th className="py-1.5 pr-2 font-medium">Role</th>
-            <th className="py-1.5 pr-2 font-medium">Level</th>
-            <th className="py-1.5 pr-2 font-medium">Quantity</th>
-            <th className="py-1.5 pr-2 font-medium">Rate</th>
-            <th className="py-1.5 pr-2 font-medium">Fee</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <EstimateReviewLineRow key={row.roleResolutionId} row={row} onUpdated={onUpdated} />
-          ))}
-        </tbody>
-      </table>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] text-left text-xs">
+          <thead>
+            <tr className="border-b border-border text-muted-foreground">
+              <th className="py-1.5 pr-2 font-medium">Capability</th>
+              <th className="py-1.5 pr-2 font-medium">Role</th>
+              <th className="py-1.5 pr-2 font-medium">Level</th>
+              <th className="py-1.5 pr-2 font-medium">Quantity</th>
+              <th className="py-1.5 pr-2 font-medium">Rate</th>
+              <th className="py-1.5 pr-2 font-medium">Fee</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <EstimateReviewLineRow key={row.roleResolutionId} row={row} onUpdated={onUpdated} />
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
-        <p className="text-sm font-semibold text-foreground">
-          Total: {content.totalValue.toFixed(2)} {content.currency}
-        </p>
+        <div>
+          <p className="text-sm font-semibold text-foreground">
+            Total: {moneyFormat.format(content.totalValue)} {content.currency}
+          </p>
+          {content.hoursPerDay != null && (
+            <p className="text-xs text-muted-foreground">
+              Fees are hours × hourly rate, at {content.hoursPerDay} hrs/day and{" "}
+              {content.daysPerWeek} days/week.
+            </p>
+          )}
+        </div>
         <form action={formAction}>
           <Button type="submit" disabled={pending}>
             {pending ? "Saving…" : "Save as version"}

@@ -8,7 +8,8 @@ import {
   type EstimateBuildActionState,
 } from "@/app/(dashboard)/projects/[projectId]/estimates/actions";
 import type { EstimateBuildViewData } from "@/lib/estimateBuildViewData";
-import type { Capability } from "@/generated/prisma/enums";
+import type { Capability, EstimateUnit } from "@/generated/prisma/enums";
+import { ESTIMATE_UNIT_OPTIONS } from "@/lib/estimateUnits";
 
 export interface RateCardLineOption {
   id: string;
@@ -26,7 +27,11 @@ export interface PendingRoleResolutionView {
   extractedRole: string;
   extractedLevel: string | null;
   extractedQuantity: number;
-  extractedUnit: string;
+  /** null = missing/ambiguous in the source — the PM must pick one. */
+  extractedUnit: EstimateUnit | null;
+  rawUnitText: string | null;
+  /** Set when the rate card line is already confirmed and only the unit is missing. */
+  resolvedLineId: string | null;
   matchType: "NO_MATCH" | "ROLE_ONLY" | "ROLE_AND_LEVEL";
   confidence: number;
   suggestedLine: RateCardLineOption | null;
@@ -59,10 +64,15 @@ function RoleResolutionRow({
     return result;
   }
 
-  const [state, formAction, pending] = useActionState<EstimateBuildActionState | undefined, FormData>(
-    submitAction,
-    undefined
-  );
+  const [state, formAction, pending] = useActionState<
+    EstimateBuildActionState | undefined,
+    FormData
+  >(submitAction, undefined);
+
+  const unitMissing = resolution.extractedUnit == null;
+  const quantityLabel = unitMissing
+    ? `${resolution.extractedQuantity} ${resolution.rawUnitText ? `"${resolution.rawUnitText}"` : "(no unit given)"}`
+    : `${resolution.extractedQuantity} ${resolution.extractedUnit!.toLowerCase()}`;
 
   return (
     <li className="rounded-md border border-border bg-surface p-3">
@@ -75,9 +85,14 @@ function RoleResolutionRow({
       <p className="mt-1.5 text-sm text-foreground">
         Extracted: <span className="font-medium">{resolution.extractedRole}</span>
         {resolution.extractedLevel ? `, ${resolution.extractedLevel}` : " — no level stated"} ·{" "}
-        {resolution.extractedQuantity} {resolution.extractedUnit}
+        {quantityLabel}
       </p>
-      {resolution.suggestedLine && (
+      {unitMissing && (
+        <p className="mt-1 text-xs font-medium text-warning">
+          Unit missing or unclear — choose hours, days or weeks. It isn&apos;t assumed to be hours.
+        </p>
+      )}
+      {resolution.suggestedLine && !resolution.resolvedLineId && (
         <p className="mt-1 text-xs text-muted-foreground">
           Suggested, not applied: {lineLabel(resolution.suggestedLine)} — confidence{" "}
           {Math.round(resolution.confidence * 100)}%
@@ -95,7 +110,7 @@ function RoleResolutionRow({
           <select
             id={`line-${resolution.id}`}
             name="rateCardLineItemId"
-            defaultValue={resolution.suggestedLine?.id ?? ""}
+            defaultValue={resolution.resolvedLineId ?? resolution.suggestedLine?.id ?? ""}
             required
             className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
           >
@@ -105,6 +120,33 @@ function RoleResolutionRow({
             {rateCardLines.map((line) => (
               <option key={line.id} value={line.id}>
                 {lineLabel(line)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label
+            htmlFor={`unit-${resolution.id}`}
+            className="block text-xs font-medium text-muted-foreground"
+          >
+            Unit
+          </label>
+          <select
+            id={`unit-${resolution.id}`}
+            name="unit"
+            defaultValue={resolution.extractedUnit ?? ""}
+            required
+            aria-invalid={unitMissing || undefined}
+            className={`mt-1 rounded-md border bg-surface px-2 py-1.5 text-sm text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring ${
+              unitMissing ? "border-warning" : "border-border"
+            }`}
+          >
+            <option value="" disabled>
+              Choose…
+            </option>
+            {ESTIMATE_UNIT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
               </option>
             ))}
           </select>
@@ -150,8 +192,9 @@ export function RoleResolutionReview({
           {pendingResolutions.length === 1 ? "s" : ""} your review
         </h4>
         <p className="text-xs text-muted-foreground">
-          These weren&apos;t confidently matched to one specific rate card line — confirm or choose
-          the correct line for each before the estimate can be saved.
+          These weren&apos;t confidently matched to one specific rate card line, or their unit
+          (hours, days or weeks) wasn&apos;t clear — confirm the line and unit for each before the
+          estimate can be saved.
         </p>
       </div>
       <ul className="space-y-3">
