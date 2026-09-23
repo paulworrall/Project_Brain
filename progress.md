@@ -3,8 +3,8 @@
 ## Current Status
 - **Active Task**: None — fixed estimate unit conversion (ad-hoc bug fix, not a scheduled `tasks.md` item) — see the dated note at the end
 - **Last Completed**: Estimate unit conversion — quantities carry an explicit hours/days/weeks unit and are converted to hours before pricing; pre-existing saved estimates flagged for recalculation, not altered
-- **Blocked**: None — a live browser check of the Review screen is still pending (needs the user signed in); tests cover the rendered output
-- **Last Updated**: 2026-09-23T15:30:00Z
+- **Blocked**: None
+- **Last Updated**: 2026-09-23T16:00:00Z
 
 ## Task Status
 | Task | Status | Completed At |
@@ -402,3 +402,4 @@
 - **Client/server split**: the formatting/parsing helpers live in Prisma-free `src/lib/estimateUnits.ts` so client components (`EstimateReviewCard`, `RoleResolutionReview`) don't pull in the Prisma runtime; `unit-conversion.ts` re-exports them.
 - **Tests written first**: `tests/estimate-unit-conversion.test.ts` (hours/days/weeks conversion, 1.5 days @ 220/hr = 2,475.00, the real 6-line estimate = 49,275.00, missing/unknown unit → null, formatting); new real-DB cases in `tests/estimate-build.test.ts` (a missing unit is held for review and blocks save until a PM picks one; a saved version keeps its hours-per-day after the resolved value changes to 8; correcting a unit reprices); `tests/components/EstimateReviewCard.test.tsx` (renders "1.5 days (11.25 hrs)", "2,475.00", "Total: 49,275.00 USD"); plus updated pricing, extraction-agent, xlsx, sow-context and fixture tests.
 - Full suite 420 tests across 65 files, all passing. Typecheck, lint and production build clean. **Not yet verified in the live browser** (sign-in needed). Not yet committed — pending user review.
+- **Follow-up (same day)**: committed as `766347b` and pushed to `main`; Vercel deployed it (production uses the same Neon DB, so the migration was already in place). The user verified it on live and confirmed it works as planned. Note for future migrations: between applying this migration and the deploy, production's old code ran against the new schema — adding a role or saving an estimate would have failed in that window. Apply schema changes as close to the deploy as possible, since dev and production share one database.

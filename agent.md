@@ -62,7 +62,8 @@ Unchanged recently — see `progress.md`. Auth (`src/lib/{auth,permissions}.ts`,
 
 ## Toolchain Notes (this machine)
 - **DB-touching Prisma CLI commands require WSL.** For migrations, hand-write the SQL (needed anyway to preserve data, e.g. rename-then-map instead of drop/add) and apply with `prisma migrate deploy`, which never prompts for a reset. After any WSL-side `npm install`, run `npm install` again from native Windows.
-- **Shared dev DB with real user-created data** — inspect the affected rows (read-only) before writing a migration that touches an existing table.
+- **Dev and production share one Neon DB** — a migration goes live the moment it's applied, while production still runs the old code until the next deploy. Keep schema changes backward-compatible or apply them right before deploying.
+- **Shared DB with real user-created data** — inspect the affected rows (read-only) before writing a migration that touches an existing table.
 - **`zodOutputFormat` does not enforce `z.enum`** — it becomes a plain string with the values in the description. Don't rely on an enum to constrain agent output; accept a string and normalize/validate in code (see `parseEstimateUnit`).
 - **Keep Prisma runtime imports out of client components** — put shared pure helpers in a Prisma-free module (e.g. `src/lib/estimateUnits.ts`).
 - **Prisma `Decimal` isn't JSON-serializable across the Server→Client boundary** — convert to `Number` server-side.
@@ -73,4 +74,4 @@ Unchanged recently — see `progress.md`. Auth (`src/lib/{auth,permissions}.ts`,
 - No Python on this machine; for scripted edits use Node, and avoid apostrophes inside single-quoted `node -e` bodies.
 
 ## Current State Summary
-All MVP scope plus Build The Estimate and Generate SOW are built and committed. **This session**: fixed estimate unit conversion (days/weeks were priced as hours) — explicit units, hours-based pricing via one resolver, hours-per-day stored per version, missing units flagged for PM review, and legacy versions flagged rather than altered (migration applied to the Neon DB). Tests (420), typecheck, lint and production build are clean; still to do: a live browser check of the Review screen (needs sign-in) and a commit, pending user review.
+All MVP scope plus Build The Estimate and Generate SOW are built and committed. **This session**: fixed estimate unit conversion (days/weeks were priced as hours) — explicit units, hours-based pricing via one resolver, hours-per-day stored per version, missing units flagged for PM review, and legacy versions flagged rather than altered (migration applied to the Neon DB). Tests (420), typecheck, lint and production build are clean; committed (`766347b`), deployed to Vercel, and verified on live by the user. Next: no scheduled work outstanding — per-client hours-per-day from the MSA is the designed-for follow-on.
