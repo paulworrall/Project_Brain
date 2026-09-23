@@ -1,36 +1,37 @@
 # Project Brain — Codebase Summary
 
 ## Architecture Overview
-Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (Postgres/Neon, driver-adapter-based), and NextAuth v5 (beta) for email/password auth. All Level 1 MVP scope (Stages 1-5, Knowledge Upload, Chatbot, polish/QA/deploy) is complete, plus post-MVP additions: a Phase-grouped Stage Tracker (`src/lib/phases.ts`), Client/Workstream taxonomy navigation + global search, Phase 1 as a fluid workspace, commercial documents in one shared "document has many Versions, exactly one current" pattern (MSA, Rate Cards, SOW Template Library), the "Capabilities & Estimate Brief" panel, "Build The Estimate" (Stage 6), and "Generate SOW" (Stage 8).
+Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (Postgres/Neon, driver-adapter-based), and NextAuth v5 (beta) for email/password auth. All Level 1 MVP scope (Stages 1-5, Knowledge Upload, Chatbot, polish/QA/deploy) is complete, plus post-MVP additions: a Phase-grouped Stage Tracker (`src/lib/phases.ts`), Client/Workstream taxonomy navigation + global search, Phase 1 as a fluid workspace, commercial documents in one shared "document has many Versions, exactly one current" pattern (MSA, Rate Cards, SOW Template Library), the "Capabilities & Estimate Brief" panel, "Build The Estimate" (Stage 6), "Generate SOW" (Stage 8), and brief key attributes.
 
-**Build The Estimate, current shape**: "+ New estimate" (a modal running the whole flow) or the estimate's own page. Adding a role is one step: paste or upload, and extraction + rate-card matching run automatically, with each role's capability AI-classified. Anything needing a human — an unconfirmed rate-card line **or a missing/ambiguous unit** — sits in `RoleResolutionReview` and blocks saving. The Review grid is one flat table with inline quantity + unit editing, showing e.g. "1.5 days (11.25 hrs)". Saving appends an immutable version; Word + Excel downloads.
+**Brief key attributes (this session)**: `src/lib/briefAttributes.ts` is the one definition of what a complete brief contains — 4 required attributes (Budget, Objective, Timeline and Key Milestones, Client Contact) and optional ones (scope, markets, languages, channels), each with a question and sub-fields. `getBriefCompleteness(projectId)` is the only place status (missing/partial/confirmed) and the `canProceed` flag are decided. AI extraction only ever writes **suggestions**; only a PM confirms. **Generate SOW is refused until all 4 required attributes are confirmed**, with an alert listing exactly what's missing (inline fill-in forms). Projects already past Phase 1 get a warning, not a lock-out. Later features (the "What We Need to Find Out" checklist, the client email's open questions, the SOW PM review) are meant to read `getBriefCompleteness()` — not built yet.
 
-**Estimate pricing (this session)**: every quantity has an explicit `EstimateUnit` (HOURS/DAYS/WEEKS) and is converted to hours before pricing: fee = hours × hourly-equivalent rate (daily/weekly rate cards handled the same way). Conversion factors come only from `getConversionFactors(project)` (global default 7.5 hrs/day, 5 days/week; built to take a per-client MSA value later, not built yet) and are stored on each saved version. Versions saved before this fix are flagged `needsRecalculation`, never altered.
+**Build The Estimate**: "+ New estimate" (a modal running the whole flow) or the estimate's own page. Adding a role is one step; extraction + rate-card matching run automatically. An unconfirmed rate-card line or a missing/ambiguous unit sits in `RoleResolutionReview` and blocks saving. Every quantity has an explicit `EstimateUnit` and is priced as hours × hourly-equivalent rate, with factors only from `getConversionFactors(project)` (7.5 hrs/day, 5 days/week, stored per version). Versions saved before that fix are flagged `needsRecalculation`, never altered.
 
-**Generate SOW**: pick a SOW Template, click "Generate SOW"; the app assembles everything captured about the project (documents, capabilities, the latest saved estimate, project fields) into an AI-drafted `.docx` guided by the template's structure/tone. Regenerating appends a version. A flagged estimate is passed through with a "not final" warning and the SOW marks its commercials provisional.
+**Generate SOW**: pick a SOW Template, click "Generate SOW" (gated as above); the app assembles everything captured about the project into an AI-drafted `.docx` guided by the template. Regenerating appends a version.
 
 ## File Inventory
 
-### Source Files — Estimate unit conversion (this session)
+### Source Files — Brief key attributes (this session)
 | File | Purpose | Last Modified Task |
 |------|---------|-------------------|
-| `prisma/schema.prisma` + migration `20260923120000_add_estimate_units` | `EstimateUnit` enum; `RoleResolution.extractedUnit` (nullable = needs review) + `rawUnitText`; `EstimateLineItem.unit`/`rawUnitText`/`hours`; `EstimateVersion.hoursPerDay`/`daysPerWeek`/`needsRecalculation`. Hand-written SQL keeps old free text verbatim and flags all pre-existing versions | Unit conversion |
-| `src/lib/estimateUnitsConfig.ts` | `HOURS_PER_DAY`, `DAYS_PER_WEEK` global defaults — never read directly by calculations | Unit conversion |
-| `src/services/pricing/unit-conversion.ts` | `getConversionFactors(project)` (the single resolver), `hoursPerUnit`, `toHours` | Unit conversion |
-| `src/lib/estimateUnits.ts` | Prisma-free, client-safe: `parseEstimateUnit` (unknown → null, never hours), `formatQuantityWithHours`, `ESTIMATE_UNIT_OPTIONS`, `conversionBasisNote` | Unit conversion |
-| `src/services/pricing/estimate-pricing.ts` | `computeLineItemFee({quantity, unit, rate, rateType}, factors)` → `{hours, fee}`; `Prisma.Decimal` throughout, fee rounded to 2dp | Unit conversion |
-| `src/lib/estimateContentDraft.ts` | Prices the next version; `roleNeedsReviewWhere()` is the one shared definition of "pending" | Unit conversion |
-| `src/types/estimates.ts`, `estimate-role-extraction-agent.ts` | Extraction returns `unit` (nullable string, mapped by `parseEstimateUnit`) + `rawUnitText`; the prompt forbids assuming hours | Unit conversion |
-| `estimates/actions.ts`, `RoleResolutionReview.tsx`, `EstimateReviewCard.tsx`, `EstimateBuildWorkspace.tsx`, `EstimatesListPanel.tsx`, `estimate-document-{docx,xlsx}.ts`, `sow-context.ts`, `sow-docx.ts` | Unit picker/selector, "x days (y hrs)" display, recalculation warnings, Quantity column in exports, SOW "not final" handling | Unit conversion |
+| `src/lib/briefAttributes.ts` | The config: attributes, questions, sub-fields (type, required, hint), `projectDateFields` (timeline start/end ↔ project kick-off/target dates). The only place attribute ids live | Key attributes |
+| `src/lib/briefCompleteness.ts` | `getBriefCompleteness(projectId)` + pure `evaluateBriefCompleteness` — status from PM-confirmed values only, pending suggestion, missing sub-fields, `requiredOutstanding`, `canProceed`, `isPastPhase1`, `warnings` | Key attributes |
+| `src/lib/briefAttributeValues.ts` | Prisma-free: normalize/validate/compare/merge values and read them from FormData, all driven by the config | Key attributes |
+| `src/lib/briefAttributeSuggestions.ts` | `saveKeyAttributeSuggestions` — stores SUGGESTION rows, merging each source over what's known, skipping no-ops | Key attributes |
+| `src/services/agents/key-attribute-extraction.ts` | One Claude call; output schema built from the config; never guesses | Key attributes |
+| `prisma/schema.prisma` + migration `20260923170000_add_brief_attribute_values` | Append-only `BriefAttributeValue` (attributeId string, kind SUGGESTION/CONFIRMED, source, values JSON, evidence, knowledgeItemId, creator, time). Additive only | Key attributes |
+| `projects/[projectId]/actions.ts` | `confirmBriefAttributeAction`, `suggestBriefAttributesAction`, extraction in `uploadKnowledgeItemAction` (non-fatal), date sync in `updateProjectSummaryAction`, the gate in `generateSowAction` | Key attributes |
+| `projects/new/actions.ts` | Extraction on the brief at creation (non-fatal) | Key attributes |
+| `KeyAttributesPanel.tsx`, `KeyAttributeForm.tsx`, `BriefGateNotice.tsx` (`BriefGateAlert`, `BriefCompletenessWarning`), `BriefReadinessIndicator.tsx`, `StartSowDevelopmentPanel.tsx`, `Phase1Workspace.tsx`, `PositionDocumentView.tsx`, `ProjectWorkflow.tsx` | Key details panel, per-attribute forms, the SOW gate alert, past-Phase-1 warning, "x of 4 confirmed" strip, "Other details from the brief" | Key attributes |
 
-### Source Files — Generate SOW, Build The Estimate (prior sessions)
+Removed this session: `src/lib/foundationDetails.ts`, `FoundationDetailsBlock.tsx` (the old keyword-matched "5 of 5" readiness).
+
+### Source Files — Estimates, SOW (prior sessions)
 | File | Purpose | Last Modified Task |
 |------|---------|-------------------|
-| `src/types/sow.ts`, `src/lib/sow-context.ts`, `src/services/agents/sow-agent.ts`, `src/services/documents/sow-docx.ts` | SOW content schema (agent narrative kept separate from never-agent-authored `SowCoverDetails`), context assembly, one Claude call, rendering | Generate SOW |
-| `src/app/api/projects/[projectId]/sow/[versionId]/route.ts`, `StartSowDevelopmentPanel.tsx` | Session-gated download; generate/regenerate + version history | Generate SOW |
-| `src/lib/estimateMatching.ts`, `estimateMatchingConfig.ts` | Conservative gate: role-only matches never auto-resolve | Build The Estimate |
-| `src/services/agents/{rate-card-line-item-agent,estimate-role-matching-agent}.ts` | Rate card parsing (cached per version), role matching | Build The Estimate |
-| `src/components/features/BuildEstimateInputForm.tsx`, `src/components/ui/Modal.tsx` | Add-role-and-auto-analyze flow; generic modal | Build The Estimate |
+| `src/services/pricing/{unit-conversion,estimate-pricing}.ts`, `src/lib/{estimateUnits,estimateUnitsConfig,estimateContentDraft,estimateBuildViewData}.ts` | Unit conversion, hours-based pricing, the next-version draft and review data | Unit conversion |
+| `src/lib/estimateMatching.ts`, `src/services/agents/{rate-card-line-item-agent,estimate-role-extraction-agent,estimate-role-matching-agent}.ts` | Rate card parsing, role extraction/matching, conservative auto-resolve gate | Build The Estimate |
+| `src/types/sow.ts`, `src/lib/sow-context.ts`, `src/services/agents/sow-agent.ts`, `src/services/documents/sow-docx.ts` | SOW content, context assembly, drafting, rendering | Generate SOW |
 
 ### Source Files — everything else
 Unchanged recently — see `progress.md`. Auth (`src/lib/{auth,permissions}.ts`, `src/proxy.ts`), taxonomy pages, MSA/Rate Card/SOW Template libraries + `VersionHistory.tsx`, `CapabilitiesAndEstimateBriefPanel.tsx`, and the Stage 1-5 agents in `src/services/agents/{intake-agent,triage-agent,clarification-extraction,specialist-review-extraction,chatbot}.ts`.
@@ -44,15 +45,16 @@ Unchanged recently — see `progress.md`. Auth (`src/lib/{auth,permissions}.ts`,
 | `.prettierrc.json`, `eslint.config.mjs`, `vitest.config.mts`, `.claude/launch.json` | Formatting (printWidth 100), lint, tests, dev/prod preview servers |
 | `.gitignore` | Includes `.env.local` |
 
-### Test Files (65 files, 420 tests, all passing)
+### Test Files (68 files, 446 tests, all passing)
 | File | Tests | Status |
 |------|-------|--------|
-| `tests/estimate-unit-conversion.test.ts` | hours/days/weeks, 1.5 days @ 220/hr = 2,475.00, the real 6-line estimate = 49,275.00, unknown unit → null, formatting | ✅ New |
-| `tests/estimate-build.test.ts` (real DB) | + missing unit held for review and blocks save; saved version keeps its hours-per-day; unit correction reprices | ✅ Extended |
-| `tests/components/EstimateReviewCard.test.tsx` | Renders "1.5 days (11.25 hrs)", fees, total, unit selector | ✅ New |
-| `tests/estimate-pricing.test.ts`, `tests/services/estimate-{role-extraction-agent,role-matching-agent,document-xlsx}.test.ts`, `tests/sow-context.test.ts` | Updated for the new pricing signature / unit fields | ✅ |
-| `tests/sow-*.test.ts`, `tests/services/sow-*.test.ts` | SOW generation, context, download (incl. 401), docx | ✅ |
-| Everything else | Stage 1-5 pipeline, chatbot cross-project isolation, components | ✅ |
+| `tests/lib/briefAttributes.test.ts` | Config loads; the 4 required attributes, questions, sub-field requiredness; optional attributes seeded | ✅ New |
+| `tests/lib/briefCompleteness.test.ts` | Missing/partial/confirmed per attribute; suggestions stay unconfirmed; gate lists exactly what's missing; optional never affects `canProceed`; past-Phase-1 warnings | ✅ New |
+| `tests/services/key-attribute-extraction.test.ts` | Schema from config, normalization, bad values dropped, friendly errors | ✅ New |
+| `tests/brief-key-attributes.test.ts` (real DB) | Suggestions only from uploads, non-fatal extraction, on-demand merge, confirm/accept/edit sources, validation, date sync both ways, SOW gate | ✅ New |
+| `tests/fixtures/briefCompleteness.ts` | Shared completeness fixtures built with the real status logic | ✅ New |
+| `tests/components/{StartSowDevelopmentPanel,Phase1Workspace,ProjectWorkflow,PositionDocumentView,DocumentVersionContent}.test.tsx`, `tests/{stage-1-5-happy-path,sow-generation}.test.ts` | Updated: SOW gate alert + inline fill-in, Key details panel, readiness strip, warning banner, extra extraction calls | ✅ |
+| Everything else | Estimates/unit conversion, SOW, Stage 1-5 pipeline, chatbot cross-project isolation, components | ✅ |
 
 ## Key Dependencies
 `next` 16.3.5, `react`/`react-dom` 19.2.8, `tailwindcss` ^4, `prisma`/`@prisma/client` 7.9.1, `@prisma/adapter-pg` ^7.9.1, `next-auth` ^5.0.0-beta.32, `zod` ^4.4.3, `@anthropic-ai/sdk` ^0.115.0, `officeparser` ^7.5.1, `docx` ^9.7.1, `exceljs` ^4.4.0, `vitest` 4.1, `@testing-library/*`.
@@ -61,17 +63,18 @@ Unchanged recently — see `progress.md`. Auth (`src/lib/{auth,permissions}.ts`,
 `DATABASE_URL`, `ANTHROPIC_API_KEY`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL` — in `.env.local` (gitignored). Never `Read` `.env.local` as a whole file.
 
 ## Toolchain Notes (this machine)
-- **DB-touching Prisma CLI commands require WSL.** For migrations, hand-write the SQL (needed anyway to preserve data, e.g. rename-then-map instead of drop/add) and apply with `prisma migrate deploy`, which never prompts for a reset. After any WSL-side `npm install`, run `npm install` again from native Windows.
-- **Dev and production share one Neon DB** — a migration goes live the moment it's applied, while production still runs the old code until the next deploy. Keep schema changes backward-compatible or apply them right before deploying.
+- **DB-touching Prisma CLI commands require WSL.** Generate migration SQL offline with `prisma migrate diff --from-schema <old> --to-schema prisma/schema.prisma --script` (no DB needed), hand-edit when data must be preserved, and apply with `prisma migrate deploy`, which never prompts for a reset. After any WSL-side `npm install`, run `npm install` again from native Windows.
+- **Dev and production share one Neon DB** — a migration goes live the moment it's applied, while production still runs the old code until the next deploy. Keep schema changes additive/backward-compatible, or apply them right before deploying.
 - **Shared DB with real user-created data** — inspect the affected rows (read-only) before writing a migration that touches an existing table.
-- **`zodOutputFormat` does not enforce `z.enum`** — it becomes a plain string with the values in the description. Don't rely on an enum to constrain agent output; accept a string and normalize/validate in code (see `parseEstimateUnit`).
-- **Keep Prisma runtime imports out of client components** — put shared pure helpers in a Prisma-free module (e.g. `src/lib/estimateUnits.ts`).
-- **Prisma `Decimal` isn't JSON-serializable across the Server→Client boundary** — convert to `Number` server-side.
+- **`zodOutputFormat` does not enforce `z.enum`**, and hoists nested objects into `$defs`. Don't rely on an enum to constrain agent output; accept a string and normalize/validate in code.
+- **Adding a Claude call to an existing flow shifts every `mockResolvedValueOnce` queue** in tests that drive that flow — update them (and their call counts) together.
+- **Keep Prisma runtime imports out of client components** — shared pure helpers go in Prisma-free modules (e.g. `src/lib/briefAttributeValues.ts`, `src/lib/estimateUnits.ts`); type-only imports are fine.
+- **Prisma `Decimal` isn't JSON-serializable across the Server→Client boundary** — convert to `Number` server-side (`Date` is fine).
 - **`react-hooks/set-state-in-effect`**: react to an action's result inside the action function, not a `useEffect` watching `pending`.
 - **API download routes need their own session check** — `src/proxy.ts`'s matcher excludes `/api/*`.
-- **Run `npx prettier --write` only on files you substantially changed** — much existing code predates the Prettier config, so formatting a whole file creates unrelated diff noise.
+- **Run `npx prettier --write` only on new or substantially changed files** — much existing code predates the Prettier config.
 - **Stop the dev server before `npm run build`** — both use `.next`.
-- No Python on this machine; for scripted edits use Node, and avoid apostrophes inside single-quoted `node -e` bodies.
+- **Scripted edits**: no Python on this machine; use Node. Many files are CRLF — normalize to LF while editing and restore on write. The shell tool mangles apostrophes and backslashes in heredocs, so write edit scripts to the scratchpad with the Write tool first.
 
 ## Current State Summary
-All MVP scope plus Build The Estimate and Generate SOW are built and committed. **This session**: fixed estimate unit conversion (days/weeks were priced as hours) — explicit units, hours-based pricing via one resolver, hours-per-day stored per version, missing units flagged for PM review, and legacy versions flagged rather than altered (migration applied to the Neon DB). Tests (420), typecheck, lint and production build are clean; committed (`766347b`), deployed to Vercel, and verified on live by the user. Next: no scheduled work outstanding — per-client hours-per-day from the MSA is the designed-for follow-on.
+All MVP scope plus Build The Estimate, Generate SOW and brief key attributes are built. **This session**: added the configurable brief key-attribute schema, PM-confirmed status via `getBriefCompleteness()`, AI suggestions from the brief and every input, and the Generate SOW gate (committed `c238453`, deployed to Vercel; new screens not yet checked in a live browser). Next: move the "What We Need to Find Out" checklist, the client email's open questions and the SOW PM review onto `getBriefCompleteness()`; the Draft Scope is due to be removed.
