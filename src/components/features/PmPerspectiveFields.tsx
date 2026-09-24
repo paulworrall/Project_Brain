@@ -19,13 +19,17 @@ export function PmPerspectiveFields({
   onChange: (fieldId: string, value: string) => void;
 }) {
   return (
-    <fieldset
+    // A labelled group rather than <fieldset>/<legend>: a legend sits on the
+    // border, and the title should line up inside the box with the fields.
+    <div
+      role="group"
+      aria-labelledby="pm-perspective-title"
       aria-describedby="pm-perspective-intro"
       className="space-y-3 rounded-md border border-accent-foreground/30 bg-accent p-4"
     >
-      <legend className="px-1 text-sm font-semibold text-accent-foreground">
+      <h3 id="pm-perspective-title" className="text-sm font-semibold text-accent-foreground">
         PM perspective <span className="font-normal">(optional)</span>
-      </legend>
+      </h3>
       <p id="pm-perspective-intro" className="text-xs text-muted-foreground">
         Your own view, kept separate from the client&apos;s brief. Everything here is optional — a
         few lines now help the agents ask better questions, and you can add or change it later.
@@ -52,6 +56,6 @@ export function PmPerspectiveFields({
           </div>
         );
       })}
-    </fieldset>
+    </div>
   );
 }

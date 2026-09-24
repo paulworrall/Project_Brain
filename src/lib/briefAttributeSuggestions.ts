@@ -85,8 +85,8 @@ export async function saveKeyAttributeSuggestions(
 /**
  * Offers PM perspective content as SUGGESTIONS, source PM_ENTRY, for the
  * sub-fields that accept it (pmPerspectiveFieldId in
- * src/lib/briefAttributes.ts — today only the Objective's success
- * measures, from Early KPIs). Each suggestion keeps the attribute's other
+ * src/lib/briefAttributes.ts — currently no sub-field is linked, since
+ * Early KPIs was removed from the PM perspective). Each suggestion keeps the attribute's other
  * confirmed sub-fields, so accepting it doesn't blank them. Never
  * confirmed here — a PM still confirms it like any other suggestion.
  * Skips values the PM has already confirmed or already been offered.

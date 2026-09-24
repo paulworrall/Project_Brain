@@ -152,34 +152,29 @@ describe("PM perspective at intake", () => {
   it("stores the PM perspective separately from the brief, recording who entered each field and when", async () => {
     const before = new Date();
     const project = await createProject("Filled PM Perspective Project", {
-      context: "PM_CONTEXT_MARKER: second project with this client",
+      initialThoughts: "PM_THOUGHTS_MARKER: ambitious for a pilot",
       proposedSolution: "PM_SOLUTION_MARKER: phased rollout",
-      earlyKpis: "PM_KPI_MARKER: 20% more monthly actives",
     });
 
     expect(project.briefRawText).toBe(BRIEF);
     expect(project.briefRawText).not.toContain("PM_");
 
     const entries = await prisma.pmPerspectiveEntry.findMany({ where: { projectId: project.id } });
-    expect(entries.map((e) => e.fieldId).sort()).toEqual([
-      "context",
-      "earlyKpis",
-      "proposedSolution",
-    ]);
+    expect(entries.map((e) => e.fieldId).sort()).toEqual(["initialThoughts", "proposedSolution"]);
     for (const entry of entries) {
       expect(entry.updatedById).toBe(pmUserId);
       expect(entry.updatedAt.getTime()).toBeGreaterThanOrEqual(before.getTime() - 1000);
     }
 
     const pm = await getPmPerspective(project.id);
-    const context = pm.find((f) => f.id === "context")!;
-    expect(context).toMatchObject({ label: "Context", updatedByName: "Pat PM" });
-    expect(context.content).toContain("PM_CONTEXT_MARKER");
+    const thoughts = pm.find((f) => f.id === "initialThoughts")!;
+    expect(thoughts).toMatchObject({ label: "Initial thoughts", updatedByName: "Pat PM" });
+    expect(thoughts.content).toContain("PM_THOUGHTS_MARKER");
   });
 
   it("passes the PM perspective to the Position Document and email as a labelled block — but never to key-attribute extraction", async () => {
     await createProject("Prompt PM Perspective Project", {
-      context: "PM_CONTEXT_MARKER: known client",
+      initialThoughts: "PM_CONTEXT_MARKER: known client",
     });
 
     const [classify, keyAttributes, position, email] = [0, 1, 2, 3].map(promptOf);
@@ -192,36 +187,15 @@ describe("PM perspective at intake", () => {
     expect(keyAttributes).not.toContain("PM_CONTEXT_MARKER");
   });
 
-  it("offers the PM's early KPIs as an objective suggestion with source PM entry — not confirmed, not client-sourced", async () => {
-    const project = await createProject("KPI Suggestion Project", {
-      earlyKpis: "20% more monthly actives",
+  it("never turns PM perspective content into a key detail — key details come only from the client", async () => {
+    const project = await createProject("No Key Details From PM Project", {
+      initialThoughts: "Budget is probably £80k, starting in October, run by Caroline.",
+      proposedSolution: "Success = 20% more monthly actives.",
     });
 
-    const rows = await prisma.briefAttributeValue.findMany({ where: { projectId: project.id } });
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({
-      attributeId: "objective",
-      kind: "SUGGESTION",
-      source: "PM_ENTRY",
-    });
-
-    const objective = (await getBriefCompleteness(project.id)).attributes.find(
-      (a) => a.id === "objective"
-    )!;
-    expect(objective.status).toBe("missing");
-    expect(objective.confirmed).toBeNull();
-    expect(objective.suggestion).toBeNull();
-    expect(objective.pmSuggestion?.values.successMeasures).toBe("20% more monthly actives");
-  });
-
-  it("never offers PM perspective content for budget, timeline or client contact", async () => {
-    const project = await createProject("No Other Attributes Project", {
-      context: "Budget is probably £80k, starting in October, run by Caroline.",
-      earlyKpis: "More actives",
-    });
-
-    const rows = await prisma.briefAttributeValue.findMany({ where: { projectId: project.id } });
-    expect(rows.map((r) => r.attributeId)).toEqual(["objective"]);
+    expect(await prisma.briefAttributeValue.count({ where: { projectId: project.id } })).toBe(0);
+    const completeness = await getBriefCompleteness(project.id);
+    expect(completeness.attributes.every((a) => a.pmSuggestion === null)).toBe(true);
   });
 });
 
@@ -274,11 +248,11 @@ describe("editing the PM perspective after intake", () => {
   it("adds a field that was left empty at intake", async () => {
     const project = await createProject("Add Later Project");
     const content = new FormData();
-    content.set("content", "Where MAP can add value: measurement framework.");
-    await updatePmPerspectiveFieldAction(project.id, "consultancyGuidance", undefined, content);
+    content.set("content", "Start with one partner in one market.");
+    await updatePmPerspectiveFieldAction(project.id, "proposedSolution", undefined, content);
 
-    const view = (await getPmPerspective(project.id)).find((f) => f.id === "consultancyGuidance")!;
-    expect(view.content).toBe("Where MAP can add value: measurement framework.");
+    const view = (await getPmPerspective(project.id)).find((f) => f.id === "proposedSolution")!;
+    expect(view.content).toBe("Start with one partner in one market.");
     expect(view.updatedByName).toBe("Pat PM");
   });
 
@@ -295,26 +269,23 @@ describe("editing the PM perspective after intake", () => {
     expect(result?.message).toMatch(/unknown/i);
   });
 
-  it("refreshes the PM-entry KPI suggestion when early KPIs change, and not for other fields", async () => {
-    const project = await createProject("KPI Refresh Project", { earlyKpis: "KPI v1" });
+  it("rejects the fields that were removed (Context, Consultancy guidance, Early KPIs)", async () => {
+    const project = await createProject("Removed Fields Project");
     const content = new FormData();
-    content.set("content", "Context changed.");
-    await updatePmPerspectiveFieldAction(project.id, "context", undefined, content);
-    expect(await prisma.briefAttributeValue.count({ where: { projectId: project.id } })).toBe(1);
-
-    content.set("content", "KPI v2");
-    await updatePmPerspectiveFieldAction(project.id, "earlyKpis", undefined, content);
-    const objective = (await getBriefCompleteness(project.id)).attributes.find(
-      (a) => a.id === "objective"
-    )!;
-    expect(objective.pmSuggestion?.values.successMeasures).toBe("KPI v2");
-    expect(objective.status).toBe("missing");
+    content.set("content", "x");
+    for (const fieldId of ["context", "consultancyGuidance", "earlyKpis"]) {
+      const result = await updatePmPerspectiveFieldAction(project.id, fieldId, undefined, content);
+      expect(result?.message).toMatch(/unknown/i);
+    }
+    expect(await prisma.pmPerspectiveEntry.count({ where: { projectId: project.id } })).toBe(0);
   });
 });
 
 describe("the PM perspective in later agent prompts", () => {
   it("is given to the Position Document update on each Additional Input as its own block", async () => {
-    const project = await createProject("Upload Context Project", { context: "PM_CONTEXT_MARKER" });
+    const project = await createProject("Upload Context Project", {
+      initialThoughts: "PM_CONTEXT_MARKER",
+    });
     mockParse.mockReset();
     mockParse
       .mockResolvedValueOnce({ parsed_output: positionFields })

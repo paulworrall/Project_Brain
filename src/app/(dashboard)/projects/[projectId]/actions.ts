@@ -1198,9 +1198,7 @@ export async function generateEstimateBriefAction(
 
 /**
  * Edits one PM perspective field after intake. Records who edited it and
- * when (per field). Changing Early KPIs re-offers them as a PM-entry
- * suggestion for the Objective's success measures — never confirmed here.
- * Doesn't touch documents already generated (update propagation is a
+ * when (per field). Doesn't touch documents already generated (update propagation is a
  * separate task).
  */
 export async function updatePmPerspectiveFieldAction(

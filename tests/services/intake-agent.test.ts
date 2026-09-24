@@ -172,8 +172,8 @@ describe("runIntakeAgent", () => {
 
 describe("runIntakeAgent — PM perspective", () => {
   const pmPerspective = {
-    context: "PM_CONTEXT_MARKER: the client was burned by their last agency.",
-    earlyKpis: "PM_KPI_MARKER: 20% more monthly actives",
+    initialThoughts: "PM_CONTEXT_MARKER: the client was burned by their last agency.",
+    proposedSolution: "PM_SOLUTION_MARKER: a phased rollout",
   };
 
   it("gives the Position Document and clarification email the PM perspective as its own labelled block, separate from the brief", async () => {

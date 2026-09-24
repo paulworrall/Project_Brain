@@ -8,21 +8,9 @@ import {
 } from "@/lib/pmPerspective";
 
 describe("PM perspective config", () => {
-  it("defines the five PM perspective fields, each with a label and helper text", () => {
-    expect(PM_PERSPECTIVE_FIELDS.map((f) => f.id)).toEqual([
-      "context",
-      "initialThoughts",
-      "proposedSolution",
-      "consultancyGuidance",
-      "earlyKpis",
-    ]);
-    expect(PM_PERSPECTIVE_FIELDS.map((f) => f.label)).toEqual([
-      "Context",
-      "Initial thoughts",
-      "Proposed solution",
-      "Consultancy guidance",
-      "Early KPIs",
-    ]);
+  it("defines just two fields — Initial thoughts and Proposed solution — each with helper text", () => {
+    expect(PM_PERSPECTIVE_FIELDS.map((f) => f.id)).toEqual(["initialThoughts", "proposedSolution"]);
+    expect(PM_PERSPECTIVE_FIELDS.map((f) => f.label)).toEqual(["Initial thoughts", "Proposed solution"]);
     for (const field of PM_PERSPECTIVE_FIELDS) {
       expect(field.helper.length).toBeGreaterThan(10);
     }
@@ -32,31 +20,33 @@ describe("PM perspective config", () => {
 describe("formatPmPerspectiveForPrompt", () => {
   it("wraps the PM's view in its own labelled block, with an instruction never to present it as the client's words", () => {
     const block = formatPmPerspectiveForPrompt({
-      context: "Client had a bad experience with their last agency.",
-      earlyKpis: "20% more monthly actives",
+      initialThoughts: "Ambitious for a pilot.",
+      proposedSolution: "Start with one partner in one market.",
     });
 
     expect(block.startsWith(`<${PM_PERSPECTIVE_PROMPT_TAG}>`)).toBe(true);
     expect(block.trimEnd().endsWith(`</${PM_PERSPECTIVE_PROMPT_TAG}>`)).toBe(true);
     expect(block).toMatch(/Project Manager's own view/);
     expect(block).toMatch(/never present anything in it as something the client said/i);
-    expect(block).toContain("Context:\nClient had a bad experience with their last agency.");
-    expect(block).toContain("Early KPIs:\n20% more monthly actives");
+    expect(block).toContain("Initial thoughts:\nAmbitious for a pilot.");
+    expect(block).toContain("Proposed solution:\nStart with one partner in one market.");
   });
 
-  it("leaves out empty fields", () => {
+  it("leaves out empty fields, and anything that isn't a configured field", () => {
     const block = formatPmPerspectiveForPrompt({
-      context: "Known client.",
-      initialThoughts: "   ",
+      initialThoughts: "Ambitious.",
+      proposedSolution: "   ",
+      context: "A field that no longer exists.",
     });
-    expect(block).toContain("Context:");
-    expect(block).not.toContain("Initial thoughts:");
+    expect(block).toContain("Initial thoughts:");
+    expect(block).not.toContain("Proposed solution:");
+    expect(block).not.toContain("A field that no longer exists.");
   });
 
   it("returns an empty string when the PM hasn't added anything, so prompts carry no empty block", () => {
     expect(formatPmPerspectiveForPrompt({})).toBe("");
-    expect(formatPmPerspectiveForPrompt({ context: "", earlyKpis: "  " })).toBe("");
-    expect(hasPmPerspective({ context: " " })).toBe(false);
+    expect(formatPmPerspectiveForPrompt({ initialThoughts: "", proposedSolution: "  " })).toBe("");
+    expect(hasPmPerspective({ initialThoughts: " " })).toBe(false);
     expect(hasPmPerspective({ proposedSolution: "A phased rollout." })).toBe(true);
   });
 });
@@ -64,17 +54,14 @@ describe("formatPmPerspectiveForPrompt", () => {
 describe("pmPerspectiveValuesFromFormData", () => {
   it("reads each field from its own prefixed form input, trimming and ignoring unknown inputs", () => {
     const formData = new FormData();
-    formData.set("pm_context", "  Known client.  ");
-    formData.set("pm_earlyKpis", "");
+    formData.set("pm_initialThoughts", "  Ambitious.  ");
+    formData.set("pm_proposedSolution", "");
     formData.set("briefText", "The client brief.");
-    formData.set("pm_somethingElse", "ignored");
+    formData.set("pm_context", "ignored — no longer a field");
 
     expect(pmPerspectiveValuesFromFormData(formData)).toEqual({
-      context: "Known client.",
-      initialThoughts: "",
+      initialThoughts: "Ambitious.",
       proposedSolution: "",
-      consultancyGuidance: "",
-      earlyKpis: "",
     });
   });
 });

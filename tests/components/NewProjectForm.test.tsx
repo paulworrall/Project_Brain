@@ -308,7 +308,13 @@ describe("NewProjectForm — PM perspective", () => {
 
     const section = screen.getByRole("group", { name: /PM perspective/ });
     expect(section).toHaveTextContent("(optional)");
-    for (const label of ["Context", "Initial thoughts", "Proposed solution", "Consultancy guidance", "Early KPIs"]) {
+    // Just two fields (Context, Consultancy guidance and Early KPIs were removed).
+    expect(within(section).getAllByRole("textbox")).toHaveLength(2);
+    expect(within(section).queryByLabelText("Context")).not.toBeInTheDocument();
+    expect(within(section).queryByLabelText("Early KPIs")).not.toBeInTheDocument();
+    // The title sits inside the box as a heading, not a legend on the border.
+    expect(within(section).getByRole("heading", { name: /PM perspective/ })).toBeInTheDocument();
+    for (const label of ["Initial thoughts", "Proposed solution"]) {
       const field = within(section).getByLabelText(label);
       expect(field).not.toBeRequired();
       expect(field).toHaveAccessibleDescription();
@@ -329,7 +335,7 @@ describe("NewProjectForm — PM perspective", () => {
 
     expect(createProjectAction).toHaveBeenCalledTimes(1);
     const formData = createProjectAction.mock.calls[0][1] as FormData;
-    expect(formData.get("pm_context")).toBe("");
+    expect(formData.get("pm_initialThoughts")).toBe("");
     expect(formData.get("briefText")).toBe("Some client brief text.");
   });
 
@@ -339,11 +345,11 @@ describe("NewProjectForm — PM perspective", () => {
     render(<NewProjectForm workstreamOptions={workstreamOptions} />);
 
     await fillMinimalValidForm(user);
-    await user.type(screen.getByLabelText("Early KPIs"), "20% more monthly actives");
+    await user.type(screen.getByLabelText("Proposed solution"), "Start with one partner.");
     await user.click(screen.getByRole("button", { name: "Create project" }));
 
     const formData = createProjectAction.mock.calls[0][1] as FormData;
-    expect(formData.get("pm_earlyKpis")).toBe("20% more monthly actives");
+    expect(formData.get("pm_proposedSolution")).toBe("Start with one partner.");
     expect(formData.get("briefText")).toBe("Some client brief text.");
   });
 });

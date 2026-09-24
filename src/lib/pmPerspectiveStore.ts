@@ -52,8 +52,8 @@ export async function getPmPerspectiveValues(projectId: string): Promise<PmPersp
  * changed — so each field's updatedAt/updatedBy reflect its own last real
  * edit. A field that was never filled in and is still blank gets no row;
  * clearing a filled field is recorded as an edit. Afterwards, re-offers any
- * PM perspective content linked to a key attribute (e.g. Early KPIs) as a
- * PM_ENTRY suggestion. Returns the ids of the fields that changed.
+ * PM perspective content linked to a key attribute (pmPerspectiveFieldId —
+ * none at present) as a PM_ENTRY suggestion. Returns the ids of the fields that changed.
  */
 export async function savePmPerspective(
   projectId: string,

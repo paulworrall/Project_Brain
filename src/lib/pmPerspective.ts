@@ -14,13 +14,9 @@ export interface PmPerspectiveFieldDefinition {
   helper: string;
 }
 
+// Kept deliberately short (user feedback, 2026-09-24): Context,
+// Consultancy guidance and Early KPIs were removed to keep intake simple.
 export const PM_PERSPECTIVE_FIELDS: readonly PmPerspectiveFieldDefinition[] = [
-  {
-    id: "context",
-    label: "Context",
-    helper:
-      "What you know that isn't in the brief — client history, politics, previous work, constraints.",
-  },
   {
     id: "initialThoughts",
     label: "Initial thoughts",
@@ -30,17 +26,6 @@ export const PM_PERSPECTIVE_FIELDS: readonly PmPerspectiveFieldDefinition[] = [
     id: "proposedSolution",
     label: "Proposed solution",
     helper: "Your early view of the approach, however rough.",
-  },
-  {
-    id: "consultancyGuidance",
-    label: "Consultancy guidance",
-    helper: "Where MAP can add value beyond what was asked.",
-  },
-  {
-    id: "earlyKpis",
-    label: "Early KPIs",
-    helper:
-      "Success measures you think should apply. Offered as a suggestion for the Objective's success measures.",
   },
 ];
 

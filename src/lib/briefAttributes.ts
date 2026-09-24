@@ -96,7 +96,6 @@ export const BRIEF_ATTRIBUTES: readonly BriefAttributeDefinition[] = [
         type: "longText",
         required: true,
         hint: "The OKRs/KPIs success will be measured against — or 'None agreed yet'",
-        pmPerspectiveFieldId: "earlyKpis",
       },
     ],
   },

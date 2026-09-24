@@ -27,7 +27,7 @@ describe("PmPerspectivePanel", () => {
       <PmPerspectivePanel
         projectId="proj_1"
         fields={pmPerspectiveView({
-          context: {
+          initialThoughts: {
             content: "Second project with this client.",
             updatedAt: new Date("2026-09-23T10:00:00Z"),
             updatedByName: "Pat PM",
@@ -40,17 +40,17 @@ describe("PmPerspectivePanel", () => {
       screen.getByText("Second project with this client.", { selector: "p" })
     ).toBeInTheDocument();
     expect(screen.getByText("Last edited 23 Sept 2026 by Pat PM")).toBeInTheDocument();
-    expect(screen.getAllByText("Not added yet")).toHaveLength(4);
-    expect(screen.getByText("1 of 5 filled in.", { exact: false })).toBeInTheDocument();
+    expect(screen.getAllByText("Not added yet")).toHaveLength(1);
+    expect(screen.getByText("1 of 2 filled in.", { exact: false })).toBeInTheDocument();
   });
 
   it("encourages the PM to fill in empty fields with each field's helper prompt", () => {
     render(<PmPerspectivePanel projectId="proj_1" fields={pmPerspectiveView()} />);
     expect(screen.getByText(/Add your own read of the brief/)).toBeInTheDocument();
     expect(
-      screen.getAllByText("Where MAP can add value beyond what was asked.").length
+      screen.getAllByText("Your early view of the approach, however rough.").length
     ).toBeGreaterThan(0);
-    expect(screen.getAllByText("Add →")).toHaveLength(5);
+    expect(screen.getAllByText("Add →")).toHaveLength(2);
   });
 
   it("stays editable — saving submits the field's new content to the edit action", async () => {

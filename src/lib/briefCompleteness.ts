@@ -49,8 +49,8 @@ export interface BriefAttributeCompleteness {
    */
   suggestion: BriefAttributeSuggestion | null;
   /**
-   * The latest suggestion from the PM's own perspective (source PM_ENTRY,
-   * e.g. early KPIs), kept apart so it's never mistaken for — or hides — what
+   * The latest suggestion from the PM's own perspective (source PM_ENTRY —
+   * only possible for a sub-field linked via pmPerspectiveFieldId), kept apart so it's never mistaken for — or hides — what
    * the client said. Also never counts as confirmed.
    */
   pmSuggestion: BriefAttributeSuggestion | null;

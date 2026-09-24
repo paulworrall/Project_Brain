@@ -179,7 +179,7 @@ describe("Phase1Workspace", () => {
     render(
       <Phase1Workspace
         {...baseProps()}
-        pmPerspective={pmPerspectiveView({ context: { content: "PM-only context about the client." } })}
+        pmPerspective={pmPerspectiveView({ initialThoughts: { content: "PM-only context about the client." } })}
       />
     );
 
