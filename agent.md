@@ -1,9 +1,11 @@
 # Project Brain — Codebase Summary
 
 ## Architecture Overview
-Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (Postgres/Neon, driver-adapter-based), and NextAuth v5 (beta) for email/password auth. All Level 1 MVP scope (Stages 1-5, Knowledge Upload, Chatbot, polish/QA/deploy) is complete, plus post-MVP additions: a Phase-grouped Stage Tracker (`src/lib/phases.ts`), Client/Workstream taxonomy navigation + global search, Phase 1 as a fluid workspace, commercial documents in one shared "document has many Versions, exactly one current" pattern (MSA, Rate Cards, SOW Template Library), the "Capabilities & Estimate Brief" panel, "Build The Estimate" (Stage 6), "Generate SOW" (Stage 8), and brief key attributes.
+Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (Postgres/Neon, driver-adapter-based), and NextAuth v5 (beta) for email/password auth. All Level 1 MVP scope (Stages 1-5, Knowledge Upload, Chatbot, polish/QA/deploy) is complete, plus post-MVP additions: a Phase-grouped Stage Tracker (`src/lib/phases.ts`), Client/Workstream taxonomy navigation + global search, Phase 1 as a fluid workspace, commercial documents in one shared "document has many Versions, exactly one current" pattern (MSA, Rate Cards, SOW Template Library), the "Capabilities & Estimate Brief" panel, "Build The Estimate" (Stage 6), "Generate SOW" (Stage 8), brief key attributes, and the PM perspective.
 
-**Brief key attributes (this session)**: `src/lib/briefAttributes.ts` is the one definition of what a complete brief contains — 4 required attributes (Budget, Objective, Timeline and Key Milestones, Client Contact) and optional ones (scope, markets, languages, channels), each with a question and sub-fields. `getBriefCompleteness(projectId)` is the only place status (missing/partial/confirmed) and the `canProceed` flag are decided. AI extraction only ever writes **suggestions**; only a PM confirms. **Generate SOW is refused until all 4 required attributes are confirmed**, with an alert listing exactly what's missing (inline fill-in forms). Projects already past Phase 1 get a warning, not a lock-out. Later features (the "What We Need to Find Out" checklist, the client email's open questions, the SOW PM review) are meant to read `getBriefCompleteness()` — not built yet.
+**PM perspective (this session)**: five optional PM fields (Context, Initial thoughts, Proposed solution, Consultancy guidance, Early KPIs — config in `src/lib/pmPerspective.ts`) captured on the New Project form below the brief and editable in Phase 1's own "PM's view — not from the client" panel, each recording its last edit time and author. Stored in `PmPerspectiveEntry`, never merged into the brief. Agents get it only via `formatPmPerspectiveForPrompt` — a separate `<pm_perspective>` block that must never be presented as the client's words: the Position Document (intake + every Additional Input), the clarification email, and the specialist brief / capability suggestions. Brief classification and key-attribute extraction never see it. Early KPIs are offered as a PM_ENTRY suggestion for the Objective's success measures (`pmSuggestion`, kept apart from client suggestions), still needing PM confirmation.
+
+**Brief key attributes**: `src/lib/briefAttributes.ts` is the one definition of what a complete brief contains — 4 required attributes (Budget, Objective, Timeline and Key Milestones, Client Contact) and optional ones (scope, markets, languages, channels), each with a question and sub-fields. `getBriefCompleteness(projectId)` is the only place status (missing/partial/confirmed) and the `canProceed` flag are decided. AI extraction only ever writes **suggestions**; only a PM confirms. **Generate SOW is refused until all 4 required attributes are confirmed**, with an alert listing exactly what's missing (inline fill-in forms). Projects already past Phase 1 get a warning, not a lock-out. Later features (the "What We Need to Find Out" checklist, the client email's open questions, the SOW PM review) are meant to read `getBriefCompleteness()` — not built yet.
 
 **Build The Estimate**: "+ New estimate" (a modal running the whole flow) or the estimate's own page. Adding a role is one step; extraction + rate-card matching run automatically. An unconfirmed rate-card line or a missing/ambiguous unit sits in `RoleResolutionReview` and blocks saving. Every quantity has an explicit `EstimateUnit` and is priced as hours × hourly-equivalent rate, with factors only from `getConversionFactors(project)` (7.5 hrs/day, 5 days/week, stored per version). Versions saved before that fix are flagged `needsRecalculation`, never altered.
 
@@ -11,7 +13,18 @@ Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (P
 
 ## File Inventory
 
-### Source Files — Brief key attributes (this session)
+### Source Files — PM perspective (this session)
+| File | Purpose | Last Modified Task |
+|------|---------|-------------------|
+| `src/lib/pmPerspective.ts` | Field config, the single prompt formatter + `pmPerspectivePromptSection`, Position Document guidance, form parsing (`pm_<id>` inputs). Prisma-free | PM perspective |
+| `src/lib/pmPerspectiveStore.ts` | `getPmPerspective`, `getPmPerspectiveValues`, `savePmPerspective` (changed fields only; re-offers KPI suggestion only when a linked field changes) | PM perspective |
+| `prisma/schema.prisma` + migration `20260924090000_add_pm_perspective_entries` | `PmPerspectiveEntry` (unique per project + field, content, updatedBy, updatedAt). Additive only | PM perspective |
+| `src/services/agents/{intake-agent,clarification-extraction}.ts` | Optional `pmPerspective` argument → labelled block in the Position Document and email prompts | PM perspective |
+| `projects/new/actions.ts`, `projects/[projectId]/actions.ts` | Save at intake; `updatePmPerspectiveFieldAction`; pass to upload extraction and `assembleCapabilityBriefContext` | PM perspective |
+| `src/lib/briefAttributes.ts` (`pmPerspectiveFieldId`), `briefCompleteness.ts` (`pmSuggestion`), `briefAttributeSuggestions.ts` (`savePmPerspectiveSuggestions`) | The only link from PM content to key attributes: Early KPIs → Objective success measures, as a PM_ENTRY suggestion | PM perspective |
+| `PmPerspectiveFields.tsx` (New Project form, controlled), `PmPerspectivePanel.tsx` (Phase 1), `KeyAttributesPanel.tsx`, `Phase1Workspace.tsx`, `ProjectWorkflow.tsx`, `NewProjectForm.tsx`, `page.tsx` | UI | PM perspective |
+
+### Source Files — Brief key attributes
 | File | Purpose | Last Modified Task |
 |------|---------|-------------------|
 | `src/lib/briefAttributes.ts` | The config: attributes, questions, sub-fields (type, required, hint), `projectDateFields` (timeline start/end ↔ project kick-off/target dates). The only place attribute ids live | Key attributes |
@@ -24,7 +37,7 @@ Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (P
 | `projects/new/actions.ts` | Extraction on the brief at creation (non-fatal) | Key attributes |
 | `KeyAttributesPanel.tsx`, `KeyAttributeForm.tsx`, `BriefGateNotice.tsx` (`BriefGateAlert`, `BriefCompletenessWarning`), `BriefReadinessIndicator.tsx`, `StartSowDevelopmentPanel.tsx`, `Phase1Workspace.tsx`, `PositionDocumentView.tsx`, `ProjectWorkflow.tsx` | Key details panel, per-attribute forms, the SOW gate alert, past-Phase-1 warning, "x of 4 confirmed" strip, "Other details from the brief" | Key attributes |
 
-Removed this session: `src/lib/foundationDetails.ts`, `FoundationDetailsBlock.tsx` (the old keyword-matched "5 of 5" readiness).
+Removed in the key-attributes session: `src/lib/foundationDetails.ts`, `FoundationDetailsBlock.tsx` (the old keyword-matched "5 of 5" readiness).
 
 ### Source Files — Estimates, SOW (prior sessions)
 | File | Purpose | Last Modified Task |
@@ -45,9 +58,11 @@ Unchanged recently — see `progress.md`. Auth (`src/lib/{auth,permissions}.ts`,
 | `.prettierrc.json`, `eslint.config.mjs`, `vitest.config.mts`, `.claude/launch.json` | Formatting (printWidth 100), lint, tests, dev/prod preview servers |
 | `.gitignore` | Includes `.env.local` |
 
-### Test Files (68 files, 446 tests, all passing)
+### Test Files (71 files, 477 tests, all passing)
 | File | Tests | Status |
 |------|-------|--------|
+| `tests/lib/pmPerspective.test.ts`, `tests/pm-perspective.test.ts` (real DB), `tests/components/PmPerspectivePanel.test.tsx`, `tests/fixtures/pmPerspective.ts` | Config + labelled prompt block; empty submission; separate storage; per-field author/time; prompts include the block but key-attribute extraction doesn't; KPI → PM_ENTRY suggestion only; panel labelling and editing | ✅ New |
+| `tests/services/{intake-agent,clarification-extraction}.test.ts`, `tests/lib/briefCompleteness.test.ts`, `tests/components/{NewProjectForm,Phase1Workspace,ProjectWorkflow}.test.tsx`, `tests/create-project-msa-requirement.test.ts` | Extended for the PM perspective (prompt separation, `pmSuggestion`, form section, Phase 1 separation, auth mock) | ✅ |
 | `tests/lib/briefAttributes.test.ts` | Config loads; the 4 required attributes, questions, sub-field requiredness; optional attributes seeded | ✅ New |
 | `tests/lib/briefCompleteness.test.ts` | Missing/partial/confirmed per attribute; suggestions stay unconfirmed; gate lists exactly what's missing; optional never affects `canProceed`; past-Phase-1 warnings | ✅ New |
 | `tests/services/key-attribute-extraction.test.ts` | Schema from config, normalization, bad values dropped, friendly errors | ✅ New |
@@ -67,6 +82,8 @@ Unchanged recently — see `progress.md`. Auth (`src/lib/{auth,permissions}.ts`,
 - **Dev and production share one Neon DB** — a migration goes live the moment it's applied, while production still runs the old code until the next deploy. Keep schema changes additive/backward-compatible, or apply them right before deploying.
 - **Shared DB with real user-created data** — inspect the affected rows (read-only) before writing a migration that touches an existing table.
 - **`zodOutputFormat` does not enforce `z.enum`**, and hoists nested objects into `$defs`. Don't rely on an enum to constrain agent output; accept a string and normalize/validate in code.
+- **Any file importing a Server Action that calls `auth()` needs `vi.mock("@/lib/auth")` in its test** — next-auth can't load outside Next.
+- **Controlled inputs on forms using a Server Action** — React resets uncontrolled fields after a form action, so anything that must survive a failed submission/retry (the brief, the PM perspective) is controlled state.
 - **Adding a Claude call to an existing flow shifts every `mockResolvedValueOnce` queue** in tests that drive that flow — update them (and their call counts) together.
 - **Keep Prisma runtime imports out of client components** — shared pure helpers go in Prisma-free modules (e.g. `src/lib/briefAttributeValues.ts`, `src/lib/estimateUnits.ts`); type-only imports are fine.
 - **Prisma `Decimal` isn't JSON-serializable across the Server→Client boundary** — convert to `Number` server-side (`Date` is fine).
@@ -77,4 +94,4 @@ Unchanged recently — see `progress.md`. Auth (`src/lib/{auth,permissions}.ts`,
 - **Scripted edits**: no Python on this machine; use Node. Many files are CRLF — normalize to LF while editing and restore on write. The shell tool mangles apostrophes and backslashes in heredocs, so write edit scripts to the scratchpad with the Write tool first.
 
 ## Current State Summary
-All MVP scope plus Build The Estimate, Generate SOW and brief key attributes are built. **This session**: added the configurable brief key-attribute schema, PM-confirmed status via `getBriefCompleteness()`, AI suggestions from the brief and every input, and the Generate SOW gate (committed `c238453`, deployed to Vercel; new screens not yet checked in a live browser). Next: move the "What We Need to Find Out" checklist, the client email's open questions and the SOW PM review onto `getBriefCompleteness()`; the Draft Scope is due to be removed.
+All MVP scope plus Build The Estimate, Generate SOW, brief key attributes and the PM perspective are built. **This session**: added the PM perspective at intake — optional, editable, stored and labelled separately from the brief, handed to agents as the PM's view, with Early KPIs offered as a PM-entry suggestion. Tests (477), typecheck and lint clean; the key-attribute and PM perspective screens are not yet checked in a live browser. Next: move the "What We Need to Find Out" checklist, the client email and the SOW PM review onto `getBriefCompleteness()` (and rework the email/specialist brief to use the PM perspective properly); propagate later PM edits to generated documents; remove the Draft Scope.
