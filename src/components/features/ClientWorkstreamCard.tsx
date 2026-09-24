@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
+import { ClientIcon } from "./ClientIcon";
 
 export interface ClientWorkstreamCardWorkstream {
   id: string;
@@ -24,12 +25,15 @@ export interface ClientWorkstreamCardClient {
 export function ClientWorkstreamCard({ client }: { client: ClientWorkstreamCardClient }) {
   return (
     <Card className="p-4">
-      <Link
-        href={`/clients/${client.id}`}
-        className="font-semibold text-foreground hover:underline"
-      >
-        {client.name}
-      </Link>
+      <div className="flex items-start justify-between gap-3">
+        <Link
+          href={`/clients/${client.id}`}
+          className="font-semibold text-foreground hover:underline"
+        >
+          {client.name}
+        </Link>
+        <ClientIcon clientName={client.name} />
+      </div>
 
       <ul className="mt-2 space-y-1">
         {client.workstreams.map((workstream) => (

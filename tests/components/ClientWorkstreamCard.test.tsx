@@ -86,4 +86,33 @@ describe("ClientWorkstreamCard", () => {
 
     expect(screen.queryByText("No workstreams yet")).not.toBeInTheDocument();
   });
+
+  it.each(["Coffee", "Fizzy", "Tooth"])("shows the %s client its own coloured icon, top right of the card", (name) => {
+    const { container } = render(<ClientWorkstreamCard client={{ id: "c", name, workstreams: [] }} />);
+
+    const icon = screen.getByTestId("client-icon");
+    expect(icon).toHaveAttribute("data-client-icon", name.toLowerCase());
+    expect(icon).toHaveAttribute("aria-hidden", "true");
+    expect(icon.querySelector("svg")).not.toBeNull();
+    // Same row as the name, after it (the row is justify-between, so it sits on the right).
+    const header = icon.parentElement!;
+    expect(header).toHaveClass("justify-between");
+    expect(header.firstElementChild).toHaveTextContent(name);
+    expect(container.querySelectorAll("[data-testid=client-icon]")).toHaveLength(1);
+  });
+
+  it("gives each demo client a different icon", () => {
+    const markup = ["Coffee", "Fizzy", "Tooth"].map((name) => {
+      const { unmount } = render(<ClientWorkstreamCard client={{ id: name, name, workstreams: [] }} />);
+      const html = screen.getByTestId("client-icon").innerHTML;
+      unmount();
+      return html;
+    });
+    expect(new Set(markup).size).toBe(3);
+  });
+
+  it("shows no icon for any other client, rather than a misleading one", () => {
+    render(<ClientWorkstreamCard client={{ id: "c", name: "Acme Corp", workstreams: [] }} />);
+    expect(screen.queryByTestId("client-icon")).not.toBeInTheDocument();
+  });
 });
