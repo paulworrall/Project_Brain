@@ -38,6 +38,26 @@ beforeAll(async () => {
   projectAId = projectA.id;
   projectBId = projectB.id;
 
+  // Key details are their own record now, also read by the chatbot.
+  await prisma.briefAttributeValue.createMany({
+    data: [
+      {
+        projectId: projectAId,
+        attributeId: "objective",
+        kind: "CONFIRMED",
+        source: "PM_ENTRY",
+        values: { objective: "UNIQUE_MARKER_ALPHA_KEYDETAIL_8812", successMeasures: "x" },
+      },
+      {
+        projectId: projectBId,
+        attributeId: "objective",
+        kind: "SUGGESTION",
+        source: "BRIEF",
+        values: { objective: "UNIQUE_MARKER_BETA_KEYDETAIL_3306" },
+      },
+    ],
+  });
+
   await Promise.all([
     prisma.checklistItem.create({
       data: {
@@ -123,8 +143,10 @@ describe("assembleProjectContext cross-project isolation", () => {
     expect(context).toContain("UNIQUE_MARKER_ALPHA_TOUCHPOINT_7731");
     expect(context).toContain("UNIQUE_MARKER_ALPHA_DOCUMENT_5502");
     expect(context).toContain("UNIQUE_MARKER_ALPHA_CHECKLIST_2841");
+    expect(context).toContain("UNIQUE_MARKER_ALPHA_KEYDETAIL_8812");
 
     expect(context).not.toContain("UNIQUE_MARKER_BETA_3387");
+    expect(context).not.toContain("UNIQUE_MARKER_BETA_KEYDETAIL_3306");
     expect(context).not.toContain("UNIQUE_MARKER_BETA_TOUCHPOINT_1198");
     expect(context).not.toContain("UNIQUE_MARKER_BETA_DOCUMENT_6640");
     expect(context).not.toContain("UNIQUE_MARKER_BETA_CHECKLIST_4409");
@@ -137,8 +159,10 @@ describe("assembleProjectContext cross-project isolation", () => {
     expect(context).toContain("UNIQUE_MARKER_BETA_TOUCHPOINT_1198");
     expect(context).toContain("UNIQUE_MARKER_BETA_DOCUMENT_6640");
     expect(context).toContain("UNIQUE_MARKER_BETA_CHECKLIST_4409");
+    expect(context).toContain("UNIQUE_MARKER_BETA_KEYDETAIL_3306");
 
     expect(context).not.toContain("UNIQUE_MARKER_ALPHA_9214");
+    expect(context).not.toContain("UNIQUE_MARKER_ALPHA_KEYDETAIL_8812");
     expect(context).not.toContain("UNIQUE_MARKER_ALPHA_TOUCHPOINT_7731");
     expect(context).not.toContain("UNIQUE_MARKER_ALPHA_DOCUMENT_5502");
     expect(context).not.toContain("UNIQUE_MARKER_ALPHA_CHECKLIST_2841");

@@ -59,13 +59,30 @@ describe("assembleSowContext", () => {
         versionNumber: 1,
         stageNumber: 1,
         content: {
-          primaryContactName: "Jamie Chen",
-          primaryContactEmail: "jamie@example.com",
           whatWeKnow: [],
           whatWeNeedToFindOut: [],
           clientFlaggedOpenItems: [],
         },
       },
+    });
+    // Key details are their own record: a confirmed contact and objective.
+    await prisma.briefAttributeValue.createMany({
+      data: [
+        {
+          projectId: project.id,
+          attributeId: "clientContact",
+          kind: "CONFIRMED",
+          source: "PM_ENTRY",
+          values: { name: "Jamie Chen", email: "jamie@example.com" },
+        },
+        {
+          projectId: project.id,
+          attributeId: "objective",
+          kind: "CONFIRMED",
+          source: "BRIEF",
+          values: { objective: "Refresh the loyalty app", successMeasures: "More actives" },
+        },
+      ],
     });
 
     const draftScopeDoc = await prisma.document.create({
@@ -128,6 +145,8 @@ describe("assembleSowContext", () => {
     const { narrativeContext, coverDetails } = await assembleSowContext(project.id);
 
     expect(narrativeContext).toContain("A loyalty app refresh for a coffee client.");
+    expect(narrativeContext).toContain("## Key details (confirmed by the PM)");
+    expect(narrativeContext).toContain("Objective (confirmed): Objective: Refresh the loyalty app");
     expect(narrativeContext).toContain("Position Document");
     expect(narrativeContext).toContain("Draft Scope Document");
     expect(narrativeContext).toContain("Deliverables & Services Document");
@@ -166,28 +185,45 @@ describe("assembleSowContext", () => {
     expect(coverDetails.commercials).toBeNull();
   });
 
-  it("never invents a client contact — only ever attributes it from the Position Document", async () => {
+  it("never invents a client contact — only ever uses the PM-confirmed Client Contact key detail", async () => {
     const project = await prisma.project.create({
-      data: { name: "No Position Doc Project", workstreamId },
+      data: { name: "Unconfirmed Contact Project", workstreamId },
     });
 
-    // A Draft Scope Document exists, but no Position Document — contact
-    // details must stay null, not be pulled from anywhere else.
-    const draftScopeDoc = await prisma.document.create({
-      data: { projectId: project.id, type: "DRAFT_SCOPE_DOCUMENT" },
+    // An old Position Document still carrying contact fields, and an
+    // unconfirmed AI suggestion — neither may reach the SOW cover.
+    const positionDoc = await prisma.document.create({
+      data: { projectId: project.id, type: "POSITION_DOCUMENT" },
     });
     await prisma.documentVersion.create({
       data: {
-        documentId: draftScopeDoc.id,
+        documentId: positionDoc.id,
         versionNumber: 1,
-        stageNumber: 4,
-        content: { objectives: ["Something"] },
+        stageNumber: 1,
+        content: {
+          primaryContactName: "Legacy Name",
+          primaryContactEmail: "legacy@example.com",
+          whatWeKnow: [],
+          whatWeNeedToFindOut: [],
+          clientFlaggedOpenItems: [],
+        },
+      },
+    });
+    await prisma.briefAttributeValue.create({
+      data: {
+        projectId: project.id,
+        attributeId: "clientContact",
+        kind: "SUGGESTION",
+        source: "BRIEF",
+        values: { name: "Suggested Name", email: "suggested@example.com" },
       },
     });
 
-    const { coverDetails } = await assembleSowContext(project.id);
+    const { narrativeContext, coverDetails } = await assembleSowContext(project.id);
 
     expect(coverDetails.primaryClientContactName).toBeNull();
     expect(coverDetails.primaryClientContactEmail).toBeNull();
+    // The SOW is client-facing: unconfirmed suggestions aren't passed to it either.
+    expect(narrativeContext).not.toContain("Suggested Name");
   });
 });

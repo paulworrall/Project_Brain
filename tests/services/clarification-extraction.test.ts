@@ -94,3 +94,22 @@ describe("extractClarificationUpdate — PM perspective", () => {
     expect(mockParse.mock.calls[0][0].messages[0].content).not.toContain("<pm_perspective>");
   });
 });
+
+describe("extractClarificationUpdate — key details stay in their own record", () => {
+  it("tells the agent to keep (and remove) key details from 'whatWeKnow', and returns no contact fields", async () => {
+    mockParse.mockResolvedValueOnce({ parsed_output: currentPositionDocument });
+
+    await extractClarificationUpdate(currentPositionDocument, "Our budget is now £60k.");
+
+    const call = mockParse.mock.calls[0][0];
+    const prompt = call.messages[0].content as string;
+    expect(prompt).toMatch(/captured separately/);
+    expect(prompt).toMatch(/remove them from it/);
+    expect(prompt).not.toMatch(/Keep primaryContactName/);
+    expect(Object.keys(call.output_config.format.schema.properties)).toEqual([
+      "whatWeKnow",
+      "whatWeNeedToFindOut",
+      "clientFlaggedOpenItems",
+    ]);
+  });
+});

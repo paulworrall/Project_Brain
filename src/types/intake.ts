@@ -1,4 +1,5 @@
 import * as z from "zod";
+import type { KeyAttributeExtraction } from "@/services/agents/key-attribute-extraction";
 
 export const BriefTypeEnum = z.enum([
   "DECK",
@@ -18,25 +19,22 @@ export const BriefClassificationSchema = z.object({
 });
 export type BriefClassification = z.infer<typeof BriefClassificationSchema>;
 
-export const PositionDocumentFieldsSchema = z.object({
-  primaryContactName: z
-    .string()
-    .nullable()
-    .describe(
-      "The name of the person managing this project on the client side — the project's commercial/governance anchor (referred to as \"Client Name\" in the app, distinct from the client company's name). Null if not stated in the brief."
-    ),
-  primaryContactEmail: z
-    .string()
-    .nullable()
-    .describe("That same client-side contact's email, or null if not stated in the brief."),
+/**
+ * What the Position Document agents produce: the brief's general context
+ * ("whatWeKnow"), genuine gaps, and client-flagged open items. Key details
+ * (budget, objective, timeline, client contact, scope…) are deliberately NOT
+ * here — they live only in the key-attributes record (src/lib/briefAttributes.ts,
+ * BriefAttributeValue), so there's one source for each.
+ */
+export const PositionDocumentExtractionSchema = z.object({
   whatWeKnow: z
     .array(
       z.object({
-        topic: z.string().describe("e.g. Objective, Timeline, Budget, Audience"),
+        topic: z.string().describe("e.g. Concept, Audience, Channel, Brand background"),
         detail: z.string(),
       })
     )
-    .describe("Everything the brief clearly states, as topic/detail pairs."),
+    .describe("Everything the brief clearly states that is NOT one of the key details captured separately, as topic/detail pairs."),
   whatWeNeedToFindOut: z
     .array(z.string())
     .describe(
@@ -48,7 +46,18 @@ export const PositionDocumentFieldsSchema = z.object({
       "Items the client themselves flagged as undecided (TBC, '???', 'still deciding', etc.) — distinct from genuine gaps."
     ),
 });
+
+/**
+ * A stored Position Document version. primaryContactName/Email only exist on
+ * versions saved before the client contact moved to key attributes — kept
+ * optional so that history still parses; nothing reads them any more.
+ */
+export const PositionDocumentFieldsSchema = PositionDocumentExtractionSchema.extend({
+  primaryContactName: z.string().nullable().optional(),
+  primaryContactEmail: z.string().nullable().optional(),
+});
 export type PositionDocumentFields = z.infer<typeof PositionDocumentFieldsSchema>;
+export type PositionDocumentExtraction = z.infer<typeof PositionDocumentExtractionSchema>;
 
 export const ClarificationEmailSchema = z.object({
   subject: z.string(),
@@ -75,7 +84,11 @@ export const DEFAULT_SETUP_CHECKLIST_ITEMS: readonly string[] = [
 
 export interface IntakeAgentResult {
   classification: BriefClassification;
-  positionDocument: PositionDocumentFields;
+  positionDocument: PositionDocumentExtraction;
   clarificationEmail: ClarificationEmail;
   checklist: SetupChecklist;
+  /** Key details read from the brief (stored as suggestions), or null if that step failed. */
+  keyAttributes: KeyAttributeExtraction | null;
+  /** Why key-detail extraction failed — recorded on the project, never blocks intake. */
+  keyAttributesError: string | null;
 }

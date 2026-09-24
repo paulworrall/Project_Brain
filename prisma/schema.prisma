@@ -108,6 +108,13 @@ model Project {
   // nullable at the DB level so existing rows remain valid.
   masterServiceAgreementId String?
 
+  // Set when the last key-attribute extraction for this project failed
+  // (cleared on the next success), so the failure is visible to the PM
+  // instead of silently leaving key details empty. See
+  // src/lib/keyAttributeSources.ts.
+  keyAttributeExtractionFailedAt DateTime?
+  keyAttributeExtractionError    String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

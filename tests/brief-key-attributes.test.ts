@@ -34,6 +34,7 @@ const {
   uploadKnowledgeItemAction,
 } = await import("@/app/(dashboard)/projects/[projectId]/actions");
 const { getBriefCompleteness } = await import("@/lib/briefCompleteness");
+const { keyAttributeFacts } = await import("./fixtures/keyAttributeFacts");
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
@@ -71,19 +72,9 @@ const sowContent = {
   risks: [],
 };
 
-/** An extraction result with every attribute null unless overridden. */
-function extraction(overrides: Record<string, unknown>) {
-  return {
-    budget: null,
-    objective: null,
-    timeline: null,
-    clientContact: null,
-    scope: null,
-    markets: null,
-    languages: null,
-    channels: null,
-    ...overrides,
-  };
+/** A mocked key-attribute extraction stating only the given attributes. */
+function extraction(attributes: Record<string, Record<string, unknown> | null>) {
+  return keyAttributeFacts(attributes);
 }
 
 function formData(fields: Record<string, string>) {
@@ -207,6 +198,27 @@ describe("AI-extracted key attributes", () => {
     expect(result?.message).toBeUndefined();
     expect(await prisma.knowledgeItem.count({ where: { projectId } })).toBe(1);
     expect(await prisma.briefAttributeValue.count({ where: { projectId } })).toBe(0);
+
+    // Never silent: the failure is recorded on the project for the PM to see…
+    const failed = await getBriefCompleteness(projectId);
+    expect(failed.extractionFailure?.message).toMatch(/key details/i);
+    expect(failed.extractionFailure?.at).toBeInstanceOf(Date);
+
+    // …and cleared by the next successful read.
+    mockParse.mockResolvedValueOnce({ parsed_output: positionDocument });
+    mockParse.mockResolvedValueOnce({ parsed_output: extraction({}) });
+    await uploadKnowledgeItemAction(projectId, undefined, formData({ title: "More", content: "More notes." }));
+    expect((await getBriefCompleteness(projectId)).extractionFailure).toBeNull();
+  });
+
+  it("records a failure from 'Suggest from brief & inputs' too, and returns it to the PM", async () => {
+    const projectId = await createProject("Suggest Failure Project");
+    mockParse.mockRejectedValueOnce(new Error("400 compiled grammar is too large"));
+
+    const result = await suggestBriefAttributesAction(projectId, undefined, new FormData());
+
+    expect(result?.message).toMatch(/key details/i);
+    expect((await getBriefCompleteness(projectId)).extractionFailure).not.toBeNull();
   });
 
   it("suggests from the stored brief on demand, merging a later partial update over earlier values", async () => {

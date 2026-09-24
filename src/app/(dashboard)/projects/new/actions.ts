@@ -10,12 +10,8 @@ import {
   runIntakeAgent,
 } from "@/services/agents/intake-agent";
 import type { Prisma } from "@/generated/prisma/client";
-import {
-  KeyAttributeExtractionError,
-  extractKeyAttributes,
-  type KeyAttributeExtraction,
-} from "@/services/agents/key-attribute-extraction";
 import { saveKeyAttributeSuggestions } from "@/lib/briefAttributeSuggestions";
+import { recordKeyAttributeExtractionOutcome } from "@/lib/keyAttributeSources";
 import { auth } from "@/lib/auth";
 import { pmPerspectiveValuesFromFormData } from "@/lib/pmPerspective";
 import { savePmPerspective } from "@/lib/pmPerspectiveStore";
@@ -297,30 +293,18 @@ export async function createProjectAction(
 
   let intakeResult;
   try {
-    // The PM perspective is optional and never blocks intake. It goes to
-    // the agents as its own labelled block and is stored on its own — it is
-    // never merged into briefRawText, and key-attribute extraction below
-    // deliberately doesn't see it (budget, timeline and contact must come
-    // from the client).
+    // Intake also reads the key details (the one record for budget,
+    // objective, timeline, contact…) and keeps them out of the Position
+    // Document. The PM perspective is optional and never blocks intake; it
+    // goes to the agents as its own labelled block and is stored on its own
+    // — never merged into briefRawText, and never used for key details
+    // (they must come from the client).
     intakeResult = await runIntakeAgent(briefRawText, pmPerspective);
   } catch (error) {
     if (error instanceof IntakeAgentError) {
       return { message: error.message };
     }
     throw error;
-  }
-
-  // Proposed key attributes (suggestions only — a PM confirms them). A
-  // failure here mustn't block creating the project; the PM can run
-  // "Suggest from brief & inputs" on the project later.
-  let keyAttributes: KeyAttributeExtraction | null = null;
-  try {
-    keyAttributes = await extractKeyAttributes(briefRawText, "brief");
-  } catch (error) {
-    if (!(error instanceof KeyAttributeExtractionError)) {
-      throw error;
-    }
-    console.error("Key attribute extraction failed:", error.cause ?? error);
   }
 
   const project = await prisma.$transaction(async (tx) => {
@@ -427,8 +411,14 @@ export async function createProjectAction(
     return project;
   });
 
-  if (keyAttributes) {
-    await saveKeyAttributeSuggestions(project.id, [{ extraction: keyAttributes, source: "BRIEF" }]);
+  // Key details are saved as suggestions only — a PM confirms them. A
+  // failed read never blocks creating the project; it's recorded so the PM
+  // sees it and can re-run "Suggest from brief & inputs".
+  await recordKeyAttributeExtractionOutcome(project.id, intakeResult.keyAttributesError);
+  if (intakeResult.keyAttributes) {
+    await saveKeyAttributeSuggestions(project.id, [
+      { extraction: intakeResult.keyAttributes, source: "BRIEF" },
+    ]);
   }
 
   const session = await auth();

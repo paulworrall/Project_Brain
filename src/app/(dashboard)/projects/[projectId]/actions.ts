@@ -44,10 +44,11 @@ import {
 import { getBriefCompleteness, type BriefAttributeStatus } from "@/lib/briefCompleteness";
 import { saveKeyAttributeSuggestions } from "@/lib/briefAttributeSuggestions";
 import {
-  KeyAttributeExtractionError,
-  extractKeyAttributes,
-  type KeyAttributeExtraction,
-} from "@/services/agents/key-attribute-extraction";
+  extractKeyAttributesRecordingOutcome,
+  suggestKeyAttributesFromProjectSources,
+} from "@/lib/keyAttributeSources";
+import { describeKnownKeyDetails, formatKeyDetailsForPrompt } from "@/lib/keyDetailsContext";
+import { removeItemsCoveredByKeyDetails } from "@/services/agents/position-key-detail-filter";
 import { formatPmPerspectiveForPrompt, getPmPerspectiveField } from "@/lib/pmPerspective";
 import { getPmPerspectiveValues, savePmPerspective } from "@/lib/pmPerspectiveStore";
 
@@ -788,7 +789,17 @@ export async function uploadKnowledgeItemAction(
   // Key attributes are a bonus here, not the point of the upload — if this
   // call fails the input is still saved, and the PM can re-run "Suggest from
   // brief & inputs" later.
-  const keyAttributes = await tryExtractKeyAttributes(content, "update");
+  const keyAttributes = await extractKeyAttributesRecordingOutcome(projectId, content, "update");
+
+  // Each key detail is recorded once: drop anything from the updated
+  // Position Document that the key details (known + just read) already cover.
+  if (updatedFields) {
+    const knownKeyDetails = describeKnownKeyDetails(await getBriefCompleteness(projectId), keyAttributes);
+    updatedFields = {
+      ...updatedFields,
+      whatWeKnow: await removeItemsCoveredByKeyDetails(updatedFields.whatWeKnow, knownKeyDetails),
+    };
+  }
 
   const knowledgeItem = await prisma.$transaction(async (tx) => {
     const item = await tx.knowledgeItem.create({
@@ -832,21 +843,6 @@ export async function uploadKnowledgeItemAction(
   }
 
   revalidatePath(`/projects/${projectId}`);
-}
-
-async function tryExtractKeyAttributes(
-  text: string,
-  sourceKind: "brief" | "update"
-): Promise<KeyAttributeExtraction | null> {
-  try {
-    return await extractKeyAttributes(text, sourceKind);
-  } catch (error) {
-    if (error instanceof KeyAttributeExtractionError) {
-      console.error("Key attribute extraction failed:", error.cause ?? error);
-      return null;
-    }
-    throw error;
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -935,52 +931,16 @@ export async function suggestBriefAttributesAction(
   _prevState: ActionState | undefined,
   _formData: FormData
 ): Promise<ActionState | undefined> {
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: {
-      briefRawText: true,
-      knowledgeItems: { orderBy: { uploadedAt: "asc" }, select: { id: true, content: true } },
-    },
-  });
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
   if (!project) {
     return { message: "Project not found." };
   }
 
-  const sources = [
-    ...(project.briefRawText
-      ? [{ text: project.briefRawText, kind: "brief" as const, source: "BRIEF" as const, knowledgeItemId: null }]
-      : []),
-    ...project.knowledgeItems.map((item) => ({
-      text: item.content,
-      kind: "update" as const,
-      source: "UPDATE" as const,
-      knowledgeItemId: item.id,
-    })),
-  ];
-  if (sources.length === 0) {
-    return { message: "There's no brief or input on this project to read yet." };
-  }
-
-  let extractions: KeyAttributeExtraction[];
-  try {
-    extractions = await Promise.all(sources.map((s) => extractKeyAttributes(s.text, s.kind)));
-  } catch (error) {
-    if (error instanceof KeyAttributeExtractionError) {
-      return { message: error.message };
-    }
-    throw error;
-  }
-
-  await saveKeyAttributeSuggestions(
-    projectId,
-    sources.map((s, index) => ({
-      extraction: extractions[index],
-      source: s.source,
-      knowledgeItemId: s.knowledgeItemId,
-    }))
-  );
-
+  const { error } = await suggestKeyAttributesFromProjectSources(projectId);
   revalidatePath(`/projects/${projectId}`);
+  if (error) {
+    return { message: error };
+  }
 }
 
 const QuestionSchema = z.object({
@@ -1031,7 +991,7 @@ export async function askChatbotAction(
  * its own.
  */
 async function assembleCapabilityBriefContext(projectId: string): Promise<string> {
-  const [project, positionDocument, draftScopeDocument, clientUpdates, pmPerspective] = await Promise.all([
+  const [project, positionDocument, draftScopeDocument, clientUpdates, pmPerspective, briefCompleteness] = await Promise.all([
     prisma.project.findUnique({ where: { id: projectId }, select: { briefRawText: true } }),
     prisma.document.findUnique({
       where: { projectId_type: { projectId, type: "POSITION_DOCUMENT" } },
@@ -1046,11 +1006,19 @@ async function assembleCapabilityBriefContext(projectId: string): Promise<string
       orderBy: { createdAt: "asc" },
     }),
     getPmPerspectiveValues(projectId),
+    getBriefCompleteness(projectId),
   ]);
 
   const sections: string[] = [];
   if (project?.briefRawText) {
     sections.push(`## Original brief\n${project.briefRawText}`);
+  }
+  // Key details are their own record (the Position Document no longer
+  // carries them). Internal specialist context, so unconfirmed suggestions
+  // are included — clearly marked as such.
+  const keyDetails = formatKeyDetailsForPrompt(briefCompleteness, { includeUnconfirmed: true });
+  if (keyDetails) {
+    sections.push(`## Key details\n${keyDetails}`);
   }
   const positionContent = positionDocument?.versions[0]?.content;
   if (positionContent) {

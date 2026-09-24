@@ -3,6 +3,8 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import * as z from "zod";
 import { anthropic, CLAUDE_MODEL } from "@/lib/anthropic";
 import { prisma } from "@/lib/prisma";
+import { getBriefCompleteness } from "@/lib/briefCompleteness";
+import { formatKeyDetailsForPrompt } from "@/lib/keyDetailsContext";
 
 export class ChatbotError extends Error {
   constructor(
@@ -32,7 +34,7 @@ const ChatbotAnswerSchema = z.object({
  * leaking another project's data into an answer.
  */
 export async function assembleProjectContext(projectId: string): Promise<string> {
-  const [documents, checklistItems, touchpointNotes, knowledgeItems] = await Promise.all([
+  const [documents, checklistItems, touchpointNotes, knowledgeItems, briefCompleteness] = await Promise.all([
     prisma.document.findMany({
       where: { projectId },
       include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
@@ -40,9 +42,18 @@ export async function assembleProjectContext(projectId: string): Promise<string>
     prisma.checklistItem.findMany({ where: { projectId } }),
     prisma.touchpointNote.findMany({ where: { projectId } }),
     prisma.knowledgeItem.findMany({ where: { projectId } }),
+    // Scoped by projectId at the query layer, like everything above.
+    getBriefCompleteness(projectId),
   ]);
 
   const sections: string[] = [];
+
+  // Key details (budget, objective, timeline, contact…) are their own
+  // record — the Position Document no longer carries them.
+  const keyDetails = formatKeyDetailsForPrompt(briefCompleteness, { includeUnconfirmed: true });
+  if (keyDetails) {
+    sections.push(`## Key details\n${keyDetails}`);
+  }
 
   for (const document of documents.filter((d) => d.projectId === projectId)) {
     const latestVersion = document.versions[0];

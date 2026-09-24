@@ -51,30 +51,20 @@ let msaId: string;
 let pmUserId: string;
 
 const positionFields = {
-  primaryContactName: null,
-  primaryContactEmail: null,
   whatWeKnow: [{ topic: "Objective", detail: "Relaunch the loyalty app" }],
   whatWeNeedToFindOut: [],
   clientFlaggedOpenItems: [],
 };
 
-const noKeyAttributes = {
-  budget: null,
-  objective: null,
-  timeline: null,
-  clientContact: null,
-  scope: null,
-  markets: null,
-  languages: null,
-  channels: null,
-};
+const noKeyAttributes = { facts: [] };
 
+/** Intake order: classify, key details, Position Document, email. */
 function queueIntakeCalls() {
   mockParse
     .mockResolvedValueOnce({ parsed_output: { briefType: "WORD_DOC", summary: "A brief." } })
+    .mockResolvedValueOnce({ parsed_output: noKeyAttributes })
     .mockResolvedValueOnce({ parsed_output: positionFields })
-    .mockResolvedValueOnce({ parsed_output: { subject: "Questions", bodyText: "Hi," } })
-    .mockResolvedValueOnce({ parsed_output: noKeyAttributes });
+    .mockResolvedValueOnce({ parsed_output: { subject: "Questions", bodyText: "Hi," } });
 }
 
 function createFormData(name: string, pm: Record<string, string> = {}) {
@@ -192,7 +182,7 @@ describe("PM perspective at intake", () => {
       context: "PM_CONTEXT_MARKER: known client",
     });
 
-    const [classify, position, email, keyAttributes] = [0, 1, 2, 3].map(promptOf);
+    const [classify, keyAttributes, position, email] = [0, 1, 2, 3].map(promptOf);
     expect(classify).not.toContain("PM_CONTEXT_MARKER");
     expect(position).toContain("<pm_perspective>");
     expect(position).toContain("PM_CONTEXT_MARKER");

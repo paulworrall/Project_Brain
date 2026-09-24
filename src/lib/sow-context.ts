@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
-import { PositionDocumentFieldsSchema } from "@/types/intake";
+import { getBriefCompleteness } from "@/lib/briefCompleteness";
+import { CLIENT_CONTACT_FIELDS } from "@/lib/briefAttributes";
+import { confirmedText, formatKeyDetailsForPrompt } from "@/lib/keyDetailsContext";
 import { capabilityLabel } from "@/lib/mapCapabilities";
 import type { SowCoverDetails } from "@/types/sow";
 
@@ -25,7 +27,7 @@ function formatDate(date: Date): string {
  * against elsewhere — the isolation guarantee holds by construction.
  */
 export async function assembleSowContext(projectId: string): Promise<SowContext> {
-  const [project, positionDocument, draftScopeDocument, deliverablesServicesDocument, confirmedCapabilities, latestEstimateVersion] =
+  const [project, positionDocument, draftScopeDocument, deliverablesServicesDocument, confirmedCapabilities, latestEstimateVersion, briefCompleteness] =
     await Promise.all([
       prisma.project.findUniqueOrThrow({
         where: { id: projectId },
@@ -60,6 +62,7 @@ export async function assembleSowContext(projectId: string): Promise<SowContext>
         orderBy: { createdAt: "desc" },
         select: { totalValue: true, currency: true, description: true, needsRecalculation: true },
       }),
+      getBriefCompleteness(projectId),
     ]);
 
   const sections: string[] = [];
@@ -67,8 +70,14 @@ export async function assembleSowContext(projectId: string): Promise<SowContext>
     sections.push(`## Original brief\n${project.briefRawText}`);
   }
 
+  // Key details are their own record (the Position Document no longer
+  // carries them). The SOW is client-facing, so only PM-confirmed values.
+  const keyDetails = formatKeyDetailsForPrompt(briefCompleteness, { includeUnconfirmed: false });
+  if (keyDetails) {
+    sections.push(`## Key details (confirmed by the PM)\n${keyDetails}`);
+  }
+
   const positionContent = positionDocument?.versions[0]?.content;
-  const parsedPosition = positionContent ? PositionDocumentFieldsSchema.safeParse(positionContent) : null;
   if (positionContent) {
     sections.push(`## Position Document\n${JSON.stringify(positionContent)}`);
   }
@@ -109,8 +118,9 @@ export async function assembleSowContext(projectId: string): Promise<SowContext>
     preparedDate: formatDate(new Date()),
     kickOffDate: project.kickOffDate ? formatDate(project.kickOffDate) : null,
     targetCompletionDate: project.targetCompletionDate ? formatDate(project.targetCompletionDate) : null,
-    primaryClientContactName: parsedPosition?.success ? parsedPosition.data.primaryContactName : null,
-    primaryClientContactEmail: parsedPosition?.success ? parsedPosition.data.primaryContactEmail : null,
+    // Only ever the PM-confirmed Client Contact key detail — never inferred.
+    primaryClientContactName: confirmedText(briefCompleteness, CLIENT_CONTACT_FIELDS.attributeId, CLIENT_CONTACT_FIELDS.name),
+    primaryClientContactEmail: confirmedText(briefCompleteness, CLIENT_CONTACT_FIELDS.attributeId, CLIENT_CONTACT_FIELDS.email),
     commercials: latestEstimateVersion
       ? {
           totalValue: Number(latestEstimateVersion.totalValue),

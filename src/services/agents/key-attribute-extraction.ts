@@ -4,9 +4,9 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { anthropic, CLAUDE_MODEL } from "@/lib/anthropic";
 import {
   BRIEF_ATTRIBUTES,
-  type BriefAttributeDefinition,
+  describeKeyAttributeFieldsForPrompt,
   type BriefAttributeValues,
-  type BriefSubFieldDefinition,
+  type BriefMilestone,
 } from "@/lib/briefAttributes";
 import {
   dropInvalidAttributeValues,
@@ -34,75 +34,79 @@ export interface ExtractedKeyAttribute {
 /** attributeId -> what this text states about it; attributes it doesn't mention are absent. */
 export type KeyAttributeExtraction = Record<string, ExtractedKeyAttribute>;
 
-function subFieldSchema(subField: BriefSubFieldDefinition): z.ZodType {
-  const description = [subField.label, subField.hint].filter(Boolean).join(" — ");
-  switch (subField.type) {
-    case "milestones":
-      return z
-        .array(
-          z.object({
-            name: z.string(),
-            date: z.string().nullable().describe("yyyy-mm-dd, or null"),
-          })
-        )
-        .nullable()
-        .describe(`${description}. null if none are stated.`);
-    case "date":
-      return z.string().nullable().describe(`${description}, as yyyy-mm-dd. null if not stated.`);
-    case "currency":
-      return z
-        .string()
-        .nullable()
-        .describe(
-          `${description}. Only if stated or shown by a symbol (£ = GBP, € = EUR); otherwise null.`
-        );
-    default:
-      return z.string().nullable().describe(`${description}. null if not stated.`);
-  }
-}
-
-function attributeSchema(attribute: BriefAttributeDefinition) {
-  return z
-    .object({
-      ...Object.fromEntries(
-        attribute.subFields.map((subField) => [subField.id, subFieldSchema(subField)])
-      ),
-      evidence: z
-        .string()
-        .nullable()
-        .describe("The short passage (under 30 words) from the text this was read from."),
-    })
-    .nullable()
-    .describe(
-      `${attribute.label}: "${attribute.question}" — null if the text says nothing about it.`
-    );
-}
-
-/** Built from the config, so a new attribute or sub-field needs no change here. */
-export const KeyAttributeExtractionSchema = z.object(
-  Object.fromEntries(
-    BRIEF_ATTRIBUTES.map((attribute) => [attribute.id, attributeSchema(attribute)])
-  )
-);
+/**
+ * Deliberately one small, flat shape — a list of facts — rather than a
+ * nested object per attribute: the nested version compiled to a grammar the
+ * API rejected ("compiled grammar is too large"), and a flat list stays the
+ * same size however many attributes the config grows to. Valid ids come
+ * from the config via the prompt and are validated in code below.
+ */
+export const KeyAttributeExtractionSchema = z.object({
+  facts: z
+    .array(
+      z.object({
+        field: z
+          .string()
+          .describe('One id from the list, exactly as written, e.g. "budget.amount"'),
+        value: z.string().describe("The value exactly as the text states it"),
+        date: z
+          .string()
+          .nullable()
+          .describe("Milestones only: yyyy-mm-dd, or null. null for every other sub-field."),
+        evidence: z
+          .string()
+          .nullable()
+          .describe("The short passage (under 30 words) the value was read from"),
+      })
+    )
+    .describe("One entry per key-detail value the text actually states. Empty if none."),
+});
 
 const SOURCE_DESCRIPTION: Record<KeyAttributeSourceKind, string> = {
   brief: "the client's original project brief",
   update: "a later update about the project (call notes, an email reply, or a document)",
 };
 
+type RawFact = z.infer<typeof KeyAttributeExtractionSchema>["facts"][number];
+
+/** Groups validated facts into per-attribute values, dropping unknown ids and badly formatted values. */
+function factsToExtraction(rawFacts: RawFact[]): KeyAttributeExtraction {
+  const facts = rawFacts.map((f) => {
+    const [attributeId, subFieldId] = f.field.trim().split(".");
+    return { ...f, attributeId, subFieldId };
+  });
+  const result: KeyAttributeExtraction = {};
+  for (const attribute of BRIEF_ATTRIBUTES) {
+    const own = facts.filter((f) => f.attributeId === attribute.id);
+    const raw: Record<string, unknown> = {};
+    for (const subField of attribute.subFields) {
+      const matching = own.filter((f) => f.subFieldId === subField.id);
+      if (subField.type === "milestones") {
+        raw[subField.id] = matching.map((f): BriefMilestone => ({ name: f.value, date: f.date }));
+      } else if (matching.length > 0) {
+        raw[subField.id] = matching[0].value;
+      }
+    }
+    const values = dropInvalidAttributeValues(attribute, normalizeAttributeValues(attribute, raw));
+    if (!hasAnyAttributeValue(attribute, values)) continue;
+    const evidence = own.map((f) => f.evidence?.trim()).find(Boolean) ?? null;
+    result[attribute.id] = { values, evidence };
+  }
+  return result;
+}
+
 /**
  * Reads one piece of text — the brief, or a later update — and proposes
  * values for each configured key attribute it actually states. Output is
  * only ever stored as a SUGGESTION: a PM confirms it (see
- * confirmBriefAttributeAction). One dedicated call, separate from the
- * Position Document extraction, which keeps capturing everything else as
- * general brief context.
+ * confirmBriefAttributeAction). Key details live only there — the Position
+ * Document is told to leave them out (see extractPositionFields).
  */
 export async function extractKeyAttributes(
   text: string,
   sourceKind: KeyAttributeSourceKind
 ): Promise<KeyAttributeExtraction> {
-  let parsed: Record<string, unknown> | null;
+  let parsed: z.infer<typeof KeyAttributeExtractionSchema> | null;
   try {
     const message = await anthropic.messages.parse({
       model: CLAUDE_MODEL,
@@ -111,11 +115,11 @@ export async function extractKeyAttributes(
       messages: [
         {
           role: "user",
-          content: `Below is ${SOURCE_DESCRIPTION[sourceKind]}. For each key attribute in the output schema, record ONLY what this text actually states. A person will review every value before it's used, so never guess, infer a "typical" value, or fill a field from general knowledge — use null for anything not stated, and null for the whole attribute if the text doesn't mention it. Keep amounts and wording as written. Dates must be yyyy-mm-dd; if the text gives only a month or a vague time ("Q4", "autumn"), leave the date null and mention it in evidence.\n\n<text>\n${text}\n</text>`,
+          content: `Below is ${SOURCE_DESCRIPTION[sourceKind]}. Record the project's key details it actually states, as a list of facts. Each fact's "field" is one id from this list, written exactly as shown:\n\n${describeKeyAttributeFieldsForPrompt()}\n\nRules:\n- A person reviews every value before it's used, so never guess, infer a "typical" value, or fill anything from general knowledge. Leave out anything not stated.\n- Keep amounts and wording as written.\n- Combine everything the text says about one sub-field into a single fact — e.g. if it gives a main and a secondary objective, put both in the one objective.objective value (main first); never create a second objective.\n- Dates must be yyyy-mm-dd; if the text only gives a month or a vague time ("Q4", "autumn"), leave the date out and mention it in evidence.\n- Only use ids from the list above.\n\n<text>\n${text}\n</text>`,
         },
       ],
     });
-    parsed = message.parsed_output as Record<string, unknown> | null;
+    parsed = message.parsed_output;
   } catch (error) {
     if (error instanceof Anthropic.RateLimitError) {
       throw new KeyAttributeExtractionError(
@@ -138,18 +142,5 @@ export async function extractKeyAttributes(
   if (!parsed) {
     throw new KeyAttributeExtractionError("Claude returned no key details.");
   }
-
-  const result: KeyAttributeExtraction = {};
-  for (const attribute of BRIEF_ATTRIBUTES) {
-    const raw = parsed[attribute.id];
-    if (typeof raw !== "object" || raw === null) continue;
-    const values = dropInvalidAttributeValues(attribute, normalizeAttributeValues(attribute, raw));
-    if (!hasAnyAttributeValue(attribute, values)) continue;
-    const evidence = (raw as Record<string, unknown>).evidence;
-    result[attribute.id] = {
-      values,
-      evidence: typeof evidence === "string" && evidence.trim() ? evidence.trim() : null,
-    };
-  }
-  return result;
+  return factsToExtraction(parsed.facts);
 }

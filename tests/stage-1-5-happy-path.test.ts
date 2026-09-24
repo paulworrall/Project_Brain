@@ -34,6 +34,7 @@ vi.mock("@/lib/auth", () => ({ auth: vi.fn().mockResolvedValue(null) }));
 
 const { anthropic } = await import("@/lib/anthropic");
 const mockParse = anthropic.messages.parse as ReturnType<typeof vi.fn>;
+const { keyAttributeFacts } = await import("./fixtures/keyAttributeFacts");
 
 const { createProjectAction } = await import("@/app/(dashboard)/projects/new/actions");
 const {
@@ -178,33 +179,25 @@ beforeEach(() => {
   mockParse.mockReset();
 });
 
-/** Key-attribute extraction output: every configured attribute null unless overridden. */
-function keyAttributes(overrides: Record<string, unknown> = {}) {
-  return {
-    budget: null,
-    objective: null,
-    timeline: null,
-    clientContact: null,
-    scope: null,
-    markets: null,
-    languages: null,
-    channels: null,
-    ...overrides,
-  };
+/** Key-attribute extraction output stating only the given attributes. */
+function keyAttributes(attributes: Record<string, Record<string, unknown> | null> = {}) {
+  return keyAttributeFacts(attributes);
 }
 
 describe("Stage 1-5 happy path", () => {
   it("carries a project from brief upload through the Deliverables + Services Document", async () => {
-    // Stage 1 — Intake: classify, extract, draft email, then key attributes (4 Claude calls).
+    // Stage 1 — Intake: classify, key details, Position Document, the check
+    // removing anything key details already cover, draft email (5 Claude calls).
     mockParse
       .mockResolvedValueOnce({ parsed_output: briefClassification })
-      .mockResolvedValueOnce({ parsed_output: positionFieldsV1 })
-      .mockResolvedValueOnce({ parsed_output: clarificationEmail })
       .mockResolvedValueOnce({
         parsed_output: keyAttributes({
           budget: { amount: "50,000", currency: "GBP", evidence: "budget of £50,000" },
         }),
-      });
+      })
+      .mockResolvedValueOnce({ parsed_output: positionFieldsV1 })
+      .mockResolvedValueOnce({ parsed_output: { coveredIndexes: [] } })
+      .mockResolvedValueOnce({ parsed_output: clarificationEmail });
 
     await expect(createProjectAction(undefined, briefFormData())).rejects.toThrow(
       "NEXT_REDIRECT_MOCK"
@@ -215,9 +208,11 @@ describe("Stage 1-5 happy path", () => {
     });
 
     // Stage 3 — Get Clarifications: add a client update via the merged
-    // Additional Inputs action — Position Document update, then key attributes (2 Claude calls).
+    // Additional Inputs action — Position Document update, key attributes,
+    // then the key-detail de-duplication check (3 Claude calls).
     mockParse.mockResolvedValueOnce({ parsed_output: positionFieldsV2 });
     mockParse.mockResolvedValueOnce({ parsed_output: keyAttributes() });
+    mockParse.mockResolvedValueOnce({ parsed_output: { coveredIndexes: [] } });
     await uploadKnowledgeItemAction(
       project.id,
       undefined,
@@ -236,8 +231,8 @@ describe("Stage 1-5 happy path", () => {
       feedbackFormData("Design and Tech & Data are needed; no dedicated architecture work.")
     );
 
-    // Final state: all 8 Claude calls consumed in order, nothing left over.
-    expect(mockParse).toHaveBeenCalledTimes(8);
+    // Final state: all 10 Claude calls consumed in order, nothing left over.
+    expect(mockParse).toHaveBeenCalledTimes(10);
 
     // The brief's budget was captured as a suggestion only — never confirmed.
     const keyAttributeRows = await prisma.briefAttributeValue.findMany({ where: { projectId: project.id } });

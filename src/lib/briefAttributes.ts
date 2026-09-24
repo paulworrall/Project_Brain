@@ -155,6 +155,13 @@ export const BRIEF_ATTRIBUTES: readonly BriefAttributeDefinition[] = [
   },
 ];
 
+/**
+ * Where the client contact lives in the config — for the few places that
+ * need a specific contact field (addressing the clarification email, the SOW
+ * cover) without hard-coding ids elsewhere.
+ */
+export const CLIENT_CONTACT_FIELDS = { attributeId: "clientContact", name: "name", email: "email" } as const;
+
 export const REQUIRED_BRIEF_ATTRIBUTES = BRIEF_ATTRIBUTES.filter((attribute) => attribute.required);
 export const OPTIONAL_BRIEF_ATTRIBUTES = BRIEF_ATTRIBUTES.filter(
   (attribute) => !attribute.required
@@ -162,6 +169,46 @@ export const OPTIONAL_BRIEF_ATTRIBUTES = BRIEF_ATTRIBUTES.filter(
 
 export function getBriefAttribute(id: string): BriefAttributeDefinition | undefined {
   return BRIEF_ATTRIBUTES.find((attribute) => attribute.id === id);
+}
+
+/**
+ * One line per attribute.sub-field id, for prompts — e.g.
+ * "- budget.amount — Budget: Amount or range (e.g. 50,000 or 40,000–60,000)".
+ * Derived from the config, so a new attribute needs no prompt changes.
+ */
+export function describeKeyAttributeFieldsForPrompt(): string {
+  return BRIEF_ATTRIBUTES.flatMap((attribute) =>
+    attribute.subFields.map((subField) => {
+      const format =
+        subField.type === "date"
+          ? " (yyyy-mm-dd)"
+          : subField.type === "milestones"
+            ? " (one fact per milestone: value = the milestone name, date = yyyy-mm-dd or null)"
+            : subField.type === "currency"
+              ? " (3-letter code)"
+              : "";
+      const hint = subField.hint ? ` — ${subField.hint}` : "";
+      return `- ${attribute.id}.${subField.id} — ${attribute.label}: ${subField.label}${format}${hint}`;
+    })
+  ).join("\n");
+}
+
+/**
+ * For the Position Document agents: the key details are captured separately
+ * (one record each, in BriefAttributeValue), so they must stay out of
+ * "whatWeKnow" — otherwise the same objective or contact ends up in two
+ * places. Derived from the config.
+ */
+export function keyDetailsExclusionForPrompt(): string {
+  return `These key details are captured separately, in their own record — never put any of them (or any part of them, e.g. a secondary objective, or the client contact's name, role or email) into "whatWeKnow":\n${describeKeyAttributesForPrompt()}\nIf the text leaves one of them unanswered, it may still appear as a gap in "whatWeNeedToFindOut".`;
+}
+
+/** The attributes, by label and question — for telling other agents what's captured as key details. */
+export function describeKeyAttributesForPrompt(): string {
+  return BRIEF_ATTRIBUTES.map(
+    (attribute) =>
+      `- ${attribute.label} (${attribute.subFields.map((f) => f.label).join(", ")}): ${attribute.question}`
+  ).join("\n");
 }
 
 export function isSubFieldFilled(subField: BriefSubFieldDefinition, value: unknown): boolean {

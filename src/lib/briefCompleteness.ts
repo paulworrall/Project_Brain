@@ -70,6 +70,8 @@ export interface BriefCompleteness {
   isPastPhase1: boolean;
   /** For projects past Phase 1: one line per outstanding required attribute. */
   warnings: string[];
+  /** Set when the latest attempt to read key details from the brief/inputs failed — so it's never silent. */
+  extractionFailure: { at: Date; message: string } | null;
 }
 
 const LAST_PHASE_1_STAGE = Math.max(...PHASES[0].stageNumbers);
@@ -88,7 +90,11 @@ function newest<T extends { createdAt: Date }>(records: T[]): T | undefined {
  */
 export function evaluateBriefCompleteness(
   records: BriefAttributeValueRecord[],
-  project: { currentStageNumber: number }
+  project: {
+    currentStageNumber: number;
+    keyAttributeExtractionFailedAt?: Date | null;
+    keyAttributeExtractionError?: string | null;
+  }
 ): BriefCompleteness {
   const attributes = BRIEF_ATTRIBUTES.map((definition): BriefAttributeCompleteness => {
     const own = records.filter((r) => r.attributeId === definition.id);
@@ -163,6 +169,12 @@ export function evaluateBriefCompleteness(
     canProceed: allRequiredConfirmed,
     isPastPhase1,
     warnings: isPastPhase1 ? requiredOutstanding.map((a) => `${a.label} is ${a.status}`) : [],
+    extractionFailure: project.keyAttributeExtractionFailedAt
+      ? {
+          at: project.keyAttributeExtractionFailedAt,
+          message: project.keyAttributeExtractionError ?? "Key details couldn't be read.",
+        }
+      : null,
   };
 }
 
@@ -177,7 +189,11 @@ export async function getBriefCompleteness(projectId: string): Promise<BriefComp
   const [project, rows] = await Promise.all([
     prisma.project.findUniqueOrThrow({
       where: { id: projectId },
-      select: { currentStageNumber: true },
+      select: {
+        currentStageNumber: true,
+        keyAttributeExtractionFailedAt: true,
+        keyAttributeExtractionError: true,
+      },
     }),
     prisma.briefAttributeValue.findMany({
       where: { projectId },
