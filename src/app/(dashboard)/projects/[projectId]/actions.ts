@@ -48,6 +48,8 @@ import {
   extractKeyAttributes,
   type KeyAttributeExtraction,
 } from "@/services/agents/key-attribute-extraction";
+import { formatPmPerspectiveForPrompt, getPmPerspectiveField } from "@/lib/pmPerspective";
+import { getPmPerspectiveValues, savePmPerspective } from "@/lib/pmPerspectiveStore";
 
 export interface ActionState {
   message?: string;
@@ -770,7 +772,11 @@ export async function uploadKnowledgeItemAction(
   let updatedFields: PositionDocumentFields | undefined;
   if (positionDocument && latestVersion && currentFields.success) {
     try {
-      updatedFields = await extractClarificationUpdate(currentFields.data, content);
+      updatedFields = await extractClarificationUpdate(
+        currentFields.data,
+        content,
+        await getPmPerspectiveValues(projectId)
+      );
     } catch (error) {
       if (error instanceof ClarificationExtractionError) {
         return { message: error.message };
@@ -1025,7 +1031,7 @@ export async function askChatbotAction(
  * its own.
  */
 async function assembleCapabilityBriefContext(projectId: string): Promise<string> {
-  const [project, positionDocument, draftScopeDocument, clientUpdates] = await Promise.all([
+  const [project, positionDocument, draftScopeDocument, clientUpdates, pmPerspective] = await Promise.all([
     prisma.project.findUnique({ where: { id: projectId }, select: { briefRawText: true } }),
     prisma.document.findUnique({
       where: { projectId_type: { projectId, type: "POSITION_DOCUMENT" } },
@@ -1039,6 +1045,7 @@ async function assembleCapabilityBriefContext(projectId: string): Promise<string
       where: { projectId, type: "CLARIFICATION_REPLY" },
       orderBy: { createdAt: "asc" },
     }),
+    getPmPerspectiveValues(projectId),
   ]);
 
   const sections: string[] = [];
@@ -1055,6 +1062,12 @@ async function assembleCapabilityBriefContext(projectId: string): Promise<string
   }
   for (const update of clientUpdates) {
     sections.push(`## Client update\n${update.content}`);
+  }
+  // The PM's own view — always its own labelled block, never mixed into
+  // what the client said.
+  const pmBlock = formatPmPerspectiveForPrompt(pmPerspective);
+  if (pmBlock) {
+    sections.push(`## PM perspective (the PM's view, not the client's)\n${pmBlock}`);
   }
 
   return sections.length > 0
@@ -1208,5 +1221,35 @@ export async function generateEstimateBriefAction(
     });
   });
 
+  revalidatePath(`/projects/${projectId}`);
+}
+
+// ---------------------------------------------------------------------------
+// PM perspective
+// ---------------------------------------------------------------------------
+
+/**
+ * Edits one PM perspective field after intake. Records who edited it and
+ * when (per field). Changing Early KPIs re-offers them as a PM-entry
+ * suggestion for the Objective's success measures — never confirmed here.
+ * Doesn't touch documents already generated (update propagation is a
+ * separate task).
+ */
+export async function updatePmPerspectiveFieldAction(
+  projectId: string,
+  fieldId: string,
+  _prevState: ActionState | undefined,
+  formData: FormData
+): Promise<ActionState | undefined> {
+  if (!getPmPerspectiveField(fieldId)) {
+    return { message: "Unknown PM perspective field." };
+  }
+  const content = formData.get("content");
+  const session = await auth();
+  await savePmPerspective(
+    projectId,
+    { [fieldId]: typeof content === "string" ? content : "" },
+    session?.user?.id ?? null
+  );
   revalidatePath(`/projects/${projectId}`);
 }

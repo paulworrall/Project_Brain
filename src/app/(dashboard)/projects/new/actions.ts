@@ -16,6 +16,9 @@ import {
   type KeyAttributeExtraction,
 } from "@/services/agents/key-attribute-extraction";
 import { saveKeyAttributeSuggestions } from "@/lib/briefAttributeSuggestions";
+import { auth } from "@/lib/auth";
+import { pmPerspectiveValuesFromFormData } from "@/lib/pmPerspective";
+import { savePmPerspective } from "@/lib/pmPerspectiveStore";
 
 const CreateProjectSchema = z.object({
   workstreamId: z.string().min(1, { error: "Select a workstream." }),
@@ -290,9 +293,16 @@ export async function createProjectAction(
     return { message: "The brief appears to be empty." };
   }
 
+  const pmPerspective = pmPerspectiveValuesFromFormData(formData);
+
   let intakeResult;
   try {
-    intakeResult = await runIntakeAgent(briefRawText);
+    // The PM perspective is optional and never blocks intake. It goes to
+    // the agents as its own labelled block and is stored on its own — it is
+    // never merged into briefRawText, and key-attribute extraction below
+    // deliberately doesn't see it (budget, timeline and contact must come
+    // from the client).
+    intakeResult = await runIntakeAgent(briefRawText, pmPerspective);
   } catch (error) {
     if (error instanceof IntakeAgentError) {
       return { message: error.message };
@@ -420,6 +430,9 @@ export async function createProjectAction(
   if (keyAttributes) {
     await saveKeyAttributeSuggestions(project.id, [{ extraction: keyAttributes, source: "BRIEF" }]);
   }
+
+  const session = await auth();
+  await savePmPerspective(project.id, pmPerspective, session?.user?.id ?? null);
 
   redirect(`/projects/${project.id}`);
 }

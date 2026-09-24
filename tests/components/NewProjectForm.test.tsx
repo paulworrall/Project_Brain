@@ -301,4 +301,50 @@ describe("NewProjectForm — processing overlay", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(document.activeElement).toBe(submitButton);
   });
+
+describe("NewProjectForm — PM perspective", () => {
+  it("offers an optional PM perspective section below the brief, with a helper prompt per field", () => {
+    render(<NewProjectForm workstreamOptions={workstreamOptions} />);
+
+    const section = screen.getByRole("group", { name: /PM perspective/ });
+    expect(section).toHaveTextContent("(optional)");
+    for (const label of ["Context", "Initial thoughts", "Proposed solution", "Consultancy guidance", "Early KPIs"]) {
+      const field = within(section).getByLabelText(label);
+      expect(field).not.toBeRequired();
+      expect(field).toHaveAccessibleDescription();
+    }
+    // Below the client brief, and not part of it.
+    const brief = screen.getByLabelText("Brief");
+    expect(brief.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(section).not.toContainElement(brief);
+  });
+
+  it("can be submitted with the PM perspective left empty", async () => {
+    const user = userEvent.setup();
+    createProjectAction.mockResolvedValue(undefined);
+    render(<NewProjectForm workstreamOptions={workstreamOptions} />);
+
+    await fillMinimalValidForm(user);
+    await user.click(screen.getByRole("button", { name: "Create project" }));
+
+    expect(createProjectAction).toHaveBeenCalledTimes(1);
+    const formData = createProjectAction.mock.calls[0][1] as FormData;
+    expect(formData.get("pm_context")).toBe("");
+    expect(formData.get("briefText")).toBe("Some client brief text.");
+  });
+
+  it("submits the PM's fields as their own inputs, separate from the brief text", async () => {
+    const user = userEvent.setup();
+    createProjectAction.mockResolvedValue(undefined);
+    render(<NewProjectForm workstreamOptions={workstreamOptions} />);
+
+    await fillMinimalValidForm(user);
+    await user.type(screen.getByLabelText("Early KPIs"), "20% more monthly actives");
+    await user.click(screen.getByRole("button", { name: "Create project" }));
+
+    const formData = createProjectAction.mock.calls[0][1] as FormData;
+    expect(formData.get("pm_earlyKpis")).toBe("20% more monthly actives");
+    expect(formData.get("briefText")).toBe("Some client brief text.");
+  });
+});
 });

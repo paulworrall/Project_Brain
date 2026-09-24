@@ -128,6 +128,7 @@ model Project {
   estimates              Estimate[]
   sow                    SOW?
   briefAttributeValues   BriefAttributeValue[]
+  pmPerspectiveEntries   PmPerspectiveEntry[]
 
   @@unique([workstreamId, name])
 }
@@ -852,4 +853,29 @@ model User {
   estimateVersionsCreated        EstimateVersion[]
   sowVersionsCreated             SOWVersion[]
   briefAttributeValuesCreated    BriefAttributeValue[]
+  pmPerspectiveEntriesEdited     PmPerspectiveEntry[]
+}
+
+// ---------------------------------------------------------------------------
+// PM perspective — the PM's own consultancy thinking at intake (context,
+// initial thoughts, proposed solution, consultancy guidance, early KPIs).
+// WHICH fields exist is defined only in src/lib/pmPerspective.ts; fieldId
+// references that config. Kept strictly separate from Project.briefRawText
+// (the client's words) and never merged into it. One row per field, so each
+// field carries its own last-edited time and author.
+// ---------------------------------------------------------------------------
+
+model PmPerspectiveEntry {
+  id          String   @id @default(cuid())
+  projectId   String
+  fieldId     String
+  content     String
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  updatedBy User?   @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, fieldId])
 }

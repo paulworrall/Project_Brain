@@ -2,6 +2,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { anthropic, CLAUDE_MODEL } from "@/lib/anthropic";
 import { PositionDocumentFieldsSchema, type PositionDocumentFields } from "@/types/intake";
+import {
+  PM_PERSPECTIVE_POSITION_GUIDANCE,
+  pmPerspectivePromptSection,
+  type PmPerspectiveValues,
+} from "@/lib/pmPerspective";
 
 export class ClarificationExtractionError extends Error {
   constructor(
@@ -22,7 +27,8 @@ export class ClarificationExtractionError extends Error {
  */
 export async function extractClarificationUpdate(
   currentPositionDocument: PositionDocumentFields,
-  clarificationNotes: string
+  clarificationNotes: string,
+  pmPerspective: PmPerspectiveValues = {}
 ): Promise<PositionDocumentFields> {
   try {
     const message = await anthropic.messages.parse({
@@ -32,7 +38,7 @@ export async function extractClarificationUpdate(
       messages: [
         {
           role: "user",
-          content: `Here is the current Position Document for this project:\n\n<position_document>\n${JSON.stringify(currentPositionDocument, null, 2)}\n</position_document>\n\nThe client has now replied with the following clarification notes:\n\n<client_reply>\n${clarificationNotes}\n</client_reply>\n\nProduce an updated Position Document. For anything the reply resolves: if it was a genuine gap ("whatWeNeedToFindOut"), move it into "whatWeKnow" as a new topic/detail pair and remove it from the gaps list. If it was a client-flagged open item ("clientFlaggedOpenItems") that the client has now decided, move it into "whatWeKnow" and remove it from that list. Anything the reply does not address stays exactly where it was. If the reply raises a brand-new genuine gap or a brand-new still-deciding item, add it to the appropriate list. Keep primaryContactName/primaryContactEmail unless the reply updates them.`,
+          content: `Here is the current Position Document for this project:\n\n<position_document>\n${JSON.stringify(currentPositionDocument, null, 2)}\n</position_document>\n\nThe client has now replied with the following clarification notes:\n\n<client_reply>\n${clarificationNotes}\n</client_reply>\n\nProduce an updated Position Document. For anything the reply resolves: if it was a genuine gap ("whatWeNeedToFindOut"), move it into "whatWeKnow" as a new topic/detail pair and remove it from the gaps list. If it was a client-flagged open item ("clientFlaggedOpenItems") that the client has now decided, move it into "whatWeKnow" and remove it from that list. Anything the reply does not address stays exactly where it was. If the reply raises a brand-new genuine gap or a brand-new still-deciding item, add it to the appropriate list. Keep primaryContactName/primaryContactEmail unless the reply updates them.${pmPerspectivePromptSection(pmPerspective, PM_PERSPECTIVE_POSITION_GUIDANCE)}`,
         },
       ],
     });

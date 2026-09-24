@@ -11,6 +11,8 @@ import {
 import type { ChecklistItemView } from "./ChecklistView";
 import { KeyAttributesPanel } from "./KeyAttributesPanel";
 import type { BriefCompleteness } from "@/lib/briefCompleteness";
+import { PmPerspectivePanel } from "./PmPerspectivePanel";
+import type { PmPerspectiveFieldView } from "@/lib/pmPerspectiveStore";
 
 function pluralize(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
@@ -45,6 +47,7 @@ export interface Phase1WorkspaceProps {
   draftScopeDocumentMeta: DraftScopeDocumentMeta | null;
   checklistItems: ChecklistItemView[];
   briefCompleteness: BriefCompleteness;
+  pmPerspective: PmPerspectiveFieldView[];
   confirmedCapabilities: Capability[];
   estimateBriefVersion: EstimateBriefVersionMeta | null;
 }
@@ -58,6 +61,7 @@ export function Phase1Workspace({
   draftScopeDocumentMeta,
   checklistItems,
   briefCompleteness,
+  pmPerspective,
   confirmedCapabilities,
   estimateBriefVersion,
 }: Phase1WorkspaceProps) {
@@ -84,9 +88,11 @@ export function Phase1Workspace({
 
       <KeyAttributesPanel projectId={projectId} completeness={briefCompleteness} />
 
+      <PmPerspectivePanel projectId={projectId} fields={pmPerspective} />
+
       <div>
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Current position
+          Current position — from the client
         </h3>
         {positionDocument ? (
           <PositionDocumentView fields={positionDocument} />

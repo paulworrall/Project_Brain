@@ -43,8 +43,17 @@ export interface BriefAttributeCompleteness {
   status: BriefAttributeStatus;
   /** The latest PM-confirmed values — the only thing status is based on. */
   confirmed: BriefAttributeEntry | null;
-  /** The latest AI suggestion, if it's newer than the confirmed values. Never counts as confirmed. */
+  /**
+   * The latest client-sourced suggestion (from the brief or an update), if
+   * newer than the confirmed values. Never counts as confirmed.
+   */
   suggestion: BriefAttributeSuggestion | null;
+  /**
+   * The latest suggestion from the PM's own perspective (source PM_ENTRY,
+   * e.g. early KPIs), kept apart so it's never mistaken for — or hides — what
+   * the client said. Also never counts as confirmed.
+   */
+  pmSuggestion: BriefAttributeSuggestion | null;
   /** Required sub-fields not filled in the confirmed values. */
   missingSubFields: { id: string; label: string }[];
 }
@@ -84,7 +93,9 @@ export function evaluateBriefCompleteness(
   const attributes = BRIEF_ATTRIBUTES.map((definition): BriefAttributeCompleteness => {
     const own = records.filter((r) => r.attributeId === definition.id);
     const latestConfirmed = newest(own.filter((r) => r.kind === "CONFIRMED"));
-    const latestSuggestion = newest(own.filter((r) => r.kind === "SUGGESTION"));
+    const suggestions = own.filter((r) => r.kind === "SUGGESTION");
+    const latestSuggestion = newest(suggestions.filter((r) => r.source !== "PM_ENTRY"));
+    const latestPmSuggestion = newest(suggestions.filter((r) => r.source === "PM_ENTRY"));
 
     const confirmed: BriefAttributeEntry | null = latestConfirmed
       ? {
@@ -96,19 +107,19 @@ export function evaluateBriefCompleteness(
         }
       : null;
 
-    const suggestionIsNewer =
-      latestSuggestion &&
-      (!latestConfirmed || latestSuggestion.createdAt > latestConfirmed.createdAt);
-    const suggestion: BriefAttributeSuggestion | null = suggestionIsNewer
-      ? {
-          id: latestSuggestion.id,
-          values: normalizeAttributeValues(definition, latestSuggestion.values),
-          source: latestSuggestion.source,
-          createdAt: latestSuggestion.createdAt,
-          createdByName: latestSuggestion.createdByName,
-          evidence: latestSuggestion.evidence,
-        }
-      : null;
+    const pending = (record: BriefAttributeValueRecord | undefined): BriefAttributeSuggestion | null =>
+      record && (!latestConfirmed || record.createdAt > latestConfirmed.createdAt)
+        ? {
+            id: record.id,
+            values: normalizeAttributeValues(definition, record.values),
+            source: record.source,
+            createdAt: record.createdAt,
+            createdByName: record.createdByName,
+            evidence: record.evidence,
+          }
+        : null;
+    const suggestion = pending(latestSuggestion);
+    const pmSuggestion = pending(latestPmSuggestion);
 
     // confirmed = every required sub-field filled; partial = something is
     // filled but not every required sub-field (counting optional ones too,
@@ -134,6 +145,7 @@ export function evaluateBriefCompleteness(
       status,
       confirmed,
       suggestion,
+      pmSuggestion,
       missingSubFields: requiredSubFields
         .filter((f) => !filled.includes(f))
         .map((f) => ({ id: f.id, label: f.label })),

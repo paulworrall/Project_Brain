@@ -18,6 +18,7 @@ vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
   generateEstimateBriefAction: vi.fn(),
   confirmBriefAttributeAction: vi.fn(),
   suggestBriefAttributesAction: vi.fn(),
+  updatePmPerspectiveFieldAction: vi.fn(),
 }));
 
 vi.mock("@/app/(dashboard)/projects/[projectId]/estimates/actions", () => ({
@@ -32,6 +33,7 @@ const { ProjectWorkflow } = await import("@/components/features/ProjectWorkflow"
 const { ALL_REQUIRED_CONFIRMED, briefCompleteness, briefRecord } = await import(
   "../fixtures/briefCompleteness"
 );
+const { pmPerspectiveView } = await import("../fixtures/pmPerspective");
 
 const STAGE_NAMES = [
   "Intake",
@@ -140,6 +142,7 @@ function baseProps() {
     }[],
     sowVersions: [] as { id: string; versionNumber: number; createdAt: Date }[],
     briefCompleteness: briefCompleteness([briefRecord("budget", { amount: "£50,000", currency: "GBP" })]),
+    pmPerspective: pmPerspectiveView(),
     confirmedCapabilities: [] as Capability[],
     estimateBriefVersion: null as {
       id: string;

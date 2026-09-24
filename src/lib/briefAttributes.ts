@@ -22,6 +22,14 @@ export interface BriefSubFieldDefinition {
   required: boolean;
   /** Shown under the input, and passed to the extraction agent. */
   hint?: string;
+  /**
+   * A PM perspective field (src/lib/pmPerspective.ts) whose content is
+   * offered as a SUGGESTION for this sub-field, with source PM_ENTRY — still
+   * needing PM confirmation. Only sub-fields marked here can ever take a
+   * value from the PM perspective; budget, timeline and client contact must
+   * come from the client.
+   */
+  pmPerspectiveFieldId?: string;
 }
 
 export interface BriefAttributeDefinition {
@@ -88,6 +96,7 @@ export const BRIEF_ATTRIBUTES: readonly BriefAttributeDefinition[] = [
         type: "longText",
         required: true,
         hint: "The OKRs/KPIs success will be measured against — or 'None agreed yet'",
+        pmPerspectiveFieldId: "earlyKpis",
       },
     ],
   },

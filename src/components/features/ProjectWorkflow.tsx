@@ -12,6 +12,7 @@ import type { EstimateBriefVersionMeta } from "./CapabilitiesAndEstimateBriefPan
 import { BriefReadinessIndicator } from "./BriefReadinessIndicator";
 import { BriefCompletenessWarning } from "./BriefGateNotice";
 import type { BriefCompleteness } from "@/lib/briefCompleteness";
+import type { PmPerspectiveFieldView } from "@/lib/pmPerspectiveStore";
 import type { ClientUpdateLogEntry } from "./Phase1Workspace";
 import type { DraftScopeDocumentMeta } from "./DraftScopeDocumentCard";
 import { ChatPanel } from "./ChatPanel";
@@ -122,6 +123,7 @@ interface ProjectWorkflowProps {
   sowTemplateOptions: SowTemplateSelectOption[];
   sowVersions: SowVersionMeta[];
   briefCompleteness: BriefCompleteness;
+  pmPerspective: PmPerspectiveFieldView[];
   confirmedCapabilities: Capability[];
   estimateBriefVersion: EstimateBriefVersionMeta | null;
   estimates: EstimateListItem[];
@@ -169,6 +171,7 @@ export function ProjectWorkflow({
   sowTemplateOptions,
   sowVersions,
   briefCompleteness,
+  pmPerspective,
   confirmedCapabilities,
   estimateBriefVersion,
   estimates,
@@ -214,6 +217,7 @@ export function ProjectWorkflow({
       draftScopeDocumentMeta={draftScopeDocumentMeta}
       checklistItems={checklistItems}
       briefCompleteness={briefCompleteness}
+      pmPerspective={pmPerspective}
       confirmedCapabilities={confirmedCapabilities}
       estimateBriefVersion={estimateBriefVersion}
     />

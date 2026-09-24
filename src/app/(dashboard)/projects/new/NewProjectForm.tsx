@@ -9,6 +9,7 @@ import { ProcessingOverlay, type ProcessingOverlayStatus } from "@/components/ui
 import { useFallbackStageProgress } from "@/hooks/useFallbackStageProgress";
 import { INTAKE_PROCESSING_STAGES, INTAKE_STAGE_DURATIONS_MS } from "@/lib/intakeProcessingStages";
 import { formatRateCardLabel } from "@/lib/formatRateCardLabel";
+import { PmPerspectiveFields } from "@/components/features/PmPerspectiveFields";
 import {
   createProjectAction,
   getRateCardsForWorkstreamAction,
@@ -47,6 +48,8 @@ export function NewProjectForm({
   // there.
   const [name, setName] = useState("");
   const [briefText, setBriefText] = useState("");
+  // Same reasoning — the PM perspective must survive a failed submission.
+  const [pmPerspective, setPmPerspective] = useState<Record<string, string>>({});
 
   const [rateCardOptions, setRateCardOptions] = useState<RateCardOption[]>([]);
   const [rateCardId, setRateCardId] = useState("");
@@ -310,6 +313,11 @@ export function NewProjectForm({
         )}
         <FormError>{state?.errors?.briefText}</FormError>
       </div>
+
+      <PmPerspectiveFields
+        values={pmPerspective}
+        onChange={(fieldId, value) => setPmPerspective((current) => ({ ...current, [fieldId]: value }))}
+      />
 
       {state?.message && (
         <p className="text-sm text-danger" role="alert">

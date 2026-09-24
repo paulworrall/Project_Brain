@@ -70,3 +70,27 @@ describe("extractClarificationUpdate", () => {
     ).rejects.toThrow(ClarificationExtractionError);
   });
 });
+
+describe("extractClarificationUpdate — PM perspective", () => {
+  it("includes the PM perspective as a separately labelled block, never mixed into the client's reply", async () => {
+    mockParse.mockResolvedValueOnce({ parsed_output: currentPositionDocument });
+
+    await extractClarificationUpdate(currentPositionDocument, "CLIENT_REPLY_MARKER", {
+      proposedSolution: "PM_SOLUTION_MARKER: a phased rollout",
+    });
+
+    const prompt = mockParse.mock.calls[0][0].messages[0].content as string;
+    expect(prompt).toContain("<pm_perspective>");
+    expect(prompt).toContain("PM_SOLUTION_MARKER");
+    expect(prompt).toMatch(/never present anything in it as something the client said/i);
+    const replyBlock = prompt.slice(prompt.indexOf("<client_reply>"), prompt.indexOf("</client_reply>"));
+    expect(replyBlock).toContain("CLIENT_REPLY_MARKER");
+    expect(replyBlock).not.toContain("PM_SOLUTION_MARKER");
+  });
+
+  it("sends no PM block when there's no PM perspective", async () => {
+    mockParse.mockResolvedValueOnce({ parsed_output: currentPositionDocument });
+    await extractClarificationUpdate(currentPositionDocument, "reply");
+    expect(mockParse.mock.calls[0][0].messages[0].content).not.toContain("<pm_perspective>");
+  });
+});

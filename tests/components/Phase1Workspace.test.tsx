@@ -11,10 +11,12 @@ vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
   generateEstimateBriefAction: vi.fn(),
   confirmBriefAttributeAction: vi.fn(),
   suggestBriefAttributesAction: vi.fn(),
+  updatePmPerspectiveFieldAction: vi.fn(),
 }));
 
 const { Phase1Workspace } = await import("@/components/features/Phase1Workspace");
 const { briefCompleteness, briefRecord } = await import("../fixtures/briefCompleteness");
+const { pmPerspectiveView } = await import("../fixtures/pmPerspective");
 
 const positionDocument = {
   primaryContactName: "Jamie Chen",
@@ -36,6 +38,7 @@ function baseProps() {
     draftScopeDocumentMeta: null,
     checklistItems: [],
     briefCompleteness: briefCompleteness(),
+    pmPerspective: pmPerspectiveView(),
     confirmedCapabilities: [],
     estimateBriefVersion: null,
   };
@@ -169,6 +172,40 @@ describe("Phase1Workspace", () => {
 
     expect(screen.getByText("AI suggestion from the brief — not confirmed")).toBeInTheDocument();
     expect(screen.getByText("Review and confirm →")).toBeInTheDocument();
+    expect(screen.getByText("0 of 4 required details confirmed", { exact: false })).toBeInTheDocument();
+  });
+
+  it("shows the PM perspective in its own labelled panel, apart from what came from the client", () => {
+    render(
+      <Phase1Workspace
+        {...baseProps()}
+        pmPerspective={pmPerspectiveView({ context: { content: "PM-only context about the client." } })}
+      />
+    );
+
+    const pmPanel = screen.getByRole("region", { name: "PM perspective" });
+    expect(pmPanel).toHaveTextContent("PM-only context about the client.");
+    expect(pmPanel).not.toHaveTextContent("Refresh the campaign.");
+    expect(screen.getByText("Current position — from the client")).toBeInTheDocument();
+    // The client-side view never shows the PM's words.
+    const clientSide = screen.getByText("Other details from the brief").closest("div")!;
+    expect(clientSide).not.toHaveTextContent("PM-only context about the client.");
+  });
+
+  it("shows a PM-entry KPI suggestion as coming from the PM perspective, not the client", () => {
+    render(
+      <Phase1Workspace
+        {...baseProps()}
+        briefCompleteness={briefCompleteness([
+          briefRecord("objective", { successMeasures: "20% more monthly actives" }, { kind: "SUGGESTION", source: "PM_ENTRY" }),
+        ])}
+      />
+    );
+
+    expect(
+      screen.getByText("Suggested from your PM perspective — not from the client, not confirmed")
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/AI suggestion from/)).not.toBeInTheDocument();
     expect(screen.getByText("0 of 4 required details confirmed", { exact: false })).toBeInTheDocument();
   });
 });

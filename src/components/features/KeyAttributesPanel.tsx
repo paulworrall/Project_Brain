@@ -111,10 +111,10 @@ export function KeyAttributeRow({
   attribute: BriefAttributeCompleteness;
   idPrefix?: string;
 }) {
-  const { confirmed, suggestion, status } = attribute;
+  const { confirmed, suggestion, pmSuggestion, status } = attribute;
   // Remount the editor whenever the stored state changes, so it reopens
   // closed with fresh defaults after a save.
-  const editorKey = `${confirmed?.id ?? "none"}-${suggestion?.id ?? "none"}`;
+  const editorKey = `${confirmed?.id ?? "none"}-${suggestion?.id ?? "none"}-${pmSuggestion?.id ?? "none"}`;
 
   return (
     <li
@@ -173,7 +173,25 @@ export function KeyAttributeRow({
         </div>
       )}
 
-      {!suggestion && (
+      {pmSuggestion && (
+        <div className="space-y-2 rounded-md border border-dashed border-accent-foreground/40 bg-accent p-3">
+          <p className="text-xs font-semibold text-accent-foreground">
+            Suggested from your PM perspective — not from the client, not confirmed
+          </p>
+          <ValuesList attributeId={attribute.id} values={pmSuggestion.values} />
+          <Disclosure key={`pm-suggestion-${editorKey}`} summary="Review and confirm →">
+            <KeyAttributeForm
+              projectId={projectId}
+              attributeId={attribute.id}
+              initialValues={pmSuggestion.values}
+              suggestionId={pmSuggestion.id}
+              idPrefix={`${idPrefix}-pm`}
+            />
+          </Disclosure>
+        </div>
+      )}
+
+      {!suggestion && !pmSuggestion && (
         <Disclosure key={`edit-${editorKey}`} summary={confirmed ? "Edit" : "Fill in →"}>
           <KeyAttributeForm
             projectId={projectId}
@@ -210,7 +228,7 @@ export function KeyAttributesPanel({
   const required = completeness.attributes.filter((a) => a.required);
   const optional = completeness.attributes.filter((a) => !a.required);
   const confirmedCount = required.filter((a) => a.status === "confirmed").length;
-  const pendingSuggestions = completeness.attributes.filter((a) => a.suggestion).length;
+  const pendingSuggestions = completeness.attributes.filter((a) => a.suggestion || a.pmSuggestion).length;
 
   return (
     <Card className="space-y-4 p-5">

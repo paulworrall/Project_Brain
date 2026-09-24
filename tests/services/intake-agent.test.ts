@@ -126,3 +126,57 @@ describe("runIntakeAgent", () => {
     expect(result.checklist.items).toEqual([...DEFAULT_SETUP_CHECKLIST_ITEMS]);
   });
 });
+
+describe("runIntakeAgent — PM perspective", () => {
+  const pmPerspective = {
+    context: "PM_CONTEXT_MARKER: the client was burned by their last agency.",
+    earlyKpis: "PM_KPI_MARKER: 20% more monthly actives",
+  };
+  const emptyPosition = {
+    primaryContactName: null,
+    primaryContactEmail: null,
+    whatWeKnow: [],
+    whatWeNeedToFindOut: [],
+    clientFlaggedOpenItems: [],
+  };
+
+  function queueIntake() {
+    mockParse
+      .mockResolvedValueOnce({ parsed_output: { briefType: "PDF", summary: "A brief." } })
+      .mockResolvedValueOnce({ parsed_output: emptyPosition })
+      .mockResolvedValueOnce({ parsed_output: { subject: "Hi", bodyText: "Hello," } });
+  }
+
+  it("gives the Position Document and clarification email the PM perspective as its own labelled block, separate from the brief", async () => {
+    queueIntake();
+    await runIntakeAgent("CLIENT_BRIEF_MARKER", pmPerspective);
+
+    const [classifyPrompt, positionPrompt, emailPrompt] = mockParse.mock.calls.map(
+      (call) => call[0].messages[0].content as string
+    );
+
+    // Classification is about the brief document itself — no PM view.
+    expect(classifyPrompt).not.toContain("PM_CONTEXT_MARKER");
+
+    for (const prompt of [positionPrompt, emailPrompt]) {
+      expect(prompt).toContain("<pm_perspective>");
+      expect(prompt).toContain("PM_CONTEXT_MARKER");
+      expect(prompt).toMatch(/never present anything in it as something the client said/i);
+    }
+    // The PM's words sit in their own block, never inside the brief.
+    const briefBlock = positionPrompt.slice(positionPrompt.indexOf("<brief>"), positionPrompt.indexOf("</brief>"));
+    expect(briefBlock).toContain("CLIENT_BRIEF_MARKER");
+    expect(briefBlock).not.toContain("PM_CONTEXT_MARKER");
+    // "What we know" must stay limited to what the client said.
+    expect(positionPrompt).toMatch(/whatWeKnow.*only what the brief itself states/i);
+  });
+
+  it("sends no PM block at all when the PM perspective is empty", async () => {
+    queueIntake();
+    await runIntakeAgent("brief text", {});
+
+    for (const call of mockParse.mock.calls) {
+      expect(call[0].messages[0].content).not.toContain("<pm_perspective>");
+    }
+  });
+});

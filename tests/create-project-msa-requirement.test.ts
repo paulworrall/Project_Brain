@@ -11,6 +11,9 @@ import { PrismaClient } from "@/generated/prisma/client";
 // would throw on the unmocked import and fail the test loudly.
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+// createProjectAction records who entered the PM perspective; next-auth
+// can't load outside Next, so mock it like every other action test does.
+vi.mock("@/lib/auth", () => ({ auth: vi.fn().mockResolvedValue(null) }));
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(() => {
     throw new Error("UNEXPECTED_REDIRECT — MSA validation should have rejected before this");

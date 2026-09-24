@@ -12,6 +12,7 @@ import {
 import { DraftScopeDocumentSchema } from "@/types/triage";
 import { DeliverablesServicesDocumentSchema } from "@/types/deliverables-services";
 import { getBriefCompleteness } from "@/lib/briefCompleteness";
+import { getPmPerspective } from "@/lib/pmPerspectiveStore";
 
 export default async function ProjectDetailPage({
   params,
@@ -166,7 +167,10 @@ export default async function ProjectDetailPage({
     ? "COMPLETE"
     : "ACTIVE";
 
-  const briefCompleteness = await getBriefCompleteness(project.id);
+  const [briefCompleteness, pmPerspective] = await Promise.all([
+    getBriefCompleteness(project.id),
+    getPmPerspective(project.id),
+  ]);
 
   const confirmedCapabilities = capabilities.map((c) => c.capability);
   const latestEstimateBriefVersion = estimateBrief?.versions[0] ?? null;
@@ -279,6 +283,7 @@ export default async function ProjectDetailPage({
           sow?.versions.map((v) => ({ id: v.id, versionNumber: v.versionNumber, createdAt: v.createdAt })) ?? []
         }
         briefCompleteness={briefCompleteness}
+        pmPerspective={pmPerspective}
         confirmedCapabilities={confirmedCapabilities}
         estimateBriefVersion={estimateBriefVersion}
         estimates={estimates.map((estimate) => ({
