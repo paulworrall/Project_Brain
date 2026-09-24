@@ -1,10 +1,10 @@
 # Project Brain — Progress
 
 ## Current Status
-- **Active Task**: None — fixed key-detail extraction and made each key detail recorded once (bug found in user testing) — see the dated note at the end. Next: the UI pass on key details
-- **Last Completed**: Key details single source of truth — extraction works (flat facts schema), failures recorded, Position Document no longer duplicates key details or holds the contact, existing 9 projects backfilled
-- **Blocked**: None — the key-detail and PM perspective screens still haven't been checked in a live browser by me (needs sign-in); tests and live API smoke runs cover the behaviour
-- **Last Updated**: 2026-09-24T14:00:00Z
+- **Active Task**: None — simplified the PM perspective after user feedback (ad-hoc change) — see the dated note at the end. Next: the UI pass on key details
+- **Last Completed**: PM perspective reduced to Initial thoughts + Proposed solution; section title now inside the box
+- **Blocked**: None — the key-detail and PM perspective screens still haven't been checked in a live browser by me (needs sign-in); the user is testing on live
+- **Last Updated**: 2026-09-24T16:00:00Z
 
 ## Task Status
 | Task | Status | Completed At |
@@ -447,3 +447,11 @@
 - **Housekeeping**: an early full test run (before the new columns were migrated) crashed two suites before their clean-up, leaving `TestHub_SowDownloadSpec` and `TestHub_EstimateDownloadSpec`; removed.
 - **Left for the UI stage** (agreed): Objective still reads "Missing" while an AI suggestion sits under it (only PM confirmation counts) — a label like "Suggested — needs confirming" would read better; "What We Need to Find Out" still lists key-detail gaps (budget, timeline) until the client email is reworked to read missing key details from `getBriefCompleteness()`.
 - Full suite 488 tests across 72 files, all passing; typecheck and lint clean. Committed `0685340`, pushed, Vercel deployment completed.
+
+### Change: PM perspective simplified after user feedback (2026-09-24)
+
+- **Feedback**: the user liked the PM perspective layout, but (1) the "PM perspective (optional)" title sat on the container's border rather than inside it, and (2) Context, Consultancy guidance and Early KPIs added complexity and should go.
+- **Title**: the section was a `<fieldset>` whose `<legend>` browsers draw on the border line. It's now a `div role="group"` labelled by an `<h3>` inside the box, so it lines up with the intro and fields and is still announced as a named group.
+- **Fields**: `PM_PERSPECTIVE_FIELDS` (`src/lib/pmPerspective.ts`) now has only **Initial thoughts** and **Proposed solution**. Checked first (read-only): no saved project had content in the removed fields and no PM-entry KPI suggestions existed, so nothing was lost. Removed field ids are rejected by `updatePmPerspectiveFieldAction` and ignored by the prompt formatter.
+- **Knock-on**: with Early KPIs gone, the PM perspective no longer feeds any key detail — `pmPerspectiveFieldId` was removed from the Objective's success measures. The linking mechanism (`pmPerspectiveFieldId`, `savePmPerspectiveSuggestions`, `pmSuggestion` in `getBriefCompleteness`, the PM-suggestion box in Key details) is kept but now unused; offered to the user to remove for simplicity or keep for a possible future link.
+- **Tests**: updated to the two fields (config, formatter, form section incl. the title being a heading inside the box, Phase 1 panel counts, prompts); the two Early-KPI tests were replaced by one asserting PM perspective content never becomes a key detail, plus one rejecting the removed field ids. Full suite 487 tests across 72 files, all passing; typecheck and lint clean. Committed `8206fdc`, pushed, Vercel deployment completed.
