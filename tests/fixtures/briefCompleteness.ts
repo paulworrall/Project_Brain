@@ -28,7 +28,7 @@ export function briefRecord(
 }
 
 export const ALL_REQUIRED_CONFIRMED: BriefAttributeValueRecord[] = [
-  briefRecord("budget", { amount: "£50,000", currency: "GBP" }),
+  briefRecord("budget", { amount: "£50,000" }),
   briefRecord("objective", { objective: "Relaunch the app", successMeasures: "20% more actives" }),
   briefRecord("timeline", { startDate: "2026-10-01" }),
   briefRecord("clientContact", { name: "Caroline", email: "caroline@fizzy.example" }),

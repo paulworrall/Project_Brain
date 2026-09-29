@@ -26,9 +26,10 @@ describe("brief key attributes config", () => {
     }
   });
 
-  it("budget needs an amount or range and a currency", () => {
+  it("budget is a single free-text value (amount or range, with its currency)", () => {
     expect(getBriefAttribute("budget")?.question).toBe("What is the budget for the project?");
-    expect(subFieldRequirements("budget")).toEqual({ amount: true, currency: true });
+    expect(subFieldRequirements("budget")).toEqual({ amount: true });
+    expect(getBriefAttribute("budget")?.subFields[0].type).toBe("longText");
   });
 
   it("objective needs the objective and its success measures (OKRs/KPIs)", () => {

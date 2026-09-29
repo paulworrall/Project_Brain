@@ -4,7 +4,7 @@ import {
   type PmPerspectiveFieldDefinition,
   type PmPerspectiveValues,
 } from "@/lib/pmPerspective";
-import { savePmPerspectiveSuggestions } from "@/lib/briefAttributeSuggestions";
+import { savePmPerspectiveSuggestions } from "@/lib/briefAttributeCapture";
 import { BRIEF_ATTRIBUTES } from "@/lib/briefAttributes";
 
 /** PM perspective fields that feed a key attribute (see pmPerspectiveFieldId). */

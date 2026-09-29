@@ -26,10 +26,10 @@ const { anthropic } = await import("@/lib/anthropic");
 const mockParse = anthropic.messages.parse as ReturnType<typeof vi.fn>;
 
 const {
-  confirmBriefAttributeAction,
+  saveBriefAttributeAction,
   generateSowAction,
   startSowDevelopmentAction,
-  suggestBriefAttributesAction,
+  rereadBriefAttributesAction,
   updateProjectSummaryAction,
   uploadKnowledgeItemAction,
 } = await import("@/app/(dashboard)/projects/[projectId]/actions");
@@ -105,25 +105,25 @@ async function createProject(name: string, currentStageNumber = 3) {
 }
 
 async function confirmAllRequired(projectId: string) {
-  await confirmBriefAttributeAction(
+  await saveBriefAttributeAction(
     projectId,
     "budget",
     undefined,
-    formData({ amount: "£50k", currency: "GBP" })
+    formData({ amount: "£50k (GBP)" })
   );
-  await confirmBriefAttributeAction(
+  await saveBriefAttributeAction(
     projectId,
     "objective",
     undefined,
     formData({ objective: "Relaunch the app", successMeasures: "20% more actives" })
   );
-  await confirmBriefAttributeAction(
+  await saveBriefAttributeAction(
     projectId,
     "timeline",
     undefined,
     formData({ startDate: "2026-10-01" })
   );
-  await confirmBriefAttributeAction(
+  await saveBriefAttributeAction(
     projectId,
     "clientContact",
     undefined,
@@ -153,15 +153,15 @@ beforeEach(() => {
   mockParse.mockReset();
 });
 
-describe("AI-extracted key attributes", () => {
-  it("records values extracted from an update as suggestions only, with their source — never confirmed", async () => {
+describe("Key details captured by the agent — trusted by default", () => {
+  it("captures values from an update straight away, tagged with the update they came from", async () => {
     const projectId = await createProject("Upload Extraction Project");
 
     // 1st Claude call: the existing Position Document update; 2nd: key attributes.
     mockParse.mockResolvedValueOnce({ parsed_output: positionDocument });
     mockParse.mockResolvedValueOnce({
       parsed_output: extraction({
-        budget: { amount: "£50,000", currency: "GBP", evidence: "our budget is £50,000" },
+        budget: { amount: "£50,000", evidence: "our budget is £50,000" },
       }),
     });
 
@@ -174,15 +174,64 @@ describe("AI-extracted key attributes", () => {
 
     const rows = await prisma.briefAttributeValue.findMany({ where: { projectId } });
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ attributeId: "budget", kind: "SUGGESTION", source: "UPDATE" });
+    expect(rows[0]).toMatchObject({ attributeId: "budget", source: "UPDATE" });
     const knowledgeItem = await prisma.knowledgeItem.findFirstOrThrow({ where: { projectId } });
     expect(rows[0].knowledgeItemId).toBe(knowledgeItem.id);
 
     const completeness = await getBriefCompleteness(projectId);
     const budget = completeness.attributes.find((a) => a.id === "budget")!;
-    expect(budget.status).toBe("missing");
-    expect(budget.suggestion?.values).toMatchObject({ amount: "£50,000", currency: "GBP" });
+    expect(budget.status).toBe("confirmed");
+    expect(budget.current?.values).toEqual({ amount: "£50,000" });
+    expect(budget.current?.origin).toEqual({ kind: "update", number: 1 });
+    expect(budget.current?.evidence).toBe("our budget is £50,000");
+    // The other required details are still missing, so the gate stays shut.
     expect(completeness.canProceed).toBe(false);
+  });
+
+  it("lets the latest update win over a PM's edit — but only for the details it talks about", async () => {
+    const projectId = await createProject("Latest Wins Project");
+    await saveBriefAttributeAction(projectId, "budget", undefined, formData({ amount: "£70k" }));
+    await saveBriefAttributeAction(
+      projectId,
+      "objective",
+      undefined,
+      formData({ objective: "PM objective", successMeasures: "PM measures" })
+    );
+
+    mockParse.mockResolvedValueOnce({ parsed_output: positionDocument });
+    mockParse.mockResolvedValueOnce({
+      parsed_output: extraction({ budget: { amount: "£80k", evidence: "budget is now £80k" } }),
+    });
+    await uploadKnowledgeItemAction(
+      projectId,
+      undefined,
+      formData({ title: "Update", content: "The budget is now £80k." })
+    );
+
+    const attributes = (await getBriefCompleteness(projectId)).attributes;
+    const budget = attributes.find((a) => a.id === "budget")!;
+    expect(budget.current?.values.amount).toBe("£80k");
+    expect(budget.current?.origin).toEqual({ kind: "update", number: 1 });
+    const objective = attributes.find((a) => a.id === "objective")!;
+    expect(objective.current?.values.objective).toBe("PM objective");
+    expect(objective.current?.origin).toEqual({ kind: "pm" });
+  });
+
+  it("writes a captured start and end date to the project's own dates", async () => {
+    const projectId = await createProject("Captured Dates Project");
+    mockParse.mockResolvedValueOnce({ parsed_output: positionDocument });
+    mockParse.mockResolvedValueOnce({
+      parsed_output: extraction({ timeline: { startDate: "2026-10-01", endDate: "2026-12-15" } }),
+    });
+    await uploadKnowledgeItemAction(
+      projectId,
+      undefined,
+      formData({ title: "Dates", content: "We start 1 Oct and finish 15 Dec." })
+    );
+
+    const project = await prisma.project.findUniqueOrThrow({ where: { id: projectId } });
+    expect(project.kickOffDate?.toISOString().slice(0, 10)).toBe("2026-10-01");
+    expect(project.targetCompletionDate?.toISOString().slice(0, 10)).toBe("2026-12-15");
   });
 
   it("still saves the upload if key-attribute extraction fails", async () => {
@@ -211,117 +260,115 @@ describe("AI-extracted key attributes", () => {
     expect((await getBriefCompleteness(projectId)).extractionFailure).toBeNull();
   });
 
-  it("records a failure from 'Suggest from brief & inputs' too, and returns it to the PM", async () => {
+  it("records a failure from 'Re-read brief & inputs' too, and returns it to the PM", async () => {
     const projectId = await createProject("Suggest Failure Project");
     mockParse.mockRejectedValueOnce(new Error("400 compiled grammar is too large"));
 
-    const result = await suggestBriefAttributesAction(projectId, undefined, new FormData());
+    const result = await rereadBriefAttributesAction(projectId, undefined, new FormData());
 
     expect(result?.message).toMatch(/key details/i);
     expect((await getBriefCompleteness(projectId)).extractionFailure).not.toBeNull();
   });
 
-  it("suggests from the stored brief on demand, merging a later partial update over earlier values", async () => {
+  it("re-reads the brief and inputs to fill empty details, the later source winning", async () => {
     const projectId = await createProject("On Demand Suggest Project");
     await prisma.knowledgeItem.create({
       data: { projectId, type: "NOTE", title: "Update", content: "Budget now £60k." },
     });
-
     mockParse.mockResolvedValueOnce({
-      parsed_output: extraction({
-        budget: { amount: "£50k", currency: "GBP", evidence: "Budget is £50k" },
-      }),
+      parsed_output: extraction({ budget: { amount: "£50k", evidence: "Budget is £50k" } }),
     });
     mockParse.mockResolvedValueOnce({
-      parsed_output: extraction({
-        budget: { amount: "£60k", currency: null, evidence: "Budget now £60k" },
-      }),
+      parsed_output: extraction({ budget: { amount: "£60k", evidence: "Budget now £60k" } }),
     });
 
-    const result = await suggestBriefAttributesAction(projectId, undefined, new FormData());
+    const result = await rereadBriefAttributesAction(projectId, undefined, new FormData());
     expect(result?.message).toBeUndefined();
 
     const budget = (await getBriefCompleteness(projectId)).attributes.find(
       (a) => a.id === "budget"
     )!;
-    expect(budget.status).toBe("missing");
-    expect(budget.suggestion?.source).toBe("UPDATE");
-    // The update only restated the amount; the brief's currency carries over.
-    expect(budget.suggestion?.values).toMatchObject({ amount: "£60k", currency: "GBP" });
+    expect(budget.status).toBe("confirmed");
+    expect(budget.current?.values.amount).toBe("£60k");
+    expect(budget.current?.origin).toEqual({ kind: "update", number: 1 });
+  });
+
+  it("never lets a re-read undo a PM's edit — it only fills what's still empty", async () => {
+    const projectId = await createProject("Reread Keeps Edit Project");
+    await saveBriefAttributeAction(projectId, "budget", undefined, formData({ amount: "£70k" }));
+    mockParse.mockResolvedValueOnce({
+      parsed_output: extraction({
+        budget: { amount: "£50k" },
+        clientContact: { name: "Caroline", email: "caroline@fizzy.example" },
+      }),
+    });
+
+    await rereadBriefAttributesAction(projectId, undefined, new FormData());
+
+    const attributes = (await getBriefCompleteness(projectId)).attributes;
+    const budget = attributes.find((a) => a.id === "budget")!;
+    expect(budget.current?.values.amount).toBe("£70k");
+    expect(budget.current?.origin).toEqual({ kind: "pm" });
+    const contact = attributes.find((a) => a.id === "clientContact")!;
+    expect(contact.current?.values.name).toBe("Caroline");
+    expect(contact.current?.origin).toEqual({ kind: "brief" });
   });
 });
 
-describe("confirmBriefAttributeAction", () => {
-  it("lets a PM confirm values, recorded as a PM entry", async () => {
+describe("saveBriefAttributeAction — the inline Update/Add", () => {
+  it("records a PM edit, replacing what was captured", async () => {
     const projectId = await createProject("Confirm Project");
-    const result = await confirmBriefAttributeAction(
+    await prisma.briefAttributeValue.create({
+      data: {
+        projectId,
+        attributeId: "budget",
+        kind: "SUGGESTION",
+        source: "BRIEF",
+        values: { amount: "£50k", currency: "GBP" },
+      },
+    });
+
+    const result = await saveBriefAttributeAction(
+      projectId,
+      "budget",
+      undefined,
+      formData({ amount: "£55k (GBP)" })
+    );
+    expect(result?.message).toBeUndefined();
+
+    const budget = (await getBriefCompleteness(projectId)).attributes.find(
+      (a) => a.id === "budget"
+    )!;
+    expect(budget.status).toBe("confirmed");
+    expect(budget.current?.source).toBe("PM_ENTRY");
+    expect(budget.current?.origin).toEqual({ kind: "pm" });
+    expect(budget.current?.values.amount).toBe("£55k (GBP)");
+  });
+
+  it("returns a detail to Missing when saved empty", async () => {
+    const projectId = await createProject("Clear Detail Project");
+    await saveBriefAttributeAction(
       projectId,
       "clientContact",
       undefined,
       formData({ name: "Caroline", role: "", email: "caroline@fizzy.example" })
     );
-    expect(result?.message).toBeUndefined();
+    await saveBriefAttributeAction(
+      projectId,
+      "clientContact",
+      undefined,
+      formData({ name: "", role: "", email: "" })
+    );
 
     const contact = (await getBriefCompleteness(projectId)).attributes.find(
       (a) => a.id === "clientContact"
     )!;
-    expect(contact.status).toBe("confirmed");
-    expect(contact.confirmed?.source).toBe("PM_ENTRY");
-  });
-
-  it("keeps the suggestion's source when the PM accepts it unchanged", async () => {
-    const projectId = await createProject("Accept Suggestion Project");
-    const suggestion = await prisma.briefAttributeValue.create({
-      data: {
-        projectId,
-        attributeId: "budget",
-        kind: "SUGGESTION",
-        source: "BRIEF",
-        values: { amount: "£50k", currency: "GBP" },
-      },
-    });
-
-    await confirmBriefAttributeAction(
-      projectId,
-      "budget",
-      undefined,
-      formData({ amount: "£50k", currency: "GBP", suggestionId: suggestion.id })
-    );
-    const budget = (await getBriefCompleteness(projectId)).attributes.find(
-      (a) => a.id === "budget"
-    )!;
-    expect(budget.status).toBe("confirmed");
-    expect(budget.confirmed?.source).toBe("BRIEF");
-    expect(budget.suggestion).toBeNull();
-  });
-
-  it("records a PM entry when the PM edits a suggestion before confirming", async () => {
-    const projectId = await createProject("Edit Suggestion Project");
-    const suggestion = await prisma.briefAttributeValue.create({
-      data: {
-        projectId,
-        attributeId: "budget",
-        kind: "SUGGESTION",
-        source: "BRIEF",
-        values: { amount: "£50k", currency: "GBP" },
-      },
-    });
-    await confirmBriefAttributeAction(
-      projectId,
-      "budget",
-      undefined,
-      formData({ amount: "£55k", currency: "GBP", suggestionId: suggestion.id })
-    );
-    const budget = (await getBriefCompleteness(projectId)).attributes.find(
-      (a) => a.id === "budget"
-    )!;
-    expect(budget.confirmed?.source).toBe("PM_ENTRY");
-    expect(budget.confirmed?.values.amount).toBe("£55k");
+    expect(contact.status).toBe("missing");
   });
 
   it("rejects an invalid email and an unknown attribute", async () => {
     const projectId = await createProject("Validation Project");
-    const badEmail = await confirmBriefAttributeAction(
+    const badEmail = await saveBriefAttributeAction(
       projectId,
       "clientContact",
       undefined,
@@ -329,7 +376,7 @@ describe("confirmBriefAttributeAction", () => {
     );
     expect(badEmail?.message).toMatch(/email/i);
 
-    const unknown = await confirmBriefAttributeAction(
+    const unknown = await saveBriefAttributeAction(
       projectId,
       "notAThing",
       undefined,
@@ -341,7 +388,7 @@ describe("confirmBriefAttributeAction", () => {
 
   it("keeps the timeline and the project's kick-off/target dates in sync in both directions", async () => {
     const projectId = await createProject("Timeline Sync Project");
-    await confirmBriefAttributeAction(
+    await saveBriefAttributeAction(
       projectId,
       "timeline",
       undefined,
@@ -374,7 +421,7 @@ describe("confirmBriefAttributeAction", () => {
       (a) => a.id === "timeline"
     )!;
     expect(timeline.status).toBe("confirmed");
-    expect(timeline.confirmed?.values).toMatchObject({
+    expect(timeline.current?.values).toMatchObject({
       startDate: "2026-10-08",
       endDate: "2026-12-15",
       milestones: [{ name: "Beta", date: "2026-11-01" }],
@@ -407,13 +454,13 @@ describe("Generate SOW gate", () => {
 
   it("denies the SOW and lists exactly which required attributes are missing or partial", async () => {
     const projectId = await projectWithTemplate("Gate Blocked Project");
-    await confirmBriefAttributeAction(
+    await saveBriefAttributeAction(
       projectId,
       "budget",
       undefined,
-      formData({ amount: "£50k", currency: "GBP" })
+      formData({ amount: "£50k (GBP)" })
     );
-    await confirmBriefAttributeAction(
+    await saveBriefAttributeAction(
       projectId,
       "objective",
       undefined,
@@ -432,7 +479,7 @@ describe("Generate SOW gate", () => {
     expect(await prisma.sOW.findUnique({ where: { projectId } })).toBeNull();
   });
 
-  it("applies to projects already past Phase 1 too — they get warnings everywhere else, but no SOW until confirmed", async () => {
+  it("applies to projects already past Phase 1 too — they get warnings everywhere else, but no SOW until captured", async () => {
     const projectId = await projectWithTemplate("Gate Past Phase 1 Project", 6);
     const completeness = await getBriefCompleteness(projectId);
     expect(completeness.isPastPhase1).toBe(true);
@@ -442,7 +489,7 @@ describe("Generate SOW gate", () => {
     expect(result?.missingAttributes).toHaveLength(4);
   });
 
-  it("generates the SOW once all 4 required attributes are confirmed", async () => {
+  it("generates the SOW once all 4 required attributes are captured", async () => {
     const projectId = await projectWithTemplate("Gate Passed Project");
     await confirmAllRequired(projectId);
 

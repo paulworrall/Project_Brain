@@ -15,7 +15,7 @@ describe("clarificationQuestionsFrom", () => {
     expect(toConfirm).toEqual([]);
   });
 
-  it("asks only for the missing sub-fields of a partial detail, and nothing once everything is confirmed", () => {
+  it("asks only for the missing sub-fields of a partial detail, and nothing once a PM has filled everything", () => {
     const partial = clarificationQuestionsFrom(
       briefCompleteness([...ALL_REQUIRED_CONFIRMED.slice(0, 3), briefRecord("clientContact", { name: "Caroline" })])
     );
@@ -27,30 +27,37 @@ describe("clarificationQuestionsFrom", () => {
     });
   });
 
-  it("asks the client to confirm what was read from their own words, and never quotes the PM's suggestions", () => {
+  it("asks the client to confirm what was captured from their own words, and never quotes the PM", () => {
     const { toAsk, toConfirm } = clarificationQuestionsFrom(
       briefCompleteness([
-        ...ALL_REQUIRED_CONFIRMED.filter((r) => r.attributeId !== "budget" && r.attributeId !== "objective"),
-        briefRecord("budget", { amount: "40,000" }, { kind: "SUGGESTION", source: "BRIEF" }),
+        ...ALL_REQUIRED_CONFIRMED.filter((r) => r.attributeId !== "budget" && r.attributeId !== "clientContact"),
+        briefRecord("budget", { amount: "roughly €40,000" }, { kind: "SUGGESTION", source: "BRIEF" }),
+        briefRecord("clientContact", { name: "Caroline" }, { kind: "SUGGESTION", source: "UPDATE" }),
         briefRecord("objective", { successMeasures: "PM_ONLY_KPI" }, { kind: "SUGGESTION", source: "PM_ENTRY" }),
       ])
     );
 
-    expect(toConfirm).toEqual(["Budget — we understood: Amount or range: 40,000"]);
-    expect(toAsk).toContain("Budget — still need: Currency");
+    expect(toConfirm).toEqual([
+      "Budget — we understood: Budget: roughly €40,000",
+      "Client Contact — we understood: Name: Caroline",
+    ]);
+    expect(toAsk).toEqual(["Client Contact — still need: Email"]);
     expect([...toAsk, ...toConfirm].join(" ")).not.toContain("PM_ONLY_KPI");
   });
 });
 
 describe("completenessFromExtraction", () => {
-  it("treats what intake just read as unconfirmed client suggestions", () => {
+  it("treats what intake just read as captured from the brief", () => {
     const completeness = completenessFromExtraction({
-      budget: { values: { amount: "50,000", currency: "GBP" }, evidence: "Budget: 50k" },
+      budget: { values: { amount: "50,000 GBP" }, evidence: "Budget: 50k" },
     });
 
     const budget = completeness.attributes.find((a) => a.id === "budget")!;
-    expect(budget.status).toBe("missing");
-    expect(budget.suggestion?.source).toBe("BRIEF");
+    expect(budget.status).toBe("confirmed");
+    expect(budget.current?.origin).toEqual({ kind: "brief" });
+    expect(clarificationQuestionsFrom(completeness).toConfirm).toEqual([
+      "Budget — we understood: Budget: 50,000 GBP",
+    ]);
     expect(completenessFromExtraction(null).requiredOutstanding).toHaveLength(4);
   });
 });

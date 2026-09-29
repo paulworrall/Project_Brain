@@ -3,9 +3,9 @@ import {
   isSubFieldFilled,
   type BriefAttributeValues,
 } from "@/lib/briefAttributes";
-import type { BriefCompleteness } from "@/lib/briefCompleteness";
+import type { BriefAttributeOrigin, BriefCompleteness } from "@/lib/briefCompleteness";
 
-/** An attribute's filled sub-fields as one line, e.g. "Amount or range: 50,000 · Currency: GBP". */
+/** An attribute's filled sub-fields as one line, e.g. "Objective: … · Success measures (OKRs/KPIs): …". */
 export function describeValues(attributeId: string, values: BriefAttributeValues): string {
   const attribute = getBriefAttribute(attributeId);
   if (!attribute) return "";
@@ -21,39 +21,37 @@ export function describeValues(attributeId: string, values: BriefAttributeValues
     .join(" · ");
 }
 
+/** Where a value came from, in words — for prompts. */
+export function describeOrigin(origin: BriefAttributeOrigin): string {
+  switch (origin.kind) {
+    case "brief":
+      return "from the brief";
+    case "update":
+      return origin.number ? `from update v${origin.number}` : "from an update";
+    case "pm":
+      return "edited by the PM";
+  }
+}
+
 /**
  * The project's key details as prompt context — the one record for budget,
  * objective, timeline, contact etc. (the Position Document no longer carries
- * them). Confirmed values always; unconfirmed suggestions only when asked,
- * and clearly marked as unconfirmed. Returns "" when there's nothing to say.
+ * them): each attribute's current value and where it came from. Returns ""
+ * when there's nothing to say.
  */
-export function formatKeyDetailsForPrompt(
-  completeness: BriefCompleteness,
-  { includeUnconfirmed }: { includeUnconfirmed: boolean }
-): string {
+export function formatKeyDetailsForPrompt(completeness: BriefCompleteness): string {
   const lines = completeness.attributes.flatMap((attribute) => {
-    const out: string[] = [];
-    if (attribute.confirmed) {
-      const text = describeValues(attribute.id, attribute.confirmed.values);
-      if (text) out.push(`- ${attribute.label} (confirmed): ${text}`);
-    }
-    if (includeUnconfirmed) {
-      for (const suggestion of [attribute.suggestion, attribute.pmSuggestion]) {
-        if (!suggestion) continue;
-        const text = describeValues(attribute.id, suggestion.values);
-        const from = suggestion.source === "PM_ENTRY" ? "the PM's own view" : "the client";
-        if (text) out.push(`- ${attribute.label} (unconfirmed suggestion, from ${from}): ${text}`);
-      }
-    }
-    return out;
+    if (!attribute.current) return [];
+    const text = describeValues(attribute.id, attribute.current.values);
+    return text ? [`- ${attribute.label} (${describeOrigin(attribute.current.origin)}): ${text}`] : [];
   });
   return lines.join("\n");
 }
 
 /**
  * Key details for the de-duplication check: what's already known for the
- * project (confirmed values and pending suggestions) plus anything just
- * extracted, one line per attribute. Returns "" when there's nothing.
+ * project plus anything just extracted, one line per attribute. Returns ""
+ * when there's nothing.
  */
 export function describeKnownKeyDetails(
   completeness: BriefCompleteness | null,
@@ -61,7 +59,7 @@ export function describeKnownKeyDetails(
 ): string {
   const lines: string[] = [];
   if (completeness) {
-    const known = formatKeyDetailsForPrompt(completeness, { includeUnconfirmed: true });
+    const known = formatKeyDetailsForPrompt(completeness);
     if (known) lines.push(known);
   }
   for (const [attributeId, extracted] of Object.entries(extraction ?? {})) {
@@ -72,13 +70,13 @@ export function describeKnownKeyDetails(
   return lines.join("\n");
 }
 
-/** A confirmed sub-field value as plain text, or null. */
-export function confirmedText(
+/** A current sub-field value as plain text, or null. */
+export function currentText(
   completeness: BriefCompleteness,
   attributeId: string,
   subFieldId: string
 ): string | null {
-  const value = completeness.attributes.find((a) => a.id === attributeId)?.confirmed?.values[
+  const value = completeness.attributes.find((a) => a.id === attributeId)?.current?.values[
     subFieldId
   ];
   return typeof value === "string" && value.trim() ? value : null;

@@ -65,15 +65,20 @@ describe("PositionDocumentView", () => {
     });
   });
 
-  it("never truncates 'Client-Flagged Open Items', even when long", () => {
+  it("summarises 'Client-Flagged Open Items' first, with the full list one click away", async () => {
+    const user = userEvent.setup();
     const manyOpenItems = Array.from({ length: 10 }, (_, i) => `Open item ${i + 1}`);
 
     renderView({
       fields: { ...baseFields, clientFlaggedOpenItems: manyOpenItems },
     });
 
+    expect(screen.getByText("10 items flagged by the client")).toBeInTheDocument();
+    expect(screen.getByText("Open item 10")).not.toBeVisible();
+
+    await user.click(screen.getByText("10 items flagged by the client"));
+    expect(screen.getByText("Open item 1")).toBeVisible();
     expect(screen.getByText("Open item 10")).toBeVisible();
-    expect(screen.queryByText(/Show \d+ more/)).not.toBeInTheDocument();
   });
 
   describe("other details from the brief", () => {

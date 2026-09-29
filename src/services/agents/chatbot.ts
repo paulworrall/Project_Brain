@@ -50,7 +50,7 @@ export async function assembleProjectContext(projectId: string): Promise<string>
 
   // Key details (budget, objective, timeline, contact…) are their own
   // record — the Position Document no longer carries them.
-  const keyDetails = formatKeyDetailsForPrompt(briefCompleteness, { includeUnconfirmed: true });
+  const keyDetails = formatKeyDetailsForPrompt(briefCompleteness);
   if (keyDetails) {
     sections.push(`## Key details\n${keyDetails}`);
   }

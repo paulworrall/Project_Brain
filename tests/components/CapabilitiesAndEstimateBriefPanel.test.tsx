@@ -42,7 +42,8 @@ beforeEach(() => {
 });
 
 describe("CapabilitiesAndEstimateBriefPanel", () => {
-  it("renders all 12 MAP capabilities, pre-checking whatever is already confirmed", () => {
+  it("summarises saved teams on one line, opening all 12 MAP capabilities only on 'Change teams'", async () => {
+    const user = userEvent.setup();
     render(
       <CapabilitiesAndEstimateBriefPanel
         projectId="proj_1"
@@ -51,9 +52,26 @@ describe("CapabilitiesAndEstimateBriefPanel", () => {
       />
     );
 
+    expect(screen.getByText("Tech & Data")).toBeInTheDocument();
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+
+    await user.click(screen.getByRole("button", { name: "Change teams" }));
     expect(screen.getByRole("checkbox", { name: /Tech & Data/ })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: /Marketing Operations/ })).not.toBeChecked();
     expect(screen.getAllByRole("checkbox")).toHaveLength(12);
+  });
+
+  it("opens the chooser straight away when no teams are saved yet", () => {
+    render(
+      <CapabilitiesAndEstimateBriefPanel
+        projectId="proj_1"
+        confirmedCapabilities={[]}
+        estimateBriefVersion={null}
+      />
+    );
+
+    expect(screen.getAllByRole("checkbox")).toHaveLength(12);
+    expect(screen.queryByRole("button", { name: "Change teams" })).not.toBeInTheDocument();
   });
 
   it("lets a PM manually toggle capabilities and save them", async () => {

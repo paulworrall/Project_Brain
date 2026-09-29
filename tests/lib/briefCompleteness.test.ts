@@ -23,7 +23,7 @@ function record(
 }
 
 const FULL_CONFIRMED = [
-  record("budget", { amount: "£40,000–£50,000", currency: "GBP" }),
+  record("budget", { amount: "£40,000–£50,000" }),
   record("objective", {
     objective: "Relaunch the loyalty app",
     successMeasures: "20% more monthly actives",
@@ -44,12 +44,11 @@ describe("evaluateBriefCompleteness — status per attribute", () => {
     (id) => {
       const attribute = statusOf(evaluateBriefCompleteness([], IN_PHASE_1), id);
       expect(attribute.status).toBe("missing");
-      expect(attribute.confirmed).toBeNull();
+      expect(attribute.current).toBeNull();
     }
   );
 
   it.each([
-    ["budget", { amount: "£50k", currency: null }, ["Currency"]],
     ["objective", { objective: "Relaunch", successMeasures: "" }, ["Success measures (OKRs/KPIs)"]],
     ["timeline", { startDate: null, endDate: "2026-12-01", milestones: [] }, ["Start date"]],
     ["clientContact", { name: "Caroline", role: "Marketing lead", email: null }, ["Email"]],
@@ -63,7 +62,7 @@ describe("evaluateBriefCompleteness — status per attribute", () => {
   );
 
   it.each(FULL_CONFIRMED.map((r) => [r.attributeId, r] as const))(
-    "%s is confirmed once a PM confirms every required sub-field",
+    "%s is captured once every required sub-field is filled",
     (id, rec) => {
       const attribute = statusOf(evaluateBriefCompleteness([rec], IN_PHASE_1), id);
       expect(attribute.status).toBe("confirmed");
@@ -77,68 +76,73 @@ describe("evaluateBriefCompleteness — status per attribute", () => {
     expect(statusOf(result, "clientContact").status).toBe("confirmed");
   });
 
-  it("uses the latest confirmed values, and records where they came from and when", () => {
-    const older = record("budget", { amount: "£50k", currency: null });
-    const newer = record("budget", { amount: "£60k", currency: "GBP" }, { source: "BRIEF" });
-    const attribute = statusOf(evaluateBriefCompleteness([newer, older], IN_PHASE_1), "budget");
-    expect(attribute.status).toBe("confirmed");
-    expect(attribute.confirmed?.values.amount).toBe("£60k");
-    expect(attribute.confirmed?.source).toBe("BRIEF");
-    expect(attribute.confirmed?.createdAt).toEqual(newer.createdAt);
-    expect(attribute.confirmed?.createdByName).toBe("Pat PM");
+  it("reads a budget stored as a separate amount and currency as one free-text value", () => {
+    const legacy = record("budget", { amount: "roughly €110,000", currency: "EUR" });
+    const budget = statusOf(evaluateBriefCompleteness([legacy], IN_PHASE_1), "budget");
+    expect(budget.status).toBe("confirmed");
+    expect(budget.current?.values).toEqual({ amount: "roughly €110,000 (EUR)" });
+
+    const alreadyIncluded = record("budget", { amount: "EUR 110,000", currency: "EUR" });
+    expect(
+      statusOf(evaluateBriefCompleteness([alreadyIncluded], IN_PHASE_1), "budget").current?.values
+    ).toEqual({ amount: "EUR 110,000" });
   });
 });
 
-describe("evaluateBriefCompleteness — AI suggestions", () => {
-  it("keeps a complete AI-extracted value as a suggestion, never counting it as confirmed", () => {
-    const suggestion = record(
+describe("evaluateBriefCompleteness — trusted by default, latest wins", () => {
+  it("counts a value the agent captured from the brief straight away — no approval step", () => {
+    const captured = record(
       "budget",
-      { amount: "£50k", currency: "GBP" },
+      { amount: "£50k" },
       { kind: "SUGGESTION", source: "BRIEF", evidence: "Budget is £50k", createdByName: null }
     );
-    const result = evaluateBriefCompleteness([suggestion], IN_PHASE_1);
+    const result = evaluateBriefCompleteness([captured], IN_PHASE_1);
     const budget = statusOf(result, "budget");
 
-    expect(budget.status).toBe("missing");
-    expect(budget.confirmed).toBeNull();
-    expect(budget.suggestion).toMatchObject({
-      id: suggestion.id,
-      source: "BRIEF",
+    expect(budget.status).toBe("confirmed");
+    expect(budget.current).toMatchObject({
+      id: captured.id,
+      origin: { kind: "brief" },
       evidence: "Budget is £50k",
-      values: { amount: "£50k", currency: "GBP" },
+      values: { amount: "£50k" },
     });
-    expect(result.canProceed).toBe(false);
   });
 
-  it("shows a suggestion newer than the confirmed value, without changing the confirmed status", () => {
-    const confirmed = record("budget", { amount: "£50k", currency: "GBP" });
-    const newerSuggestion = record(
+  it("lets newer information replace a PM's edit, and a PM's edit replace captured values", () => {
+    const pmEdit = record("budget", { amount: "£50k" });
+    const update = record(
       "budget",
-      { amount: "£65k", currency: "GBP" },
-      { kind: "SUGGESTION", source: "UPDATE" }
+      { amount: "£65k" },
+      { kind: "SUGGESTION", source: "UPDATE", knowledgeItemId: "ki_2" }
     );
-    const budget = statusOf(
-      evaluateBriefCompleteness([confirmed, newerSuggestion], IN_PHASE_1),
+    const updated = statusOf(
+      evaluateBriefCompleteness([pmEdit, update], IN_PHASE_1, new Map([["ki_1", 1], ["ki_2", 2]])),
       "budget"
     );
-    expect(budget.status).toBe("confirmed");
-    expect(budget.confirmed?.values.amount).toBe("£50k");
-    expect(budget.suggestion?.values.amount).toBe("£65k");
+    expect(updated.current?.values.amount).toBe("£65k");
+    expect(updated.current?.origin).toEqual({ kind: "update", number: 2 });
+
+    const laterEdit = record("budget", { amount: "£70k" });
+    const edited = statusOf(evaluateBriefCompleteness([pmEdit, update, laterEdit], IN_PHASE_1), "budget");
+    expect(edited.current?.values.amount).toBe("£70k");
+    expect(edited.current?.origin).toEqual({ kind: "pm" });
+    expect(edited.current?.createdByName).toBe("Pat PM");
   });
 
-  it("drops a suggestion once a PM confirms after it", () => {
-    const suggestion = record(
-      "budget",
-      { amount: "£50k", currency: "GBP" },
-      { kind: "SUGGESTION", source: "BRIEF" }
-    );
-    const confirmed = record("budget", { amount: "£50k", currency: "GBP" }, { source: "BRIEF" });
-    const budget = statusOf(
-      evaluateBriefCompleteness([suggestion, confirmed], IN_PHASE_1),
-      "budget"
-    );
-    expect(budget.status).toBe("confirmed");
-    expect(budget.suggestion).toBeNull();
+  it("returns a detail to missing when a PM saves it empty", () => {
+    const captured = record("budget", { amount: "£50k" }, { kind: "SUGGESTION", source: "BRIEF" });
+    const cleared = record("budget", { amount: null });
+    const budget = statusOf(evaluateBriefCompleteness([captured, cleared], IN_PHASE_1), "budget");
+    expect(budget.status).toBe("missing");
+    expect(budget.current?.origin).toEqual({ kind: "pm" });
+  });
+
+  it("tags an update whose number can't be told as just 'an update'", () => {
+    const update = record("budget", { amount: "£65k" }, { kind: "SUGGESTION", source: "UPDATE" });
+    expect(statusOf(evaluateBriefCompleteness([update], IN_PHASE_1), "budget").current?.origin).toEqual({
+      kind: "update",
+      number: null,
+    });
   });
 });
 
@@ -152,8 +156,8 @@ describe("evaluateBriefCompleteness — the gate", () => {
         record(
           "clientContact",
           { name: "Caroline", email: "c@fizzy.example" },
-          { kind: "SUGGESTION" }
-        ), // suggestion only
+          { kind: "SUGGESTION", source: "BRIEF" }
+        ), // captured from the brief — counts
       ],
       IN_PHASE_1
     );
@@ -163,7 +167,6 @@ describe("evaluateBriefCompleteness — the gate", () => {
     expect(result.requiredOutstanding.map((a) => [a.id, a.status])).toEqual([
       ["objective", "partial"],
       ["timeline", "missing"],
-      ["clientContact", "missing"],
     ]);
   });
 
@@ -229,7 +232,7 @@ describe("evaluateBriefCompleteness — existing projects past Phase 1", () => {
 });
 
 describe("evaluateBriefCompleteness — suggestions from the PM perspective", () => {
-  it("keeps a PM-entry suggestion separate from client-sourced suggestions, and never as confirmed", () => {
+  it("keeps a PM-perspective suggestion apart from the current value, and never counts it", () => {
     const clientSuggestion = record(
       "objective",
       { objective: "Relaunch the app", successMeasures: "Client KPI: 10k downloads" },
@@ -243,11 +246,10 @@ describe("evaluateBriefCompleteness — suggestions from the PM perspective", ()
 
     const objective = statusOf(evaluateBriefCompleteness([clientSuggestion, pmSuggestion], IN_PHASE_1), "objective");
 
-    expect(objective.status).toBe("missing");
-    expect(objective.confirmed).toBeNull();
-    // The newer PM suggestion doesn't hide the client's own suggestion.
-    expect(objective.suggestion?.source).toBe("BRIEF");
-    expect(objective.suggestion?.values.successMeasures).toBe("Client KPI: 10k downloads");
+    expect(objective.status).toBe("confirmed");
+    // The newer PM suggestion doesn't replace what the client said.
+    expect(objective.current?.source).toBe("BRIEF");
+    expect(objective.current?.values.successMeasures).toBe("Client KPI: 10k downloads");
     expect(objective.pmSuggestion?.source).toBe("PM_ENTRY");
     expect(objective.pmSuggestion?.values.successMeasures).toBe("PM view: 20% more monthly actives");
   });

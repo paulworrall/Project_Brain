@@ -9,8 +9,8 @@ vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
   suggestCapabilitiesAction: vi.fn(),
   updateConfirmedCapabilitiesAction: vi.fn(),
   generateEstimateBriefAction: vi.fn(),
-  confirmBriefAttributeAction: vi.fn(),
-  suggestBriefAttributesAction: vi.fn(),
+  saveBriefAttributeAction: vi.fn(),
+  rereadBriefAttributesAction: vi.fn(),
   updatePmPerspectiveFieldAction: vi.fn(),
 }));
 
@@ -120,7 +120,7 @@ describe("Phase1Workspace", () => {
     );
 
     const summary = screen.getByLabelText("Phase 1 progress summary");
-    expect(summary).toHaveTextContent("1 confirmed detail");
+    expect(summary).toHaveTextContent("1 other detail from the brief");
     // Nothing confirmed yet: all 4 required details are still to find out.
     expect(summary).toHaveTextContent("4 required details to find out");
     expect(summary).toHaveTextContent("1 client update logged");
@@ -145,7 +145,7 @@ describe("Phase1Workspace", () => {
     );
 
     const summary = screen.getByLabelText("Phase 1 progress summary");
-    expect(summary).toHaveTextContent("2 confirmed details");
+    expect(summary).toHaveTextContent("2 other details from the brief");
     expect(summary).toHaveTextContent("1 required detail to find out");
     expect(summary).toHaveTextContent("0 client updates logged");
     expect(summary).toHaveTextContent("0/0 checklist items complete");
@@ -155,18 +155,18 @@ describe("Phase1Workspace", () => {
     render(
       <Phase1Workspace
         {...baseProps()}
-        briefCompleteness={briefCompleteness([briefRecord("budget", { amount: "£50,000", currency: "GBP" })])}
+        briefCompleteness={briefCompleteness([briefRecord("budget", { amount: "£50,000" })])}
       />
     );
 
-    expect(screen.getByText("1 of 4 required details confirmed", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText("1 of 4 required details captured", { exact: false })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Budget" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Timeline and Key Milestones" })).toBeInTheDocument();
     expect(screen.getByText("Who is the client contact who will be running the project?")).toBeInTheDocument();
-    expect(screen.getByText("£50,000")).toBeInTheDocument();
+    expect(screen.getByText("£50,000", { selector: "p" })).toBeInTheDocument();
   });
 
-  it("shows an AI-extracted value as an unconfirmed suggestion, not as a confirmed detail", () => {
+  it("counts a value captured from the brief straight away, tagged with its source — nothing to approve", () => {
     render(
       <Phase1Workspace
         {...baseProps()}
@@ -180,9 +180,13 @@ describe("Phase1Workspace", () => {
       />
     );
 
-    expect(screen.getByText("AI suggestion from the brief — not confirmed")).toBeInTheDocument();
-    expect(screen.getByText("Review and confirm →")).toBeInTheDocument();
-    expect(screen.getByText("0 of 4 required details confirmed", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText("From brief")).toBeInTheDocument();
+    expect(screen.getByText("Jamie Chen · jamie@example.com")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Update Client Contact" })).toBeInTheDocument();
+    expect(screen.getByText("1 of 4 required details captured", { exact: false })).toBeInTheDocument();
+    const checklist = screen.getByRole("heading", { name: "What We Need to Find Out" }).closest("div.p-5, [class*='p-5']")!;
+    expect(checklist).not.toHaveTextContent(/confirm/i);
+    expect(checklist).not.toHaveTextContent(/suggestion/i);
   });
 
   it("shows the PM perspective in its own labelled panel, apart from what came from the client", () => {
@@ -202,7 +206,7 @@ describe("Phase1Workspace", () => {
     expect(clientSide).not.toHaveTextContent("PM-only context about the client.");
   });
 
-  it("shows a PM-entry KPI suggestion as coming from the PM perspective, not the client", () => {
+  it("never counts a PM-perspective suggestion as a captured key detail", () => {
     render(
       <Phase1Workspace
         {...baseProps()}
@@ -212,10 +216,8 @@ describe("Phase1Workspace", () => {
       />
     );
 
-    expect(
-      screen.getByText("Suggested from your PM perspective — not from the client, not confirmed")
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/AI suggestion from/)).not.toBeInTheDocument();
-    expect(screen.getByText("0 of 4 required details confirmed", { exact: false })).toBeInTheDocument();
+    expect(screen.queryByText("20% more monthly actives")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add Objective" })).toBeInTheDocument();
+    expect(screen.getByText("0 of 4 required details captured", { exact: false })).toBeInTheDocument();
   });
 });

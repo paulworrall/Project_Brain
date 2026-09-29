@@ -1,4 +1,3 @@
-import { BRIEF_ATTRIBUTES, isSubFieldFilled } from "@/lib/briefAttributes";
 import {
   evaluateBriefCompleteness,
   type BriefAttributeValueRecord,
@@ -17,7 +16,7 @@ import type { KeyAttributeExtraction } from "@/services/agents/key-attribute-ext
 export interface ClarificationQuestions {
   /** Required details nobody has given us yet (or only in part). */
   toAsk: string[];
-  /** Required details read from the client's own words, for them to confirm. */
+  /** Required details captured from the client's own brief or updates, for them to confirm. */
   toConfirm: string[];
 }
 
@@ -25,26 +24,22 @@ export function clarificationQuestionsFrom(completeness: BriefCompleteness): Cla
   const toAsk: string[] = [];
   const toConfirm: string[] = [];
 
-  for (const attribute of completeness.requiredOutstanding) {
-    const definition = BRIEF_ATTRIBUTES.find((a) => a.id === attribute.id);
-    if (!definition) continue;
-    const { suggestion, confirmed } = attribute;
-
-    if (suggestion) {
-      const understood = describeValues(attribute.id, suggestion.values);
+  for (const attribute of completeness.attributes.filter((a) => a.required)) {
+    const { current } = attribute;
+    if (attribute.status === "missing" || !current) {
+      toAsk.push(`${attribute.label} — ${attribute.question}`);
+      continue;
+    }
+    // What we read from the client's own brief or updates goes back to them
+    // to check; a PM's own edit doesn't.
+    if (current.origin.kind !== "pm") {
+      const understood = describeValues(attribute.id, current.values);
       if (understood) toConfirm.push(`${attribute.label} — we understood: ${understood}`);
-      const stillMissing = definition.subFields
-        .filter((f) => f.required && !isSubFieldFilled(f, suggestion.values[f.id]))
-        .map((f) => f.label);
-      if (stillMissing.length > 0) {
-        toAsk.push(`${attribute.label} — still need: ${stillMissing.join(", ")}`);
-      }
-    } else if (confirmed) {
+    }
+    if (attribute.status === "partial") {
       toAsk.push(
         `${attribute.label} — still need: ${attribute.missingSubFields.map((f) => f.label).join(", ")}`
       );
-    } else {
-      toAsk.push(`${attribute.label} — ${attribute.question}`);
     }
   }
 
@@ -53,7 +48,7 @@ export function clarificationQuestionsFrom(completeness: BriefCompleteness): Cla
 
 /**
  * At intake nothing is stored yet: treat what was just read from the brief as
- * pending client suggestions, and run it through the one status logic.
+ * captured from the brief, and run it through the one status logic.
  */
 export function completenessFromExtraction(extraction: KeyAttributeExtraction | null): BriefCompleteness {
   const now = new Date();

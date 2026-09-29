@@ -12,7 +12,7 @@ import type { BriefCompleteness } from "@/lib/briefCompleteness";
 // only from briefCompleteness), so client components can use it too.
 
 export const NO_MILESTONES_TEXT = "No milestones confirmed yet";
-export const NOT_CONFIRMED_TEXT = "Not confirmed yet";
+export const NOT_CONFIRMED_TEXT = "Not captured yet";
 export const MILESTONE_DATE_MISSING_TEXT = "Date not confirmed";
 
 /** An ISO yyyy-mm-dd date as "1 Oct 2026"; anything unparseable as-is. */
@@ -34,7 +34,27 @@ export function formatMilestone(milestone: BriefMilestone): string {
   }`;
 }
 
-/** The timeline as a document section: the config's label plus the PM-confirmed values. */
+/**
+ * An attribute's value as one short line for the compact checklist row —
+ * filled sub-fields only, dates formatted, milestones counted. The full
+ * values sit behind "Show more".
+ */
+export function summarizeValues(attributeId: string, values: BriefAttributeValues): string {
+  const attribute = getBriefAttribute(attributeId);
+  if (!attribute) return "";
+  return attribute.subFields
+    .filter((f) => isSubFieldFilled(f, values[f.id]))
+    .map((f) => {
+      const value = values[f.id];
+      if (Array.isArray(value)) return `${value.length} milestone${value.length === 1 ? "" : "s"}`;
+      if (typeof value !== "string") return "";
+      return f.type === "date" ? `${f.label}: ${formatBriefDate(value)}` : value;
+    })
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/** The timeline as a document section: the config's label plus the current values. */
 export interface TimelineSection {
   heading: string;
   /** Sub-field labels, from the config. */
@@ -42,8 +62,6 @@ export interface TimelineSection {
   startDate: string | null;
   endDate: string | null;
   milestones: BriefMilestone[];
-  /** A pending client suggestion, described in one line — never presented as confirmed. */
-  unconfirmedSuggestion: string | null;
 }
 
 function dateValue(values: BriefAttributeValues | undefined, id: string): string | null {
@@ -56,34 +74,16 @@ function milestonesValue(values: BriefAttributeValues | undefined): BriefMilesto
   return Array.isArray(value) ? value : [];
 }
 
-export function describeTimelineValues(values: BriefAttributeValues): string {
-  const attribute = getBriefAttribute(TIMELINE_FIELDS.attributeId);
-  if (!attribute) return "";
-  return attribute.subFields
-    .filter((f) => isSubFieldFilled(f, values[f.id]))
-    .map((f) => {
-      const value = values[f.id];
-      const text = Array.isArray(value)
-        ? value.map(formatMilestone).join("; ")
-        : f.type === "date" && typeof value === "string"
-          ? formatBriefDate(value)
-          : value;
-      return `${f.label}: ${text}`;
-    })
-    .join(" · ");
-}
-
 /**
  * The timeline, from the key details only — so a document can never show a
- * date nobody confirmed. Missing values are left null for the renderer to
- * say so plainly.
+ * date nobody gave us. Missing values are left null for the renderer to say
+ * so plainly.
  */
 export function timelineSection(completeness: BriefCompleteness): TimelineSection {
   const definition = getBriefAttribute(TIMELINE_FIELDS.attributeId);
   const label = (id: string) => definition?.subFields.find((f) => f.id === id)?.label ?? id;
   const attribute = completeness.attributes.find((a) => a.id === TIMELINE_FIELDS.attributeId);
-  const confirmed = attribute?.confirmed?.values;
-  const suggestion = attribute?.suggestion?.values;
+  const current = attribute?.current?.values;
   return {
     heading: definition?.label ?? "",
     labels: {
@@ -91,9 +91,8 @@ export function timelineSection(completeness: BriefCompleteness): TimelineSectio
       endDate: label(TIMELINE_FIELDS.endDate),
       milestones: label(TIMELINE_FIELDS.milestones),
     },
-    startDate: dateValue(confirmed, TIMELINE_FIELDS.startDate),
-    endDate: dateValue(confirmed, TIMELINE_FIELDS.endDate),
-    milestones: milestonesValue(confirmed),
-    unconfirmedSuggestion: suggestion ? describeTimelineValues(suggestion) || null : null,
+    startDate: dateValue(current, TIMELINE_FIELDS.startDate),
+    endDate: dateValue(current, TIMELINE_FIELDS.endDate),
+    milestones: milestonesValue(current),
   };
 }

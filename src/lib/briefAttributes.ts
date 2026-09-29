@@ -37,15 +37,20 @@ export interface BriefAttributeDefinition {
   label: string;
   /** The question to ask the client. */
   question: string;
-  /** Required attributes must be PM-confirmed before a SOW can be generated. */
+  /** Required attributes must be captured before a SOW can be generated. */
   required: boolean;
   subFields: readonly BriefSubFieldDefinition[];
   /**
    * Sub-fields that mirror a Project column, kept in sync both ways:
-   * confirming this attribute writes the column, and editing the column in
-   * the project summary records a PM entry for this attribute.
+   * capturing or editing this attribute writes the column, and editing the
+   * column in the project summary records a PM entry for this attribute.
    */
   projectDateFields?: Partial<Record<string, "kickOffDate" | "targetCompletionDate">>;
+  /**
+   * Reads values stored under an older shape of this attribute into the
+   * current sub-fields, so a config change never loses stored data.
+   */
+  upgradeStoredValues?: (raw: Record<string, unknown>) => Record<string, unknown>;
 }
 
 /** One entry in a "milestones" sub-field. Dates are ISO yyyy-mm-dd. */
@@ -68,19 +73,19 @@ export const BRIEF_ATTRIBUTES: readonly BriefAttributeDefinition[] = [
     subFields: [
       {
         id: "amount",
-        label: "Amount or range",
-        type: "text",
+        label: "Budget",
+        type: "longText",
         required: true,
-        hint: "e.g. 50,000 or 40,000–60,000",
-      },
-      {
-        id: "currency",
-        label: "Currency",
-        type: "currency",
-        required: true,
-        hint: "3-letter code, e.g. GBP",
+        hint: "Amount or range, with the currency — e.g. roughly €110,000 (EUR)",
       },
     ],
+    // Budget used to be a separate amount and 3-letter currency.
+    upgradeStoredValues: (raw) => {
+      const amount = typeof raw.amount === "string" ? raw.amount.trim() : "";
+      const currency = typeof raw.currency === "string" ? raw.currency.trim() : "";
+      if (!currency || amount.toUpperCase().includes(currency.toUpperCase())) return raw;
+      return { ...raw, amount: amount ? `${amount} (${currency})` : currency };
+    },
   },
   {
     id: "objective",
@@ -180,7 +185,7 @@ export function getBriefAttribute(id: string): BriefAttributeDefinition | undefi
 
 /**
  * One line per attribute.sub-field id, for prompts — e.g.
- * "- budget.amount — Budget: Amount or range (e.g. 50,000 or 40,000–60,000)".
+ * "- timeline.startDate — Timeline and Key Milestones: Start date (yyyy-mm-dd)".
  * Derived from the config, so a new attribute needs no prompt changes.
  */
 export function describeKeyAttributeFieldsForPrompt(): string {

@@ -18,7 +18,7 @@ describe("PmPerspectivePanel", () => {
     const panel = screen.getByRole("region", { name: "PM perspective" });
     expect(within(panel).getByText("PM's view — not from the client")).toBeInTheDocument();
     expect(
-      within(panel).getByText(/Nothing here is ever presented as the client's words/)
+      within(panel).getByText(/Never presented as the client's words/)
     ).toBeInTheDocument();
   });
 
@@ -46,7 +46,7 @@ describe("PmPerspectivePanel", () => {
 
   it("encourages the PM to fill in empty fields with each field's helper prompt", () => {
     render(<PmPerspectivePanel projectId="proj_1" fields={pmPerspectiveView()} />);
-    expect(screen.getByText(/Add your own read of the brief/)).toBeInTheDocument();
+    expect(screen.getByText(/helps the agents ask better questions/)).toBeInTheDocument();
     expect(
       screen.getAllByText("Your early view of the approach, however rough.").length
     ).toBeGreaterThan(0);

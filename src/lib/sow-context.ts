@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getBriefCompleteness } from "@/lib/briefCompleteness";
 import { CLIENT_CONTACT_FIELDS } from "@/lib/briefAttributes";
-import { confirmedText, formatKeyDetailsForPrompt } from "@/lib/keyDetailsContext";
+import { currentText, formatKeyDetailsForPrompt } from "@/lib/keyDetailsContext";
 import { capabilityLabel } from "@/lib/mapCapabilities";
 import type { SowCoverDetails } from "@/types/sow";
 
@@ -71,10 +71,11 @@ export async function assembleSowContext(projectId: string): Promise<SowContext>
   }
 
   // Key details are their own record (the Position Document no longer
-  // carries them). The SOW is client-facing, so only PM-confirmed values.
-  const keyDetails = formatKeyDetailsForPrompt(briefCompleteness, { includeUnconfirmed: false });
+  // carries them): the current values, trusted by default. (SOW-specific
+  // rules for which values may appear are to be decided later.)
+  const keyDetails = formatKeyDetailsForPrompt(briefCompleteness);
   if (keyDetails) {
-    sections.push(`## Key details (confirmed by the PM)\n${keyDetails}`);
+    sections.push(`## Key details\n${keyDetails}`);
   }
 
   const positionContent = positionDocument?.versions[0]?.content;
@@ -118,9 +119,9 @@ export async function assembleSowContext(projectId: string): Promise<SowContext>
     preparedDate: formatDate(new Date()),
     kickOffDate: project.kickOffDate ? formatDate(project.kickOffDate) : null,
     targetCompletionDate: project.targetCompletionDate ? formatDate(project.targetCompletionDate) : null,
-    // Only ever the PM-confirmed Client Contact key detail — never inferred.
-    primaryClientContactName: confirmedText(briefCompleteness, CLIENT_CONTACT_FIELDS.attributeId, CLIENT_CONTACT_FIELDS.name),
-    primaryClientContactEmail: confirmedText(briefCompleteness, CLIENT_CONTACT_FIELDS.attributeId, CLIENT_CONTACT_FIELDS.email),
+    // Only ever the Client Contact key detail — never inferred from elsewhere.
+    primaryClientContactName: currentText(briefCompleteness, CLIENT_CONTACT_FIELDS.attributeId, CLIENT_CONTACT_FIELDS.name),
+    primaryClientContactEmail: currentText(briefCompleteness, CLIENT_CONTACT_FIELDS.attributeId, CLIENT_CONTACT_FIELDS.email),
     commercials: latestEstimateVersion
       ? {
           totalValue: Number(latestEstimateVersion.totalValue),

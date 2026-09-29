@@ -45,7 +45,7 @@ describe("renderEstimateBriefDocx", () => {
     expect(twoSections.length).toBeGreaterThan(oneSection.length);
   });
 
-  it("titles the timeline from the config and shows the confirmed start, end and milestones", async () => {
+  it("titles the timeline from the config and shows the current start, end and milestones", async () => {
     const timeline = timelineSection(
       briefCompleteness([
         briefRecord("timeline", {
@@ -69,7 +69,7 @@ describe("renderEstimateBriefDocx", () => {
     expect(text).not.toContain("No milestones confirmed yet");
   });
 
-  it("says plainly when nothing is confirmed, and marks a client suggestion as unconfirmed", async () => {
+  it("uses a start date captured from the brief straight away, and says plainly what's missing", async () => {
     const timeline = timelineSection(
       briefCompleteness([
         briefRecord(
@@ -82,9 +82,9 @@ describe("renderEstimateBriefDocx", () => {
 
     const text = await documentText(await renderEstimateBriefDocx(content, timeline));
 
-    expect(text).toMatch(/Start date: Not confirmed yet/);
-    expect(text).toMatch(/End date: Not confirmed yet/);
+    expect(text).toMatch(/Start date: 1 Oct 2026/);
+    expect(text).toMatch(/End date: Not captured yet/);
     expect(text).toContain("No milestones confirmed yet");
-    expect(text).toMatch(/Unconfirmed — .*Start date: 1 Oct 2026/);
+    expect(text).not.toMatch(/Unconfirmed/);
   });
 });

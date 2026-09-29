@@ -81,7 +81,7 @@ export function StartSowDevelopmentPanel({
   currentTemplateVersion: { id: string } | null;
   templateOptions: SowTemplateSelectOption[];
   sowVersions: SowVersionMeta[];
-  /** Generate SOW is refused until every required key detail is confirmed. */
+  /** Generate SOW is refused until every required key detail is captured. */
   briefCompleteness: BriefCompleteness;
 }) {
   const action = startSowDevelopmentAction.bind(null, projectId);
@@ -268,7 +268,7 @@ export function StartSowDevelopmentPanel({
         {currentTemplate && !briefCompleteness.canProceed && !showBriefGate && (
           <p className="mt-1 text-xs text-warning">
             {outstanding.length} required key detail{outstanding.length === 1 ? "" : "s"} still need
-            {outstanding.length === 1 ? "s" : ""} confirming before a SOW can be generated.
+            {outstanding.length === 1 ? "s" : ""} adding before a SOW can be generated.
           </p>
         )}
         {showBriefGate && outstanding.length > 0 && (

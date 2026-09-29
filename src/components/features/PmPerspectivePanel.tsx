@@ -76,7 +76,7 @@ export function PmPerspectivePanel({
   return (
     <section
       aria-labelledby="pm-perspective-heading"
-      className="space-y-4 rounded-lg border border-accent-foreground/30 bg-accent p-5"
+      className="space-y-3 rounded-lg border border-accent-foreground/30 bg-accent p-5"
     >
       <div>
         <div className="flex flex-wrap items-center gap-2">
@@ -89,25 +89,24 @@ export function PmPerspectivePanel({
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
           {filledCount === 0
-            ? "Add your own read of the brief — it helps the agents ask better questions. Nothing here is ever presented as the client's words."
-            : `${filledCount} of ${fields.length} filled in. Nothing here is ever presented as the client's words.`}
+            ? "Your own read of the brief helps the agents ask better questions. Never presented as the client's words."
+            : `${filledCount} of ${fields.length} filled in. Never presented as the client's words.`}
         </p>
       </div>
 
-      <dl className="space-y-3">
+      <dl className="space-y-2">
         {fields.map((field) => (
           <div
             key={field.id}
-            className="border-t border-accent-foreground/20 pt-3 first:border-t-0 first:pt-0"
+            className="border-t border-accent-foreground/20 pt-2 first:border-t-0 first:pt-0"
           >
             <dt className="text-xs font-semibold uppercase tracking-wide text-accent-foreground">
               {field.label}
             </dt>
             <dd className="mt-1 space-y-1">
-              {field.content ? (
+              {/* Empty fields stay one line; the helper prompt shows in the editor. */}
+              {field.content && (
                 <p className="whitespace-pre-wrap text-sm text-foreground">{field.content}</p>
-              ) : (
-                <p className="text-sm italic text-muted-foreground">{field.helper}</p>
               )}
               <p className="text-xs text-muted-foreground">
                 {field.updatedAt

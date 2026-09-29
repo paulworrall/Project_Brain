@@ -3,11 +3,11 @@ import { ReadinessStrip } from "@/components/ui/ReadinessStrip";
 
 // Phase-1-flavored wrapper around the generic ReadinessStrip — same visual
 // strip every phase header uses, one segment per REQUIRED key attribute
-// (src/lib/briefAttributes.ts). "Confirmed" means PM-confirmed; AI
-// suggestions never count. The "What We Need to Find Out" checklist (BriefChecklist) is the full view.
+// (src/lib/briefAttributes.ts). A detail counts as soon as it's captured —
+// from the brief, an update or a PM's edit. The "What We Need to Find Out" checklist (BriefChecklist) is the full view.
 export function BriefReadinessIndicator({ completeness }: { completeness: BriefCompleteness }) {
   const required = completeness.attributes.filter((attribute) => attribute.required);
-  const confirmedCount = required.filter((attribute) => attribute.status === "confirmed").length;
+  const capturedCount = required.filter((attribute) => attribute.status === "confirmed").length;
 
   return (
     <ReadinessStrip
@@ -16,8 +16,8 @@ export function BriefReadinessIndicator({ completeness }: { completeness: BriefC
         label: attribute.label,
         state: attribute.status,
       }))}
-      headline={`Brief Readiness — ${confirmedCount} of ${required.length} confirmed`}
-      ariaLabel={`Brief readiness: ${confirmedCount} of ${required.length} required key details confirmed`}
+      headline={`Brief Readiness — ${capturedCount} of ${required.length} captured`}
+      ariaLabel={`Brief readiness: ${capturedCount} of ${required.length} required key details captured`}
     />
   );
 }

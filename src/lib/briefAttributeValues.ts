@@ -39,13 +39,15 @@ function normalizeSubField(subField: BriefSubFieldDefinition, value: unknown) {
 /**
  * Coerces any stored or submitted JSON into a clean values object for this
  * attribute: only its configured sub-fields, trimmed, blanks as null (an
- * empty list for milestones). Unknown keys are dropped.
+ * empty list for milestones). Older stored shapes are upgraded first (the
+ * config's upgradeStoredValues); unknown keys are dropped.
  */
 export function normalizeAttributeValues(
   attribute: BriefAttributeDefinition,
   raw: unknown
 ): BriefAttributeValues {
-  const source = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
+  const stored = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
+  const source = attribute.upgradeStoredValues ? attribute.upgradeStoredValues(stored) : stored;
   return Object.fromEntries(
     attribute.subFields.map((subField) => [
       subField.id,

@@ -37,16 +37,15 @@ import type { Capability } from "@/generated/prisma/enums";
 import { Prisma } from "@/generated/prisma/client";
 import { BRIEF_ATTRIBUTES, getBriefAttribute, type BriefAttributeValues } from "@/lib/briefAttributes";
 import {
-  attributeValuesEqual,
   attributeValuesFromFormData,
   normalizeAttributeValues,
   validateAttributeValues,
 } from "@/lib/briefAttributeValues";
 import { getBriefCompleteness, type BriefAttributeStatus } from "@/lib/briefCompleteness";
-import { saveKeyAttributeSuggestions } from "@/lib/briefAttributeSuggestions";
+import { saveCapturedKeyAttributes } from "@/lib/briefAttributeCapture";
 import {
   extractKeyAttributesRecordingOutcome,
-  suggestKeyAttributesFromProjectSources,
+  fillKeyAttributeGapsFromProjectSources,
 } from "@/lib/keyAttributeSources";
 import { describeKnownKeyDetails, formatKeyDetailsForPrompt } from "@/lib/keyDetailsContext";
 import { removeItemsCoveredByKeyDetails } from "@/services/agents/position-key-detail-filter";
@@ -169,7 +168,7 @@ async function recordProjectDateEdits(
     );
     if (!mapping.some(([, column]) => isoDate(before[column]) !== isoDate(after[column]))) continue;
 
-    const current = completeness.attributes.find((a) => a.id === attribute.id)?.confirmed?.values;
+    const current = completeness.attributes.find((a) => a.id === attribute.id)?.current?.values;
     const values: BriefAttributeValues = normalizeAttributeValues(attribute, current ?? {});
     for (const [subFieldId, column] of mapping) {
       values[subFieldId] = isoDate(after[column]);
@@ -275,7 +274,7 @@ export interface MissingBriefAttribute {
 }
 
 export interface GenerateSowActionState extends ActionState {
-  /** Set when the SOW was refused because required key attributes aren't confirmed. */
+  /** Set when the SOW was refused because required key attributes are still missing. */
   missingAttributes?: MissingBriefAttribute[];
 }
 
@@ -305,12 +304,12 @@ export async function generateSowAction(
     return { message: "Selected SOW Template version no longer exists." };
   }
 
-  // The brief gate: every required key attribute must be PM-confirmed.
+  // The brief gate: every required key attribute must be captured.
   // Enforced here, server-side — the panel's alert is just the explanation.
   const completeness = await getBriefCompleteness(projectId);
   if (!completeness.canProceed) {
     return {
-      message: "We can't generate the SOW yet — confirm these key details first.",
+      message: "We can't generate the SOW yet — add these key details first.",
       missingAttributes: completeness.requiredOutstanding.map((a) => ({
         id: a.id,
         label: a.label,
@@ -838,7 +837,7 @@ export async function uploadKnowledgeItemAction(
   });
 
   if (keyAttributes) {
-    await saveKeyAttributeSuggestions(projectId, [
+    await saveCapturedKeyAttributes(projectId, [
       { extraction: keyAttributes, source: "UPDATE", knowledgeItemId: knowledgeItem.id },
     ]);
   }
@@ -851,14 +850,13 @@ export async function uploadKnowledgeItemAction(
 // ---------------------------------------------------------------------------
 
 /**
- * The only way an attribute becomes confirmed: a PM submits its values
- * (typed in, or an AI suggestion accepted as-is or edited). Saving a
- * partial value is allowed — the attribute just stays "partial". Source is
- * the suggestion's own (e.g. BRIEF) when accepted unchanged, otherwise
- * PM_ENTRY. Attributes whose sub-fields mirror project dates write those
- * columns too, so there's one source of truth for them.
+ * A PM's inline Update/Add for one key detail. Always recorded as the PM's
+ * own entry ("Edited by PM", with who and when), replacing whatever was
+ * captured. Saving it empty returns the detail to Missing. Attributes whose
+ * sub-fields mirror project dates write those columns too, so there's one
+ * source of truth for them.
  */
-export async function confirmBriefAttributeAction(
+export async function saveBriefAttributeAction(
   projectId: string,
   attributeId: string,
   _prevState: ActionState | undefined,
@@ -875,20 +873,6 @@ export async function confirmBriefAttributeAction(
     return { message: formatError };
   }
 
-  let source: Prisma.BriefAttributeValueCreateInput["source"] = "PM_ENTRY";
-  const suggestionId = formData.get("suggestionId");
-  if (typeof suggestionId === "string" && suggestionId) {
-    const suggestion = await prisma.briefAttributeValue.findFirst({
-      where: { id: suggestionId, projectId, attributeId, kind: "SUGGESTION" },
-    });
-    if (
-      suggestion &&
-      attributeValuesEqual(normalizeAttributeValues(attribute, suggestion.values), values)
-    ) {
-      source = suggestion.source;
-    }
-  }
-
   const session = await auth();
   const dateColumns = Object.entries(attribute.projectDateFields ?? {}).flatMap(
     ([subFieldId, column]) => (column ? [[subFieldId, column] as const] : [])
@@ -900,7 +884,7 @@ export async function confirmBriefAttributeAction(
         projectId,
         attributeId,
         kind: "CONFIRMED",
-        source,
+        source: "PM_ENTRY",
         values: values as Prisma.InputJsonValue,
         createdById: session?.user?.id,
       },
@@ -923,11 +907,10 @@ export async function confirmBriefAttributeAction(
 
 /**
  * On demand: re-reads the stored brief and every Additional Input (oldest
- * first) and proposes key-attribute values from them — e.g. for projects
- * created before key attributes existed. Suggestions only; nothing is
- * confirmed.
+ * first) and fills in any key details still empty — e.g. after an
+ * extraction failure. Never overwrites a PM's edit or a later update.
  */
-export async function suggestBriefAttributesAction(
+export async function rereadBriefAttributesAction(
   projectId: string,
   _prevState: ActionState | undefined,
   _formData: FormData
@@ -937,7 +920,7 @@ export async function suggestBriefAttributesAction(
     return { message: "Project not found." };
   }
 
-  const { error } = await suggestKeyAttributesFromProjectSources(projectId);
+  const { error } = await fillKeyAttributeGapsFromProjectSources(projectId);
   revalidatePath(`/projects/${projectId}`);
   if (error) {
     return { message: error };
@@ -1015,9 +998,8 @@ async function assembleCapabilityBriefContext(projectId: string): Promise<string
     sections.push(`## Original brief\n${project.briefRawText}`);
   }
   // Key details are their own record (the Position Document no longer
-  // carries them). Internal specialist context, so unconfirmed suggestions
-  // are included — clearly marked as such.
-  const keyDetails = formatKeyDetailsForPrompt(briefCompleteness, { includeUnconfirmed: true });
+  // carries them), each marked with where it came from.
+  const keyDetails = formatKeyDetailsForPrompt(briefCompleteness);
   if (keyDetails) {
     sections.push(`## Key details\n${keyDetails}`);
   }

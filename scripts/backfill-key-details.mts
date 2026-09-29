@@ -22,7 +22,7 @@ const APPLY = process.argv.includes("--apply");
 
 const { prisma } = await import("@/lib/prisma");
 const { getBriefCompleteness } = await import("@/lib/briefCompleteness");
-const { suggestKeyAttributesFromProjectSources } = await import("@/lib/keyAttributeSources");
+const { fillKeyAttributeGapsFromProjectSources } = await import("@/lib/keyAttributeSources");
 const { extractKeyAttributes } = await import("@/services/agents/key-attribute-extraction");
 const { removeItemsCoveredByKeyDetails } =
   await import("@/services/agents/position-key-detail-filter");
@@ -66,7 +66,7 @@ for (const { id: projectId, name } of projects) {
   // 1. Key-detail suggestions from the brief + inputs.
   let preview: Extraction | null = null;
   if (APPLY) {
-    const { saved, error } = await suggestKeyAttributesFromProjectSources(projectId);
+    const { saved, error } = await fillKeyAttributeGapsFromProjectSources(projectId);
     console.log(
       error ? `  key details: FAILED — ${error}` : `  key details: ${saved} suggestion(s) saved`
     );
@@ -94,8 +94,7 @@ for (const { id: projectId, name } of projects) {
   const completeness = await getBriefCompleteness(projectId);
   const contact = completeness.attributes.find((a) => a.id === CLIENT_CONTACT_FIELDS.attributeId);
   const contactKnown =
-    !!contact?.confirmed?.values[CLIENT_CONTACT_FIELDS.name] ||
-    !!contact?.suggestion?.values[CLIENT_CONTACT_FIELDS.name] ||
+    !!contact?.current?.values[CLIENT_CONTACT_FIELDS.name] ||
     !!preview?.[CLIENT_CONTACT_FIELDS.attributeId]?.values[CLIENT_CONTACT_FIELDS.name];
   if (fields?.primaryContactName && !contactKnown) {
     console.log(

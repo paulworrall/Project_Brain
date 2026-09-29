@@ -65,7 +65,7 @@ export function Phase1Workspace({
   confirmedCapabilities,
   estimateBriefVersion,
 }: Phase1WorkspaceProps) {
-  const confirmedDetailsCount = positionDocument?.whatWeKnow.length ?? 0;
+  const otherDetailsCount = positionDocument?.whatWeKnow.length ?? 0;
   const outstandingCount = briefCompleteness.requiredOutstanding.length;
   const completeChecklistCount = checklistItems.filter((item) => item.isComplete).length;
 
@@ -75,7 +75,7 @@ export function Phase1Workspace({
         className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground"
         aria-label="Phase 1 progress summary"
       >
-        <span>{pluralize(confirmedDetailsCount, "confirmed detail")}</span>
+        <span>{pluralize(otherDetailsCount, "other detail")} from the brief</span>
         <span aria-hidden="true">·</span>
         <span>{pluralize(outstandingCount, "required detail")} to find out</span>
         <span aria-hidden="true">·</span>

@@ -145,8 +145,8 @@ describe("assembleSowContext", () => {
     const { narrativeContext, coverDetails } = await assembleSowContext(project.id);
 
     expect(narrativeContext).toContain("A loyalty app refresh for a coffee client.");
-    expect(narrativeContext).toContain("## Key details (confirmed by the PM)");
-    expect(narrativeContext).toContain("Objective (confirmed): Objective: Refresh the loyalty app");
+    expect(narrativeContext).toContain("## Key details");
+    expect(narrativeContext).toContain("Objective (from the brief): Objective: Refresh the loyalty app");
     expect(narrativeContext).toContain("Position Document");
     expect(narrativeContext).toContain("Draft Scope Document");
     expect(narrativeContext).toContain("Deliverables & Services Document");
@@ -185,13 +185,13 @@ describe("assembleSowContext", () => {
     expect(coverDetails.commercials).toBeNull();
   });
 
-  it("never invents a client contact — only ever uses the PM-confirmed Client Contact key detail", async () => {
+  it("never invents a client contact — only ever uses the Client Contact key detail, captured values included", async () => {
     const project = await prisma.project.create({
       data: { name: "Unconfirmed Contact Project", workstreamId },
     });
 
-    // An old Position Document still carrying contact fields, and an
-    // unconfirmed AI suggestion — neither may reach the SOW cover.
+    // An old Position Document still carrying contact fields must never reach
+    // the SOW cover; the contact captured from the brief is trusted by default.
     const positionDoc = await prisma.document.create({
       data: { projectId: project.id, type: "POSITION_DOCUMENT" },
     });
@@ -215,15 +215,14 @@ describe("assembleSowContext", () => {
         attributeId: "clientContact",
         kind: "SUGGESTION",
         source: "BRIEF",
-        values: { name: "Suggested Name", email: "suggested@example.com" },
+        values: { name: "Captured Name", email: "captured@example.com" },
       },
     });
 
     const { narrativeContext, coverDetails } = await assembleSowContext(project.id);
 
-    expect(coverDetails.primaryClientContactName).toBeNull();
-    expect(coverDetails.primaryClientContactEmail).toBeNull();
-    // The SOW is client-facing: unconfirmed suggestions aren't passed to it either.
-    expect(narrativeContext).not.toContain("Suggested Name");
+    expect(coverDetails.primaryClientContactName).toBe("Captured Name");
+    expect(coverDetails.primaryClientContactEmail).toBe("captured@example.com");
+    expect(narrativeContext).toContain("Client Contact (from the brief)");
   });
 });

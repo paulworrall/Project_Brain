@@ -107,11 +107,17 @@ export function PositionDocumentView({ fields, showLegacyQuestions = false }: Po
         {fields.clientFlaggedOpenItems.length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground">None flagged.</p>
         ) : (
-          <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-foreground">
-            {fields.clientFlaggedOpenItems.map((item, i) => (
-              <li key={i}>{item}</li>
-            ))}
-          </ul>
+          // Summary first, like "Other details" above — the full list on demand.
+          <Disclosure
+            className="mt-2"
+            summary={`${fields.clientFlaggedOpenItems.length} item${fields.clientFlaggedOpenItems.length === 1 ? "" : "s"} flagged by the client`}
+          >
+            <ul className="list-inside list-disc space-y-1 text-sm text-foreground">
+              {fields.clientFlaggedOpenItems.map((item, i) => (
+                <li key={i}>{item}</li>
+              ))}
+            </ul>
+          </Disclosure>
         )}
       </Card>
     </div>

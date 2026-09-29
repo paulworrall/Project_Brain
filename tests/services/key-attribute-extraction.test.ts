@@ -78,8 +78,7 @@ describe("extractKeyAttributes", () => {
           subFieldId: "amount",
           value: " £50,000 ",
           evidence: "Budget: £50,000",
-        },
-        { attributeId: "budget", subFieldId: "currency", value: "gbp", evidence: "Budget: £50,000" }
+        }
       ),
     });
 
@@ -87,7 +86,7 @@ describe("extractKeyAttributes", () => {
 
     expect(Object.keys(result)).toEqual(["budget"]);
     expect(result.budget).toEqual({
-      values: { amount: "£50,000", currency: "GBP" },
+      values: { amount: "£50,000" },
       evidence: "Budget: £50,000",
     });
   });

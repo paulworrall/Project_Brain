@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { saveKeyAttributeSuggestions } from "@/lib/briefAttributeSuggestions";
+import { saveCapturedKeyAttributes } from "@/lib/briefAttributeCapture";
 import {
   KeyAttributeExtractionError,
   extractKeyAttributes,
@@ -49,12 +49,13 @@ export async function extractKeyAttributesRecordingOutcome(
 
 /**
  * Re-reads the stored brief and every Additional Input (oldest first) and
- * saves what they state as key-attribute SUGGESTIONS — never confirmed.
- * Used by "Suggest from brief & inputs" and the one-off backfill. Returns
- * how many suggestions were saved, or an error message if extraction failed
- * (also recorded on the project).
+ * fills in only the key details still empty — never overwriting a PM's
+ * edit or anything already captured (mode "fill-gaps"). Used by "Re-read
+ * brief & inputs" and the one-off backfill. Returns how many values were
+ * saved, or an error message if extraction failed (also recorded on the
+ * project).
  */
-export async function suggestKeyAttributesFromProjectSources(
+export async function fillKeyAttributeGapsFromProjectSources(
   projectId: string
 ): Promise<{ saved: number; error: string | null }> {
   const project = await prisma.project.findUniqueOrThrow({
@@ -100,13 +101,14 @@ export async function suggestKeyAttributesFromProjectSources(
   }
 
   await recordKeyAttributeExtractionOutcome(projectId, null);
-  const saved = await saveKeyAttributeSuggestions(
+  const saved = await saveCapturedKeyAttributes(
     projectId,
     sources.map((s, index) => ({
       extraction: extractions[index],
       source: s.source,
       knowledgeItemId: s.knowledgeItemId,
-    }))
+    })),
+    "fill-gaps"
   );
   return { saved, error: null };
 }

@@ -10,7 +10,7 @@ import {
   runIntakeAgent,
 } from "@/services/agents/intake-agent";
 import type { Prisma } from "@/generated/prisma/client";
-import { saveKeyAttributeSuggestions } from "@/lib/briefAttributeSuggestions";
+import { saveCapturedKeyAttributes } from "@/lib/briefAttributeCapture";
 import { recordKeyAttributeExtractionOutcome } from "@/lib/keyAttributeSources";
 import { auth } from "@/lib/auth";
 import { pmPerspectiveValuesFromFormData } from "@/lib/pmPerspective";
@@ -411,12 +411,12 @@ export async function createProjectAction(
     return project;
   });
 
-  // Key details are saved as suggestions only — a PM confirms them. A
-  // failed read never blocks creating the project; it's recorded so the PM
-  // sees it and can re-run "Suggest from brief & inputs".
+  // Key details read from the brief are captured straight away — no
+  // approval step. A failed read never blocks creating the project; it's
+  // recorded so the PM sees it and can re-run "Re-read brief & inputs".
   await recordKeyAttributeExtractionOutcome(project.id, intakeResult.keyAttributesError);
   if (intakeResult.keyAttributes) {
-    await saveKeyAttributeSuggestions(project.id, [
+    await saveCapturedKeyAttributes(project.id, [
       { extraction: intakeResult.keyAttributes, source: "BRIEF" },
     ]);
   }

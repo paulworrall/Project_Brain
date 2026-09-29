@@ -61,10 +61,13 @@ export function CapabilitiesAndEstimateBriefPanel({
   estimateBriefVersion: EstimateBriefVersionMeta | null;
 }) {
   const [checked, setChecked] = useState<Set<Capability>>(new Set(confirmedCapabilities));
-  const [rationaleByCapability, setRationaleByCapability] = useState<Partial<Record<Capability, string>>>(
-    {}
-  );
+  const [rationaleByCapability, setRationaleByCapability] = useState<
+    Partial<Record<Capability, string>>
+  >({});
   const [lowConfidenceReason, setLowConfidenceReason] = useState<string | null>(null);
+  // Summary first: once teams are saved, the chooser stays closed behind
+  // "Change teams" instead of listing every capability.
+  const [choosingTeams, setChoosingTeams] = useState(confirmedCapabilities.length === 0);
 
   function toggleCapability(capability: Capability) {
     setChecked((prev) => {
@@ -115,7 +118,9 @@ export function CapabilitiesAndEstimateBriefPanel({
       return next;
     });
     setLowConfidenceReason(
-      result.isLowConfidence ? result.lowConfidenceReason ?? "Limited brief content available." : null
+      result.isLowConfidence
+        ? (result.lowConfidenceReason ?? "Limited brief content available.")
+        : null
     );
     setOverlayStatus("success");
     return result;
@@ -160,10 +165,14 @@ export function CapabilitiesAndEstimateBriefPanel({
 
   // --- Save confirmed capabilities ------------------------------------
   const saveAction = updateConfirmedCapabilitiesAction.bind(null, projectId);
-  const [saveState, saveFormAction, savePending] = useActionState<ActionState | undefined, FormData>(
-    saveAction,
-    undefined
-  );
+  const [saveState, saveFormAction, savePending] = useActionState<
+    ActionState | undefined,
+    FormData
+  >(async (previous, formData) => {
+    const result = await saveAction(previous, formData);
+    if (!result?.message && checked.size > 0) setChoosingTeams(false);
+    return result;
+  }, undefined);
 
   // --- Prepare the estimate brief --------------------------------------
   const generateAction = generateEstimateBriefAction.bind(null, projectId);
@@ -185,104 +194,132 @@ export function CapabilitiesAndEstimateBriefPanel({
       <h3 className="text-sm font-semibold text-foreground">Ready the Brief for Team Estimates</h3>
 
       <div>
-        <h4 className="text-sm font-medium text-foreground">Which capability teams are needed?</h4>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Tick the teams below that you already know should be involved — or, if you&apos;re not
-          sure, let AI suggest them from the brief instead. Either way, review and save before
-          moving on.
-        </p>
-
-        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md bg-surface-muted p-3">
-          <form action={suggestFormAction} onSubmit={handleSuggestSubmit}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h4 className="text-sm font-medium text-foreground">
+            Which capability teams are needed?
+          </h4>
+          {!choosingTeams && (
             <Button
-              ref={suggestSubmitRef}
-              type="submit"
+              type="button"
               variant="secondary"
-              className="text-xs"
-              disabled={suggestPending}
+              className="px-2.5 py-1 text-xs"
+              onClick={() => setChoosingTeams(true)}
             >
-              {suggestPending ? "Thinking…" : "Not sure? Get suggestions"}
+              Change teams
             </Button>
-          </form>
-          <span className="text-xs text-muted-foreground">
-            or tick the capability teams below yourself
-          </span>
+          )}
         </div>
+        {choosingTeams ? (
+          <>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Tick the teams below that you already know should be involved — or, if you&apos;re not
+              sure, let AI suggest them from the brief instead. Either way, review and save before
+              moving on.
+            </p>
 
-        {lowConfidenceReason && (
-          <p className="mt-3 rounded-md bg-warning-bg px-3 py-2 text-xs text-warning" role="status">
-            Low confidence: {lowConfidenceReason} Treat these suggestions as a starting point, not
-            certainties.
+            <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md bg-surface-muted p-3">
+              <form action={suggestFormAction} onSubmit={handleSuggestSubmit}>
+                <Button
+                  ref={suggestSubmitRef}
+                  type="submit"
+                  variant="secondary"
+                  className="text-xs"
+                  disabled={suggestPending}
+                >
+                  {suggestPending ? "Thinking…" : "Not sure? Get suggestions"}
+                </Button>
+              </form>
+              <span className="text-xs text-muted-foreground">
+                or tick the capability teams below yourself
+              </span>
+            </div>
+
+            {lowConfidenceReason && (
+              <p
+                className="mt-3 rounded-md bg-warning-bg px-3 py-2 text-xs text-warning"
+                role="status"
+              >
+                Low confidence: {lowConfidenceReason} Treat these suggestions as a starting point,
+                not certainties.
+              </p>
+            )}
+
+            <form action={saveFormAction} className="mt-3 space-y-3">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                {MAP_CAPABILITIES.map((capability) => {
+                  const isChecked = checked.has(capability.id);
+                  return (
+                    <label
+                      key={capability.id}
+                      className={`flex cursor-pointer items-center gap-2.5 rounded-full border px-4 py-3 text-sm font-medium transition-colors focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ring ${
+                        isChecked
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border bg-surface text-foreground hover:border-primary/50 hover:bg-surface-muted"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        name="capabilities"
+                        value={capability.id}
+                        checked={isChecked}
+                        onChange={() => toggleCapability(capability.id)}
+                        className="sr-only"
+                      />
+                      <span
+                        aria-hidden="true"
+                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+                          isChecked ? "border-primary-foreground" : "border-current"
+                        }`}
+                      >
+                        {isChecked && (
+                          <svg viewBox="0 0 24 24" fill="none" className="h-3 w-3">
+                            <path
+                              d="M5 13l4 4L19 7"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        )}
+                      </span>
+                      {capability.label}
+                    </label>
+                  );
+                })}
+              </div>
+
+              {checkedWithRationale.length > 0 && (
+                <div className="rounded-md bg-accent p-3 text-xs text-accent-foreground">
+                  <p className="font-semibold">Why these were suggested</p>
+                  <ul className="mt-1 space-y-1">
+                    {checkedWithRationale.map((c) => (
+                      <li key={c.id}>
+                        <span className="font-medium">{c.label}:</span>{" "}
+                        {rationaleByCapability[c.id]}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {saveState?.message && (
+                <p className="text-xs text-danger" role="alert">
+                  {saveState.message}
+                </p>
+              )}
+              <Button type="submit" className="text-xs" disabled={savePending}>
+                {savePending ? "Saving…" : "Save confirmed capabilities"}
+              </Button>
+            </form>
+          </>
+        ) : (
+          <p className="mt-1 text-sm text-foreground">
+            {MAP_CAPABILITIES.filter((c) => confirmedCapabilities.includes(c.id))
+              .map((c) => c.label)
+              .join(" · ")}
           </p>
         )}
-
-        <form action={saveFormAction} className="mt-3 space-y-3">
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-            {MAP_CAPABILITIES.map((capability) => {
-              const isChecked = checked.has(capability.id);
-              return (
-                <label
-                  key={capability.id}
-                  className={`flex cursor-pointer items-center gap-2.5 rounded-full border px-4 py-3 text-sm font-medium transition-colors focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ring ${
-                    isChecked
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-surface text-foreground hover:border-primary/50 hover:bg-surface-muted"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    name="capabilities"
-                    value={capability.id}
-                    checked={isChecked}
-                    onChange={() => toggleCapability(capability.id)}
-                    className="sr-only"
-                  />
-                  <span
-                    aria-hidden="true"
-                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
-                      isChecked ? "border-primary-foreground" : "border-current"
-                    }`}
-                  >
-                    {isChecked && (
-                      <svg viewBox="0 0 24 24" fill="none" className="h-3 w-3">
-                        <path
-                          d="M5 13l4 4L19 7"
-                          stroke="currentColor"
-                          strokeWidth="3"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    )}
-                  </span>
-                  {capability.label}
-                </label>
-              );
-            })}
-          </div>
-
-          {checkedWithRationale.length > 0 && (
-            <div className="rounded-md bg-accent p-3 text-xs text-accent-foreground">
-              <p className="font-semibold">Why these were suggested</p>
-              <ul className="mt-1 space-y-1">
-                {checkedWithRationale.map((c) => (
-                  <li key={c.id}>
-                    <span className="font-medium">{c.label}:</span> {rationaleByCapability[c.id]}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {saveState?.message && (
-            <p className="text-xs text-danger" role="alert">
-              {saveState.message}
-            </p>
-          )}
-          <Button type="submit" className="text-xs" disabled={savePending}>
-            {savePending ? "Saving…" : "Save confirmed capabilities"}
-          </Button>
-        </form>
       </div>
 
       <div className="border-t border-border pt-4">
@@ -317,7 +354,8 @@ export function CapabilitiesAndEstimateBriefPanel({
         {estimateBriefVersion ? (
           <Card className="mt-3 space-y-1 p-4">
             <p className="text-sm font-medium text-foreground">
-              Version {estimateBriefVersion.versionNumber} — {formatDateTime(estimateBriefVersion.createdAt)}
+              Version {estimateBriefVersion.versionNumber} —{" "}
+              {formatDateTime(estimateBriefVersion.createdAt)}
             </p>
             <p className="text-xs text-muted-foreground">
               {estimateBriefVersion.capabilities.length} capability sections
@@ -329,7 +367,10 @@ export function CapabilitiesAndEstimateBriefPanel({
               Download .docx →
             </a>
             {isStale && (
-              <p className="mt-2 rounded-md bg-warning-bg px-3 py-2 text-xs text-warning" role="status">
+              <p
+                className="mt-2 rounded-md bg-warning-bg px-3 py-2 text-xs text-warning"
+                role="status"
+              >
                 Capabilities have changed since this was generated — regenerate to bring it up to
                 date.
               </p>

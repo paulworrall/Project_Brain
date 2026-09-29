@@ -9,8 +9,8 @@ const generateSowAction = vi.fn(async () => undefined);
 vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
   startSowDevelopmentAction,
   generateSowAction,
-  confirmBriefAttributeAction: vi.fn(),
-  suggestBriefAttributesAction: vi.fn(),
+  saveBriefAttributeAction: vi.fn(),
+  rereadBriefAttributesAction: vi.fn(),
 }));
 
 const { StartSowDevelopmentPanel } = await import(
@@ -240,7 +240,7 @@ describe("StartSowDevelopmentPanel", () => {
   describe("brief gate", () => {
     const selectedTemplate = { id: "sow_baseline", name: "Standard SOW Template" };
 
-    it("refuses on click when required key details aren't confirmed, listing exactly what's missing — without calling the action", async () => {
+    it("refuses on click when required key details are missing, listing exactly what's missing — without calling the action", async () => {
       const user = userEvent.setup();
       generateSowAction.mockClear();
       render(
@@ -257,7 +257,7 @@ describe("StartSowDevelopmentPanel", () => {
         />
       );
 
-      expect(screen.getByText(/3 required key details still need confirming/)).toBeInTheDocument();
+      expect(screen.getByText(/3 required key details still need adding/)).toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: "Generate SOW" }));
 
       const alert = screen.getByRole("alert");
@@ -265,7 +265,10 @@ describe("StartSowDevelopmentPanel", () => {
       expect(alert).toHaveTextContent("Objective (partial), Timeline and Key Milestones (missing), Client Contact (missing)");
       expect(screen.queryByRole("heading", { name: "Budget" })).not.toBeInTheDocument();
       expect(screen.getByText("Still needed: Success measures (OKRs/KPIs)")).toBeInTheDocument();
-      expect(screen.getAllByText("Fill in →")).toHaveLength(2);
+      expect(screen.getByRole("button", { name: "Add Timeline and Key Milestones" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Add Client Contact" })).toBeInTheDocument();
+      // The partial Objective can be updated right there too.
+      expect(screen.getByRole("button", { name: "Update Objective" })).toBeInTheDocument();
       expect(generateSowAction).not.toHaveBeenCalled();
     });
 
@@ -283,15 +286,16 @@ describe("StartSowDevelopmentPanel", () => {
       );
 
       await user.click(screen.getByRole("button", { name: "Generate SOW" }));
-      await user.click(screen.getByText("Fill in →"));
+      await user.click(screen.getByRole("button", { name: "Add Client Contact" }));
 
       expect(screen.getByLabelText(/^Name/)).toBeVisible();
       expect(screen.getByLabelText(/^Email/)).toBeVisible();
       expect(screen.getByLabelText(/^Role/)).toBeVisible();
-      expect(screen.getByRole("button", { name: "Confirm" })).toBeVisible();
+      expect(screen.getByRole("button", { name: "Save" })).toBeVisible();
+      expect(screen.getByRole("button", { name: "Cancel" })).toBeVisible();
     });
 
-    it("generates normally once every required key detail is confirmed", async () => {
+    it("generates normally once every required key detail is captured", async () => {
       const user = userEvent.setup();
       generateSowAction.mockClear();
       render(

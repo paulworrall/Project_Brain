@@ -31,18 +31,6 @@ function timelineParagraphs(timeline: TimelineSection): Paragraph[] {
     ...(timeline.milestones.length > 0
       ? bulletList(timeline.milestones.map(formatMilestone))
       : [new Paragraph({ text: NO_MILESTONES_TEXT })]),
-    ...(timeline.unconfirmedSuggestion
-      ? [
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: `Unconfirmed — read from the client's inputs, not yet confirmed by the PM: ${timeline.unconfirmedSuggestion}`,
-                italics: true,
-              }),
-            ],
-          }),
-        ]
-      : []),
   ];
 }
 

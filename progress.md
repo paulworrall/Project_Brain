@@ -1,8 +1,8 @@
 # Project Brain — Progress
 
 ## Current Status
-- **Active Task**: None — "Timeline and Key Milestones" + "What We Need to Find Out" rework (ad-hoc change) — see the dated note at the end
-- **Last Completed**: "What We Need to Find Out" is now a fixed checklist from `getBriefCompleteness()`, and the timeline renders from the key details
+- **Active Task**: None — key details trusted by default + compact Phase 1 (ad-hoc change) — see the dated note at the end
+- **Last Completed**: captured key details count straight away, with source tags and an inline Update/Add; Phase 1 sections are summary-first
 - **Blocked**: None
 - **Last Updated**: 2026-09-29T12:00:00Z
 
@@ -465,3 +465,22 @@
 - **Clarification email** (user decision): its questions now come from `clarificationQuestionsFrom()` (`src/lib/clarificationQuestions.ts`). It asks the question for each missing required detail, asks for the missing sub-fields of a partial one, and lists "please confirm we understood X" for client-sourced suggestions. At intake, `completenessFromExtraction()` runs what was just extracted through `evaluateBriefCompleteness`. PM suggestions and optional attributes are never included.
 - **Existing projects**: nothing deleted, no migration. Older Position Document versions keep their stored list (`whatWeNeedToFindOut` is optional in `PositionDocumentFieldsSchema`). Version History shows it read-only as "Earlier open questions (no longer produced or updated)". The live workspace never shows it. New versions are saved without it. (The user's instruction for existing projects arrived truncated; this follows the stated assumption.)
 - **Tests**: new `tests/components/BriefChecklist.test.tsx` (order, statuses, partial sub-fields, suggestion, optional group, instant update, timeline display) and `tests/lib/clarificationQuestions.test.ts`. The .docx test now reads `word/document.xml` to check the timeline text. Agent tests assert the removed schema fields and prompts, and the email's fixed questions. Full suite: 509 tests across 74 files passing; typecheck and lint clean. The live intake smoke check (`scripts/smoke-intake.mts`) passed: the Position Document has only `whatWeKnow`/`clientFlaggedOpenItems`, and the email asked only the fixed key-detail questions. Checked in the browser on a seeded project at desktop and mobile widths, with no overflow and no console errors.
+
+### Change: key details trusted by default, inline Update, compact Phase 1 (2026-09-29)
+
+- **Why**: PMs must never be asked to approve, accept or review what the platform captures, and the Phase 1 section was very long. (The user's task text arrived cut off after step 5 of Part A; the user approved my recommendations for the rest.)
+- **Trust by default**: `getBriefCompleteness()` now takes the **latest row of any kind** as `current`, whether the agent captured it from the brief or an update, or a PM edited it. `confirmed` and `suggestion` are replaced by `current` plus an `origin` (`brief` / `update` with its number / `pm`), shown as the source tags "From brief", "From update vN" and "Edited by PM". The update number is the knowledge item's position, oldest first. PM perspective suggestions are the one thing never counted (the mechanism is still unused). There's no schema change: `kind` SUGGESTION now simply means an agent-captured row, and `confirmBriefAttributeAction` became `saveBriefAttributeAction`, which always records PM_ENTRY. Saving empty returns a detail to Missing.
+- **Latest wins** (`src/lib/briefAttributeCapture.ts`, was `briefAttributeSuggestions.ts`): each update is read on its own, and extraction only returns the details that text states. Whatever it states replaces the current value, including a PM's edit, sub-field by sub-field. "Re-read brief & inputs" (was "Suggest from brief & inputs") runs in `fill-gaps` mode: it only fills sub-fields that were empty before the re-read, so an old brief can never undo a PM edit or a later update. Captured timeline dates are now written to the project's kick-off and target dates too.
+- **Budget**: now a single free-text field (`budget.amount`, longText). No downstream code needed the structured values: SOW, estimate and rate-card currencies all come from the estimate or rate card. Old `{amount, currency}` values are upgraded when read via the new config hook `upgradeStoredValues` ("roughly €110,000 (EUR)"), so no rows were rewritten. That avoids shipping a data backfill against the shared database.
+- **Timeline and Contact** keep their structured fields behind the same inline Update/Add (user decision). They drive the project dates, the Estimate Brief section, the SOW cover and the email greeting.
+- **SOW**: the gate and the SOW content now use the current (captured) values. The user will define SOW-specific rules later.
+- **Clarification email**: asks about missing and partial details, and asks the client to confirm values captured from their own brief or updates, never a PM's edit.
+- **Compact UI** (Part B, reusing `Disclosure` and the Phase card header):
+  - Checklist rows are one line each (status, label, source tag, value summary, Update/Add), with the full values and source quote under "Show more".
+  - The Capability chooser collapses to a one-line team summary with "Change teams".
+  - Client-flagged items collapse to "N items flagged by the client".
+  - Empty PM perspective fields are one line.
+  - The readiness strip, gate notices and progress strip say "captured" / "adding" / "other details" instead of "confirmed".
+  - Measured on a test project: checklist 932 → 490px, capabilities 907 → 325px, current position 408 → 260px, PM perspective 330 → 250px.
+- **Tests**: 517 across 74 files passing; typecheck and lint clean. The live key-detail extraction smoke check passed. Checked in the browser (desktop and mobile, no overflow, inline Update/Cancel) without saving anything.
+- **Known**: values accepted in the old "Review and confirm" flow from an update have no knowledge item link, so they show "From an update" without a number.

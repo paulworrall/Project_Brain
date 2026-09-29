@@ -97,9 +97,9 @@ function factsToExtraction(rawFacts: RawFact[]): KeyAttributeExtraction {
 
 /**
  * Reads one piece of text — the brief, or a later update — and proposes
- * values for each configured key attribute it actually states. Output is
- * only ever stored as a SUGGESTION: a PM confirms it (see
- * confirmBriefAttributeAction). Key details live only there — the Position
+ * values for each configured key attribute it actually states. What it
+ * finds is captured straight away (see saveCapturedKeyAttributes) — no
+ * approval step; a PM can change it with an inline Update. Key details live only there — the Position
  * Document is told to leave them out (see extractPositionFields).
  */
 export async function extractKeyAttributes(
@@ -115,7 +115,7 @@ export async function extractKeyAttributes(
       messages: [
         {
           role: "user",
-          content: `Below is ${SOURCE_DESCRIPTION[sourceKind]}. Record the project's key details it actually states, as a list of facts. Each fact's "field" is one id from this list, written exactly as shown:\n\n${describeKeyAttributeFieldsForPrompt()}\n\nRules:\n- A person reviews every value before it's used, so never guess, infer a "typical" value, or fill anything from general knowledge. Leave out anything not stated.\n- Keep amounts and wording as written.\n- Combine everything the text says about one sub-field into a single fact — e.g. if it gives a main and a secondary objective, put both in the one objective.objective value (main first); never create a second objective.\n- Dates must be yyyy-mm-dd; if the text only gives a month or a vague time ("Q4", "autumn"), leave the date out and mention it in evidence.\n- Only use ids from the list above.\n\n<text>\n${text}\n</text>`,
+          content: `Below is ${SOURCE_DESCRIPTION[sourceKind]}. Record the project's key details it actually states, as a list of facts. Each fact's "field" is one id from this list, written exactly as shown:\n\n${describeKeyAttributeFieldsForPrompt()}\n\nRules:\n- Every value is used as-is straight away, with no review, so never guess, infer a "typical" value, or fill anything from general knowledge. Leave out anything not stated.\n- Keep amounts and wording as written. For the budget, include the currency as stated (e.g. "roughly €110,000").\n- Combine everything the text says about one sub-field into a single fact — e.g. if it gives a main and a secondary objective, put both in the one objective.objective value (main first); never create a second objective.\n- Dates must be yyyy-mm-dd; if the text only gives a month or a vague time ("Q4", "autumn"), leave the date out and mention it in evidence.\n- Only use ids from the list above.\n\n<text>\n${text}\n</text>`,
         },
       ],
     });

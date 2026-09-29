@@ -19,20 +19,30 @@ export interface BriefAttributeValueRecord {
   source: BriefAttributeSource;
   values: unknown;
   evidence: string | null;
+  knowledgeItemId?: string | null;
   createdAt: Date;
   createdByName: string | null;
 }
+
+/**
+ * Where the current value came from, for its source tag: the brief, a
+ * numbered update (its position among the project's Additional Inputs,
+ * oldest first — null when it can't be told), or a PM's own edit.
+ */
+export type BriefAttributeOrigin =
+  | { kind: "brief" }
+  | { kind: "update"; number: number | null }
+  | { kind: "pm" };
 
 export interface BriefAttributeEntry {
   id: string;
   values: BriefAttributeValues;
   source: BriefAttributeSource;
+  origin: BriefAttributeOrigin;
+  /** The passage the value was read from (captured values only). */
+  evidence: string | null;
   createdAt: Date;
   createdByName: string | null;
-}
-
-export interface BriefAttributeSuggestion extends BriefAttributeEntry {
-  evidence: string | null;
 }
 
 export interface BriefAttributeCompleteness {
@@ -41,27 +51,26 @@ export interface BriefAttributeCompleteness {
   question: string;
   required: boolean;
   status: BriefAttributeStatus;
-  /** The latest PM-confirmed values — the only thing status is based on. */
-  confirmed: BriefAttributeEntry | null;
   /**
-   * The latest client-sourced suggestion (from the brief or an update), if
-   * newer than the confirmed values. Never counts as confirmed.
+   * The current value: the latest thing anyone told us — captured by the
+   * agent from the brief or an update, or edited by a PM. Trusted as-is; no
+   * approval step. Status is based on it.
    */
-  suggestion: BriefAttributeSuggestion | null;
+  current: BriefAttributeEntry | null;
   /**
-   * The latest suggestion from the PM's own perspective (source PM_ENTRY —
-   * only possible for a sub-field linked via pmPerspectiveFieldId), kept apart so it's never mistaken for — or hides — what
-   * the client said. Also never counts as confirmed.
+   * A suggestion from the PM's own perspective (source PM_ENTRY — only
+   * possible for a sub-field linked via pmPerspectiveFieldId; currently
+   * none is). Kept apart and never counted, so it can't pass as the client's.
    */
-  pmSuggestion: BriefAttributeSuggestion | null;
-  /** Required sub-fields not filled in the confirmed values. */
+  pmSuggestion: BriefAttributeEntry | null;
+  /** Required sub-fields not filled in the current value. */
   missingSubFields: { id: string; label: string }[];
 }
 
 export interface BriefCompleteness {
   /** Every configured attribute, in config order. */
   attributes: BriefAttributeCompleteness[];
-  /** Required attributes that aren't confirmed yet (missing or partial). */
+  /** Required attributes that aren't fully captured yet (missing or partial). */
   requiredOutstanding: BriefAttributeCompleteness[];
   allRequiredConfirmed: boolean;
   /** Whether gated steps (currently: Generate SOW) may go ahead. Optional attributes never affect it. */
@@ -83,10 +92,30 @@ function newest<T extends { createdAt: Date }>(records: T[]): T | undefined {
   );
 }
 
+function originOf(
+  record: BriefAttributeValueRecord,
+  updateNumbers: ReadonlyMap<string, number>
+): BriefAttributeOrigin {
+  switch (record.source) {
+    case "BRIEF":
+      return { kind: "brief" };
+    case "UPDATE":
+    case "CLARIFICATION_ANSWER":
+      return {
+        kind: "update",
+        number: record.knowledgeItemId ? (updateNumbers.get(record.knowledgeItemId) ?? null) : null,
+      };
+    case "PM_ENTRY":
+      return { kind: "pm" };
+  }
+}
+
 /**
- * The pure core of getBriefCompleteness — exported for tests. Status comes
- * only from PM-confirmed values: an AI suggestion, however complete, is
- * reported alongside but never makes an attribute "partial" or "confirmed".
+ * The pure core of getBriefCompleteness — exported for tests. The latest
+ * row wins, whoever wrote it: a value the agent captured counts straight
+ * away, and a PM edit replaces it until newer information arrives. PM
+ * perspective suggestions are the one exception — never counted.
+ * `updateNumbers` maps a knowledge item id to its update number (vN).
  */
 export function evaluateBriefCompleteness(
   records: BriefAttributeValueRecord[],
@@ -94,46 +123,38 @@ export function evaluateBriefCompleteness(
     currentStageNumber: number;
     keyAttributeExtractionFailedAt?: Date | null;
     keyAttributeExtractionError?: string | null;
-  }
+  },
+  updateNumbers: ReadonlyMap<string, number> = new Map()
 ): BriefCompleteness {
   const attributes = BRIEF_ATTRIBUTES.map((definition): BriefAttributeCompleteness => {
     const own = records.filter((r) => r.attributeId === definition.id);
-    const latestConfirmed = newest(own.filter((r) => r.kind === "CONFIRMED"));
-    const suggestions = own.filter((r) => r.kind === "SUGGESTION");
-    const latestSuggestion = newest(suggestions.filter((r) => r.source !== "PM_ENTRY"));
-    const latestPmSuggestion = newest(suggestions.filter((r) => r.source === "PM_ENTRY"));
+    const isPmPerspectiveSuggestion = (r: BriefAttributeValueRecord) =>
+      r.kind === "SUGGESTION" && r.source === "PM_ENTRY";
+    const latest = newest(own.filter((r) => !isPmPerspectiveSuggestion(r)));
+    const latestPmSuggestion = newest(own.filter(isPmPerspectiveSuggestion));
 
-    const confirmed: BriefAttributeEntry | null = latestConfirmed
-      ? {
-          id: latestConfirmed.id,
-          values: normalizeAttributeValues(definition, latestConfirmed.values),
-          source: latestConfirmed.source,
-          createdAt: latestConfirmed.createdAt,
-          createdByName: latestConfirmed.createdByName,
-        }
-      : null;
-
-    const pending = (record: BriefAttributeValueRecord | undefined): BriefAttributeSuggestion | null =>
-      record && (!latestConfirmed || record.createdAt > latestConfirmed.createdAt)
-        ? {
-            id: record.id,
-            values: normalizeAttributeValues(definition, record.values),
-            source: record.source,
-            createdAt: record.createdAt,
-            createdByName: record.createdByName,
-            evidence: record.evidence,
-          }
+    const entry = (record: BriefAttributeValueRecord): BriefAttributeEntry => ({
+      id: record.id,
+      values: normalizeAttributeValues(definition, record.values),
+      source: record.source,
+      origin: originOf(record, updateNumbers),
+      evidence: record.evidence,
+      createdAt: record.createdAt,
+      createdByName: record.createdByName,
+    });
+    const current = latest ? entry(latest) : null;
+    const pmSuggestion =
+      latestPmSuggestion && (!latest || latestPmSuggestion.createdAt > latest.createdAt)
+        ? entry(latestPmSuggestion)
         : null;
-    const suggestion = pending(latestSuggestion);
-    const pmSuggestion = pending(latestPmSuggestion);
 
     // confirmed = every required sub-field filled; partial = something is
     // filled but not every required sub-field (counting optional ones too,
     // so e.g. an end date with no start date reads "partial", not
-    // "missing"); missing = nothing confirmed at all.
+    // "missing"); missing = nothing at all (including a PM clearing it).
     const requiredSubFields = definition.subFields.filter((f) => f.required);
     const isFilled = (f: (typeof definition.subFields)[number]) =>
-      !!confirmed && isSubFieldFilled(f, confirmed.values[f.id]);
+      !!current && isSubFieldFilled(f, current.values[f.id]);
     const filled = requiredSubFields.filter(isFilled);
     const anythingFilled = definition.subFields.some(isFilled);
     const status: BriefAttributeStatus =
@@ -149,8 +170,7 @@ export function evaluateBriefCompleteness(
       question: definition.question,
       required: definition.required,
       status,
-      confirmed,
-      suggestion,
+      current,
       pmSuggestion,
       missingSubFields: requiredSubFields
         .filter((f) => !filled.includes(f))
@@ -180,13 +200,12 @@ export function evaluateBriefCompleteness(
 
 /**
  * The one place brief completeness is decided. Returns every configured
- * attribute's status, confirmed values, pending AI suggestion and missing
+ * attribute's status, current value (with where it came from) and missing
  * sub-fields, plus the overall canProceed flag that gated steps check (the
- * Generate SOW gate today; later the checklist, client email and SOW review
- * will read this too). Always scoped to one project.
+ * Generate SOW gate today). Always scoped to one project.
  */
 export async function getBriefCompleteness(projectId: string): Promise<BriefCompleteness> {
-  const [project, rows] = await Promise.all([
+  const [project, rows, knowledgeItems] = await Promise.all([
     prisma.project.findUniqueOrThrow({
       where: { id: projectId },
       select: {
@@ -198,6 +217,11 @@ export async function getBriefCompleteness(projectId: string): Promise<BriefComp
     prisma.briefAttributeValue.findMany({
       where: { projectId },
       include: { createdBy: { select: { name: true } } },
+    }),
+    prisma.knowledgeItem.findMany({
+      where: { projectId },
+      orderBy: { uploadedAt: "asc" },
+      select: { id: true },
     }),
   ]);
 
@@ -211,9 +235,11 @@ export async function getBriefCompleteness(projectId: string): Promise<BriefComp
         source: row.source,
         values: row.values,
         evidence: row.evidence,
+        knowledgeItemId: row.knowledgeItemId,
         createdAt: row.createdAt,
         createdByName: row.createdBy?.name ?? null,
       })),
-    project
+    project,
+    new Map(knowledgeItems.map((item, index) => [item.id, index + 1]))
   );
 }

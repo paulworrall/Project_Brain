@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { Button } from "@/components/ui/Button";
 import { Disclosure } from "@/components/ui/Disclosure";
 import {
   getBriefAttribute,
@@ -12,9 +14,13 @@ import {
   formatMilestone,
   NO_MILESTONES_TEXT,
   NOT_CONFIRMED_TEXT,
+  summarizeValues,
 } from "@/lib/briefAttributeDisplay";
-import type { BriefAttributeCompleteness, BriefAttributeStatus } from "@/lib/briefCompleteness";
-import type { BriefAttributeSource } from "@/generated/prisma/enums";
+import type {
+  BriefAttributeCompleteness,
+  BriefAttributeOrigin,
+  BriefAttributeStatus,
+} from "@/lib/briefCompleteness";
 import { KeyAttributeForm } from "./KeyAttributeForm";
 
 // Icon + text together carry the state — never colour alone.
@@ -24,7 +30,7 @@ export const STATUS_ICON: Record<BriefAttributeStatus, string> = {
   missing: "○",
 };
 export const STATUS_LABEL: Record<BriefAttributeStatus, string> = {
-  confirmed: "Confirmed",
+  confirmed: "Captured",
   partial: "Partial",
   missing: "Missing",
 };
@@ -34,12 +40,16 @@ export const STATUS_TEXT_CLASS: Record<BriefAttributeStatus, string> = {
   missing: "text-muted-foreground",
 };
 
-const SOURCE_LABEL: Record<BriefAttributeSource, string> = {
-  BRIEF: "the brief",
-  UPDATE: "an update",
-  CLARIFICATION_ANSWER: "a clarification answer",
-  PM_ENTRY: "PM entry",
-};
+export function sourceTagText(origin: BriefAttributeOrigin): string {
+  switch (origin.kind) {
+    case "brief":
+      return "From brief";
+    case "update":
+      return origin.number ? `From update v${origin.number}` : "From an update";
+    case "pm":
+      return "Edited by PM";
+  }
+}
 
 function formatTimestamp(date: Date): string {
   return new Date(date).toLocaleDateString("en-GB", {
@@ -76,35 +86,21 @@ function SubFieldValue({
   return <>{subField.type === "date" ? formatBriefDate(value) : value}</>;
 }
 
-/**
- * An attribute's values. For confirmed values every sub-field is shown, so a
- * gap (no end date, no milestones yet) is stated rather than left blank; a
- * suggestion shows only what was actually read.
- */
-function ValuesList({
-  attributeId,
-  values,
-  showUnfilled = false,
-}: {
-  attributeId: string;
-  values: BriefAttributeValues;
-  showUnfilled?: boolean;
-}) {
+/** Every sub-field of the current value, so a gap (no end date, no milestones yet) is stated, not blank. */
+function ValuesList({ attributeId, values }: { attributeId: string; values: BriefAttributeValues }) {
   const attribute = getBriefAttribute(attributeId);
   if (!attribute) return null;
-  const shown = showUnfilled
-    ? attribute.subFields
-    : attribute.subFields.filter((f) => isSubFieldFilled(f, values[f.id]));
-  if (shown.length === 0) return null;
   return (
     <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-sm sm:grid-cols-2">
-      {shown.map((subField) => (
+      {attribute.subFields.map((subField) => (
         <div
           key={subField.id}
-          className={`min-w-0 ${subField.type === "milestones" ? "sm:col-span-2" : ""}`}
+          className={`min-w-0 ${
+            subField.type === "milestones" || subField.type === "longText" ? "sm:col-span-2" : ""
+          }`}
         >
           <dt className="text-xs text-muted-foreground">{subField.label}</dt>
-          <dd className="break-words text-foreground">
+          <dd className="whitespace-pre-wrap break-words text-foreground">
             <SubFieldValue subField={subField} value={values[subField.id]} />
           </dd>
         </div>
@@ -113,6 +109,12 @@ function ValuesList({
   );
 }
 
+/**
+ * One key detail, summary first: status, label, where the value came from
+ * and a one-line value, with an inline Update (or Add, when missing). What
+ * the agent captured is trusted as-is — there's nothing to approve. The full
+ * value and the passage it was read from sit behind "Show more".
+ */
 export function KeyAttributeRow({
   projectId,
   attribute,
@@ -122,102 +124,85 @@ export function KeyAttributeRow({
   attribute: BriefAttributeCompleteness;
   idPrefix?: string;
 }) {
-  const { confirmed, suggestion, pmSuggestion, status } = attribute;
-  // Remount the editor whenever the stored state changes, so it reopens
-  // closed with fresh defaults after a save.
-  const editorKey = `${confirmed?.id ?? "none"}-${suggestion?.id ?? "none"}-${pmSuggestion?.id ?? "none"}`;
+  const { current, status } = attribute;
+  const [editing, setEditing] = useState(false);
+  const hasValue = !!current && status !== "missing";
+  const summary = current ? summarizeValues(attribute.id, current.values) : "";
 
   return (
     <li
       id={`${idPrefix}-attribute-${attribute.id}`}
-      className="scroll-mt-24 space-y-2 border-t border-border pt-3 first:border-t-0 first:pt-0"
+      className="scroll-mt-24 border-t border-border py-2.5 first:border-t-0 first:pt-0 last:pb-0"
     >
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span aria-hidden="true" className={`text-sm ${STATUS_TEXT_CLASS[status]}`}>
-          {STATUS_ICON[status]}
-        </span>
-        <h4 className="text-sm font-semibold text-foreground">{attribute.label}</h4>
-        <span className={`text-xs font-semibold ${STATUS_TEXT_CLASS[status]}`}>
-          {STATUS_LABEL[status]}
-        </span>
-        {attribute.required && <span className="text-xs text-muted-foreground">· Required</span>}
-        {(suggestion || pmSuggestion) && (
-          <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs text-foreground">
-            Suggestion to review
-          </span>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span aria-hidden="true" className={`text-sm ${STATUS_TEXT_CLASS[status]}`}>
+              {STATUS_ICON[status]}
+            </span>
+            <h4 className="text-sm font-semibold text-foreground">{attribute.label}</h4>
+            <span className={`text-xs font-medium ${STATUS_TEXT_CLASS[status]}`}>
+              {STATUS_LABEL[status]}
+            </span>
+            {hasValue && current && (
+              <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs text-muted-foreground">
+                {sourceTagText(current.origin)}
+              </span>
+            )}
+          </div>
+          {hasValue ? (
+            <p className="mt-0.5 truncate text-sm text-foreground" title={summary}>
+              {summary}
+            </p>
+          ) : (
+            !editing && <p className="mt-0.5 text-xs text-muted-foreground">{attribute.question}</p>
+          )}
+          {status === "partial" && attribute.missingSubFields.length > 0 && (
+            <p className="mt-0.5 text-xs text-warning">
+              Still needed: {attribute.missingSubFields.map((f) => f.label).join(", ")}
+            </p>
+          )}
+        </div>
+        {!editing && (
+          <Button
+            type="button"
+            variant="secondary"
+            className="shrink-0 px-2.5 py-1 text-xs"
+            aria-label={`${hasValue ? "Update" : "Add"} ${attribute.label}`}
+            onClick={() => setEditing(true)}
+          >
+            {hasValue ? "Update" : "Add"}
+          </Button>
         )}
       </div>
 
-      {confirmed ? (
-        <div className="space-y-1">
-          <ValuesList attributeId={attribute.id} values={confirmed.values} showUnfilled />
-          <p className="text-xs text-muted-foreground">
-            Confirmed {formatTimestamp(confirmed.createdAt)}
-            {confirmed.createdByName ? ` by ${confirmed.createdByName}` : ""} · from{" "}
-            {SOURCE_LABEL[confirmed.source]}
-          </p>
-        </div>
-      ) : (
-        <p className="text-sm italic text-muted-foreground">{attribute.question}</p>
-      )}
-
-      {status === "partial" && attribute.missingSubFields.length > 0 && (
-        <p className="text-xs text-warning">
-          Still needed: {attribute.missingSubFields.map((f) => f.label).join(", ")}
-        </p>
-      )}
-
-      {suggestion && (
-        <div className="space-y-2 rounded-md border border-dashed border-border bg-surface-muted p-3">
-          <p className="text-xs font-semibold text-foreground">
-            AI suggestion from {SOURCE_LABEL[suggestion.source]} — not confirmed
-          </p>
-          <ValuesList attributeId={attribute.id} values={suggestion.values} />
-          {suggestion.evidence && (
-            <p className="text-xs italic text-muted-foreground">
-              &ldquo;{suggestion.evidence}&rdquo;
-            </p>
-          )}
-          <Disclosure key={`suggestion-${editorKey}`} summary="Review and confirm →">
-            <KeyAttributeForm
-              projectId={projectId}
-              attributeId={attribute.id}
-              initialValues={suggestion.values}
-              suggestionId={suggestion.id}
-              idPrefix={idPrefix}
-            />
-          </Disclosure>
-        </div>
-      )}
-
-      {pmSuggestion && (
-        <div className="space-y-2 rounded-md border border-dashed border-accent-foreground/40 bg-accent p-3">
-          <p className="text-xs font-semibold text-accent-foreground">
-            Suggested from your PM perspective — not from the client, not confirmed
-          </p>
-          <ValuesList attributeId={attribute.id} values={pmSuggestion.values} />
-          <Disclosure key={`pm-suggestion-${editorKey}`} summary="Review and confirm →">
-            <KeyAttributeForm
-              projectId={projectId}
-              attributeId={attribute.id}
-              initialValues={pmSuggestion.values}
-              suggestionId={pmSuggestion.id}
-              idPrefix={`${idPrefix}-pm`}
-            />
-          </Disclosure>
-        </div>
-      )}
-
-      {!suggestion && !pmSuggestion && (
-        <Disclosure key={`edit-${editorKey}`} summary={confirmed ? "Edit" : "Fill in →"}>
+      {editing ? (
+        <div className="mt-2 rounded-md border border-border bg-surface-muted p-3">
           <KeyAttributeForm
             projectId={projectId}
             attributeId={attribute.id}
-            initialValues={confirmed?.values ?? {}}
-            submitLabel={confirmed ? "Save" : "Confirm"}
+            initialValues={hasValue && current ? current.values : {}}
+            onDone={() => setEditing(false)}
             idPrefix={idPrefix}
           />
-        </Disclosure>
+        </div>
+      ) : (
+        hasValue &&
+        current && (
+          <Disclosure className="mt-1" summary={<span className="text-xs">Show more</span>}>
+            <div className="space-y-2 rounded-md bg-surface-muted p-3">
+              <ValuesList attributeId={attribute.id} values={current.values} />
+              {current.evidence && (
+                <p className="text-xs italic text-muted-foreground">&ldquo;{current.evidence}&rdquo;</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                {current.origin.kind === "pm"
+                  ? `Edited${current.createdByName ? ` by ${current.createdByName}` : ""} · ${formatTimestamp(current.createdAt)}`
+                  : `${sourceTagText(current.origin)} · captured ${formatTimestamp(current.createdAt)}`}
+              </p>
+            </div>
+          </Disclosure>
+        )
       )}
     </li>
   );

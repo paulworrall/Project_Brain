@@ -28,7 +28,7 @@ export function BriefGateAlert({
             {outstanding.length === 1
               ? "This key detail needs"
               : `These ${outstanding.length} key details need`}{" "}
-            to be confirmed first:{" "}
+            adding first:{" "}
             {outstanding
               .map((a) => `${a.label} (${STATUS_LABEL[a.status].toLowerCase()})`)
               .join(", ")}
@@ -45,7 +45,7 @@ export function BriefGateAlert({
           </button>
         )}
       </div>
-      <ul className="space-y-3 rounded-md bg-surface p-3">
+      <ul className="rounded-md bg-surface p-3">
         {outstanding.map((attribute) => (
           <KeyAttributeRow
             key={attribute.id}
@@ -62,7 +62,7 @@ export function BriefGateAlert({
 /**
  * For projects that moved past Phase 1 before key details were tracked:
  * they aren't locked out of anything they've reached, just warned about
- * what's missing (and a SOW can't be generated until it's confirmed).
+ * what's missing (and a SOW can't be generated until it's added).
  */
 export function BriefCompletenessWarning({ completeness }: { completeness: BriefCompleteness }) {
   if (completeness.warnings.length === 0) {
@@ -73,15 +73,15 @@ export function BriefCompletenessWarning({ completeness }: { completeness: Brief
       role="status"
       className="rounded-md border border-warning bg-warning-bg p-3 text-xs text-foreground"
     >
-      <p className="font-semibold">Some key details for this project haven&apos;t been confirmed</p>
+      <p className="font-semibold">Some key details for this project are still missing</p>
       <ul className="mt-1 list-inside list-disc text-muted-foreground">
         {completeness.warnings.map((warning) => (
           <li key={warning}>{warning}</li>
         ))}
       </ul>
       <p className="mt-1 text-muted-foreground">
-        Nothing is locked, but a SOW can&apos;t be generated until they&apos;re confirmed under Key
-        details in Phase 1.
+        Nothing is locked, but a SOW can&apos;t be generated until they&apos;re added under
+        &ldquo;What We Need to Find Out&rdquo; in Phase 1.
       </p>
     </div>
   );

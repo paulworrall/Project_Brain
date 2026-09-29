@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import {
-  confirmBriefAttributeAction,
+  saveBriefAttributeAction,
   type ActionState,
 } from "@/app/(dashboard)/projects/[projectId]/actions";
 import {
@@ -105,7 +105,7 @@ function SubFieldInput({
           id={inputId}
           name={subField.id}
           defaultValue={text}
-          rows={2}
+          rows={3}
           className={INPUT_CLASS}
         />
       );
@@ -170,30 +170,34 @@ function SubFieldInput({
 }
 
 /**
- * The PM's form for one key attribute — the only way an attribute becomes
- * confirmed. Inputs come from the attribute's sub-fields in
- * src/lib/briefAttributes.ts. Prefilled from an AI suggestion (passing its
- * id, so accepting it unchanged keeps its source) or the confirmed values.
+ * The inline Update/Add editor for one key attribute. Inputs come from the
+ * attribute's sub-fields in src/lib/briefAttributes.ts, prefilled with the
+ * current value; the PM can add, change or clear anything. Saving records a
+ * PM edit and calls onDone; Cancel just closes it.
  */
 export function KeyAttributeForm({
   projectId,
   attributeId,
   initialValues,
-  suggestionId,
-  submitLabel = "Confirm",
+  onDone,
   idPrefix = "brief",
 }: {
   projectId: string;
   attributeId: string;
   initialValues: BriefAttributeValues;
-  suggestionId?: string | null;
-  submitLabel?: string;
+  /** Called after a successful save, and on Cancel. */
+  onDone?: () => void;
   /** Keeps input ids unique when the same attribute's form appears twice on a page. */
   idPrefix?: string;
 }) {
-  const action = confirmBriefAttributeAction.bind(null, projectId, attributeId);
+  const save = saveBriefAttributeAction.bind(null, projectId, attributeId);
+  // React to the result inside the action, not in an effect watching `pending`.
   const [state, formAction, pending] = useActionState<ActionState | undefined, FormData>(
-    action,
+    async (previous, formData) => {
+      const result = await save(previous, formData);
+      if (!result?.message) onDone?.();
+      return result;
+    },
     undefined
   );
   const attribute = getBriefAttribute(attributeId);
@@ -201,7 +205,6 @@ export function KeyAttributeForm({
 
   return (
     <form action={formAction} className="space-y-3">
-      {suggestionId && <input type="hidden" name="suggestionId" value={suggestionId} />}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {attribute.subFields.map((subField) => (
           <div
@@ -224,9 +227,20 @@ export function KeyAttributeForm({
           {state.message}
         </p>
       )}
-      <Button type="submit" className="text-xs" disabled={pending}>
-        {pending ? "Saving…" : submitLabel}
-      </Button>
+      <div className="flex gap-2">
+        <Button type="submit" className="px-3 py-1.5 text-xs" disabled={pending}>
+          {pending ? "Saving…" : "Save"}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          className="px-3 py-1.5 text-xs"
+          disabled={pending}
+          onClick={() => onDone?.()}
+        >
+          Cancel
+        </Button>
+      </div>
     </form>
   );
 }
