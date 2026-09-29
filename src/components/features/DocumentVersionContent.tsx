@@ -34,7 +34,7 @@ export function DocumentVersionContent({
     case "POSITION_DOCUMENT": {
       const parsed = PositionDocumentFieldsSchema.safeParse(content);
       return parsed.success ? (
-        <PositionDocumentView fields={parsed.data} />
+        <PositionDocumentView fields={parsed.data} showLegacyQuestions />
       ) : (
         <UnreadableContent />
       );

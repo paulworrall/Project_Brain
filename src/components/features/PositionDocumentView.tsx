@@ -45,14 +45,21 @@ function TruncatedList({ items }: { items: string[] }) {
 
 export interface PositionDocumentViewProps {
   fields: PositionDocumentFields;
+  /**
+   * Version history only: show the AI-generated open questions older
+   * versions still carry. The live workspace never shows them — it has the
+   * key-details checklist instead.
+   */
+  showLegacyQuestions?: boolean;
 }
 
 /**
  * The general brief context — everything the Intake Agent captured, kept
  * even when it doesn't fit a key attribute. The key attributes themselves
- * (and brief readiness) live in KeyAttributesPanel.
+ * (and brief readiness) live in the "What We Need to Find Out" checklist (BriefChecklist).
  */
-export function PositionDocumentView({ fields }: PositionDocumentViewProps) {
+export function PositionDocumentView({ fields, showLegacyQuestions = false }: PositionDocumentViewProps) {
+  const legacyQuestions = fields.whatWeNeedToFindOut ?? [];
   return (
     <div className="space-y-4">
       <Card className="p-5">
@@ -81,17 +88,16 @@ export function PositionDocumentView({ fields }: PositionDocumentViewProps) {
         )}
       </Card>
 
-      <Card className="p-5">
-        <h3 className="text-sm font-semibold text-foreground">What We Need to Find Out</h3>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Genuine gaps — the brief never addresses these.
-        </p>
-        {fields.whatWeNeedToFindOut.length === 0 ? (
-          <p className="mt-2 text-sm text-muted-foreground">None identified.</p>
-        ) : (
-          <TruncatedList items={fields.whatWeNeedToFindOut} />
-        )}
-      </Card>
+      {showLegacyQuestions && legacyQuestions.length > 0 && (
+        <Card className="p-5">
+          <h3 className="text-sm font-semibold text-foreground">Earlier open questions</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            AI-generated when this version was saved — no longer produced or updated. What we
+            need to find out is now the fixed key-details checklist.
+          </p>
+          <TruncatedList items={legacyQuestions} />
+        </Card>
+      )}
 
       <Card className="p-5">
         <h3 className="text-sm font-semibold text-foreground">Client-Flagged Open Items</h3>

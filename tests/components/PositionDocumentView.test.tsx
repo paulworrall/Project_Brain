@@ -8,7 +8,6 @@ const baseFields = {
   primaryContactName: "Jamie Chen",
   primaryContactEmail: "jamie@example.com",
   whatWeKnow: [{ topic: "Objective", detail: "Refresh the campaign." }],
-  whatWeNeedToFindOut: [] as string[],
   clientFlaggedOpenItems: ["Budget"],
 };
 
@@ -16,50 +15,61 @@ function renderView(overrides: Partial<Parameters<typeof PositionDocumentView>[0
   return render(
     <PositionDocumentView
       fields={{ ...baseFields, ...overrides.fields }}
+      showLegacyQuestions={overrides.showLegacyQuestions}
     />
   );
 }
 
 describe("PositionDocumentView", () => {
-  it("shows every item of a short 'What We Need to Find Out' list with no truncation", () => {
-    renderView({
-      fields: { ...baseFields, whatWeNeedToFindOut: ["Audience", "Timeline", "Approval chain"] },
+  it("never shows AI-generated open questions in the live view — the key-details checklist replaces them", () => {
+    renderView({ fields: { ...baseFields, whatWeNeedToFindOut: ["Audience", "Approval chain"] } });
+
+    expect(screen.queryByText("What We Need to Find Out")).not.toBeInTheDocument();
+    expect(screen.queryByText("Earlier open questions")).not.toBeInTheDocument();
+    expect(screen.queryByText("Audience")).not.toBeInTheDocument();
+  });
+
+  describe("version history — earlier AI-generated open questions", () => {
+    it("keeps an older version's questions readable, labelled as no longer updated", () => {
+      renderView({
+        fields: { ...baseFields, whatWeNeedToFindOut: ["Audience", "Timeline", "Approval chain"] },
+        showLegacyQuestions: true,
+      });
+
+      expect(screen.getByText("Earlier open questions")).toBeInTheDocument();
+      expect(screen.getByText(/no longer produced or updated/)).toBeInTheDocument();
+      expect(screen.getByText("Audience")).toBeVisible();
+      expect(screen.getByText("Approval chain")).toBeVisible();
+      expect(screen.queryByText(/Show \d+ more/)).not.toBeInTheDocument();
     });
 
-    expect(screen.getByText("Audience")).toBeVisible();
-    expect(screen.getByText("Approval chain")).toBeVisible();
-    expect(screen.queryByText(/Show \d+ more/)).not.toBeInTheDocument();
-  });
+    it("shows nothing for versions saved without the old list", () => {
+      renderView({ showLegacyQuestions: true });
 
-  it("truncates a long 'What We Need to Find Out' list to 5, with a 'Show N more' toggle for the rest", () => {
-    const gaps = ["Gap 1", "Gap 2", "Gap 3", "Gap 4", "Gap 5", "Gap 6", "Gap 7"];
-    renderView({ fields: { ...baseFields, whatWeNeedToFindOut: gaps } });
+      expect(screen.queryByText("Earlier open questions")).not.toBeInTheDocument();
+    });
 
-    for (const gap of gaps.slice(0, 5)) {
-      expect(screen.getByText(gap)).toBeVisible();
-    }
-    for (const gap of gaps.slice(5)) {
-      expect(screen.getByText(gap)).not.toBeVisible();
-    }
-    expect(screen.getByText("Show 2 more")).toBeInTheDocument();
-  });
+    it("truncates a long list to 5, with a 'Show N more' toggle that reveals the rest", async () => {
+      const user = userEvent.setup();
+      const gaps = ["Gap 1", "Gap 2", "Gap 3", "Gap 4", "Gap 5", "Gap 6", "Gap 7"];
+      renderView({ fields: { ...baseFields, whatWeNeedToFindOut: gaps }, showLegacyQuestions: true });
 
-  it("reveals the truncated items once 'Show N more' is expanded", async () => {
-    const user = userEvent.setup();
-    const gaps = ["Gap 1", "Gap 2", "Gap 3", "Gap 4", "Gap 5", "Gap 6", "Gap 7"];
-    renderView({ fields: { ...baseFields, whatWeNeedToFindOut: gaps } });
+      for (const gap of gaps.slice(0, 5)) {
+        expect(screen.getByText(gap)).toBeVisible();
+      }
+      expect(screen.getByText("Gap 6")).not.toBeVisible();
 
-    await user.click(screen.getByText("Show 2 more"));
-
-    expect(screen.getByText("Gap 6")).toBeVisible();
-    expect(screen.getByText("Gap 7")).toBeVisible();
+      await user.click(screen.getByText("Show 2 more"));
+      expect(screen.getByText("Gap 6")).toBeVisible();
+      expect(screen.getByText("Gap 7")).toBeVisible();
+    });
   });
 
   it("never truncates 'Client-Flagged Open Items', even when long", () => {
     const manyOpenItems = Array.from({ length: 10 }, (_, i) => `Open item ${i + 1}`);
 
     renderView({
-      fields: { ...baseFields, whatWeNeedToFindOut: [], clientFlaggedOpenItems: manyOpenItems },
+      fields: { ...baseFields, clientFlaggedOpenItems: manyOpenItems },
     });
 
     expect(screen.getByText("Open item 10")).toBeVisible();
@@ -93,7 +103,7 @@ describe("PositionDocumentView", () => {
       expect(screen.getByText("Nothing captured yet.")).toBeInTheDocument();
     });
 
-    it("no longer derives readiness categories itself — key details live in KeyAttributesPanel", () => {
+    it("no longer derives readiness categories itself — key details live in the checklist", () => {
       renderView();
       expect(screen.queryByText("Foundation Details")).not.toBeInTheDocument();
       expect(screen.queryByText(/Brief Readiness/)).not.toBeInTheDocument();

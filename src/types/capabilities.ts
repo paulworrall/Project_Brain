@@ -33,7 +33,6 @@ export const EstimateBriefContentSchema = z.object({
   projectOverview: z.object({
     context: z.string().describe("What this project is and why it's happening."),
     whatIsKnown: z.array(z.string()).describe("Confirmed details relevant to every capability, as short bullet points."),
-    timeline: z.string().describe("Known timeline/key dates, or 'Not yet confirmed'."),
     constraints: z.array(z.string()).describe("Constraints or assumptions every capability should be aware of."),
   }),
   capabilitySections: z

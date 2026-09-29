@@ -26,5 +26,5 @@ console.log("KEY DETAILS ERROR:", result.keyAttributesError);
 console.log("OTHER DETAILS (whatWeKnow):");
 for (const item of result.positionDocument.whatWeKnow)
   console.log(`  - ${item.topic}: ${item.detail}`);
-console.log("GAPS:", result.positionDocument.whatWeNeedToFindOut);
+console.log("CLARIFICATION EMAIL:", result.clarificationEmail.bodyText);
 console.log("POSITION DOC KEYS:", Object.keys(result.positionDocument));

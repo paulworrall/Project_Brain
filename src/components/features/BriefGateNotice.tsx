@@ -1,7 +1,7 @@
 "use client";
 
 import type { BriefAttributeCompleteness, BriefCompleteness } from "@/lib/briefCompleteness";
-import { KeyAttributeRow, STATUS_LABEL } from "./KeyAttributesPanel";
+import { KeyAttributeRow, STATUS_LABEL } from "./KeyAttributeRow";
 
 /**
  * Shown where a gated step is refused (today: Generate SOW) — lists exactly

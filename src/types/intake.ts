@@ -21,10 +21,12 @@ export type BriefClassification = z.infer<typeof BriefClassificationSchema>;
 
 /**
  * What the Position Document agents produce: the brief's general context
- * ("whatWeKnow"), genuine gaps, and client-flagged open items. Key details
- * (budget, objective, timeline, client contact, scope…) are deliberately NOT
- * here — they live only in the key-attributes record (src/lib/briefAttributes.ts,
- * BriefAttributeValue), so there's one source for each.
+ * ("whatWeKnow") and client-flagged open items. Key details (budget,
+ * objective, timeline, client contact, scope…) are deliberately NOT here —
+ * they live only in the key-attributes record (src/lib/briefAttributes.ts,
+ * BriefAttributeValue), so there's one source for each. What still needs
+ * finding out is derived from those key details (the "What We Need to Find
+ * Out" checklist), not generated.
  */
 export const PositionDocumentExtractionSchema = z.object({
   whatWeKnow: z
@@ -35,11 +37,6 @@ export const PositionDocumentExtractionSchema = z.object({
       })
     )
     .describe("Everything the brief clearly states that is NOT one of the key details captured separately, as topic/detail pairs."),
-  whatWeNeedToFindOut: z
-    .array(z.string())
-    .describe(
-      "Genuine gaps: information the agency needs but the brief does not address at all."
-    ),
   clientFlaggedOpenItems: z
     .array(z.string())
     .describe(
@@ -49,12 +46,15 @@ export const PositionDocumentExtractionSchema = z.object({
 
 /**
  * A stored Position Document version. primaryContactName/Email only exist on
- * versions saved before the client contact moved to key attributes — kept
- * optional so that history still parses; nothing reads them any more.
+ * versions saved before the client contact moved to key attributes, and
+ * whatWeNeedToFindOut only on versions saved while that list was still
+ * AI-generated — kept optional so that history still parses. Only the
+ * version history shows the old questions; nothing else reads them.
  */
 export const PositionDocumentFieldsSchema = PositionDocumentExtractionSchema.extend({
   primaryContactName: z.string().nullable().optional(),
   primaryContactEmail: z.string().nullable().optional(),
+  whatWeNeedToFindOut: z.array(z.string()).optional(),
 });
 export type PositionDocumentFields = z.infer<typeof PositionDocumentFieldsSchema>;
 export type PositionDocumentExtraction = z.infer<typeof PositionDocumentExtractionSchema>;
@@ -64,7 +64,7 @@ export const ClarificationEmailSchema = z.object({
   bodyText: z
     .string()
     .describe(
-      "Plain-text email body. Polite, professional, references the client by name if known. Lists genuine gaps and client-flagged open items in separate, clearly labeled sections."
+      "Plain-text email body. Polite, professional, references the client by name if known. Lists the key details still needed, the key details to confirm, and client-flagged open items in separate, clearly labeled sections."
     ),
 });
 export type ClarificationEmail = z.infer<typeof ClarificationEmailSchema>;

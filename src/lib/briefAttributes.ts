@@ -161,6 +161,14 @@ export const BRIEF_ATTRIBUTES: readonly BriefAttributeDefinition[] = [
  */
 export const CLIENT_CONTACT_FIELDS = { attributeId: "clientContact", name: "name", email: "email" } as const;
 
+/** Where the timeline lives in the config — for documents that render it as its own section. */
+export const TIMELINE_FIELDS = {
+  attributeId: "timeline",
+  startDate: "startDate",
+  endDate: "endDate",
+  milestones: "milestones",
+} as const;
+
 export const REQUIRED_BRIEF_ATTRIBUTES = BRIEF_ATTRIBUTES.filter((attribute) => attribute.required);
 export const OPTIONAL_BRIEF_ATTRIBUTES = BRIEF_ATTRIBUTES.filter(
   (attribute) => !attribute.required
@@ -199,7 +207,7 @@ export function describeKeyAttributeFieldsForPrompt(): string {
  * places. Derived from the config.
  */
 export function keyDetailsExclusionForPrompt(): string {
-  return `These key details are captured separately, in their own record — never put any of them (or any part of them, e.g. a secondary objective, or the client contact's name, role or email) into "whatWeKnow":\n${describeKeyAttributesForPrompt()}\nIf the text leaves one of them unanswered, it may still appear as a gap in "whatWeNeedToFindOut".`;
+  return `These key details are captured separately, in their own record — never put any of them (or any part of them, e.g. a secondary objective, or the client contact's name, role or email) into "whatWeKnow":\n${describeKeyAttributesForPrompt()}`;
 }
 
 /** The attributes, by label and question — for telling other agents what's captured as key details. */

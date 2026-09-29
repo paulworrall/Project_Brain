@@ -15,7 +15,17 @@ Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (P
 
 ## File Inventory
 
-### Source Files — Key details single source of truth (this session)
+### Source Files — "What We Need to Find Out" checklist + Timeline and Key Milestones (this session)
+| File | Purpose | Last Modified Task |
+|------|---------|-------------------|
+| `src/components/features/BriefChecklist.tsx` | "What We Need to Find Out": required attributes in config order (status, missing sub-fields, pending suggestion, inline fill-in/confirm), optional in a secondary group. Derived from `getBriefCompleteness`, never AI | Checklist |
+| `src/components/features/KeyAttributeRow.tsx` | One attribute row + status constants (was `KeyAttributesPanel.tsx`); confirmed values show every sub-field, milestones as a list | Checklist |
+| `src/lib/briefAttributeDisplay.ts` | Prisma-free date/milestone formatting and `timelineSection()` for documents (confirmed values only; suggestion marked unconfirmed) | Checklist |
+| `src/lib/clarificationQuestions.ts` | `clarificationQuestionsFrom` (email asks/confirms only the required key details) and `completenessFromExtraction` (intake) | Checklist |
+| `src/types/intake.ts`, `intake-agent.ts`, `clarification-extraction.ts` | `whatWeNeedToFindOut` no longer generated; stored schema keeps it optional for old versions (shown only in Version History as "Earlier open questions") | Checklist |
+| `src/types/capabilities.ts`, `estimate-brief-agent.ts`, `estimate-brief-docx.ts` | Estimate Brief timeline is no longer AI-written; the .docx renders it from the key details under the config label | Checklist |
+
+### Source Files — Key details single source of truth
 | File | Purpose | Last Modified Task |
 |------|---------|-------------------|
 | `src/services/agents/key-attribute-extraction.ts` | Flat `{ facts: [{ field, value, date, evidence }] }` schema (the nested one was rejected by the API); ids from the config, validated in code | Key details fix |
@@ -37,7 +47,7 @@ Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (P
 | `src/services/agents/{intake-agent,clarification-extraction}.ts` | Optional `pmPerspective` argument → labelled block in the Position Document and email prompts | PM perspective |
 | `projects/new/actions.ts`, `projects/[projectId]/actions.ts` | Save at intake; `updatePmPerspectiveFieldAction`; pass to upload extraction and `assembleCapabilityBriefContext` | PM perspective |
 | `src/lib/briefAttributes.ts` (`pmPerspectiveFieldId`), `briefCompleteness.ts` (`pmSuggestion`), `briefAttributeSuggestions.ts` (`savePmPerspectiveSuggestions`) | The mechanism for linking PM content to a key attribute as a PM_ENTRY suggestion — currently unused (Early KPIs removed) | PM simplification |
-| `PmPerspectiveFields.tsx` (New Project form, controlled; title is an `<h3>` inside a `role="group"` box, not a border legend), `PmPerspectivePanel.tsx` (Phase 1), `KeyAttributesPanel.tsx`, `Phase1Workspace.tsx`, `ProjectWorkflow.tsx`, `NewProjectForm.tsx`, `page.tsx` | UI | PM perspective |
+| `PmPerspectiveFields.tsx` (New Project form, controlled; title is an `<h3>` inside a `role="group"` box, not a border legend), `PmPerspectivePanel.tsx` (Phase 1), `BriefChecklist.tsx`, `Phase1Workspace.tsx`, `ProjectWorkflow.tsx`, `NewProjectForm.tsx`, `page.tsx` | UI | PM perspective |
 
 ### Source Files — Brief key attributes
 | File | Purpose | Last Modified Task |
@@ -50,7 +60,7 @@ Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (P
 | `prisma/schema.prisma` + migration `20260923170000_add_brief_attribute_values` | Append-only `BriefAttributeValue` (attributeId string, kind SUGGESTION/CONFIRMED, source, values JSON, evidence, knowledgeItemId, creator, time). Additive only | Key attributes |
 | `projects/[projectId]/actions.ts` | `confirmBriefAttributeAction`, `suggestBriefAttributesAction`, extraction in `uploadKnowledgeItemAction` (non-fatal), date sync in `updateProjectSummaryAction`, the gate in `generateSowAction` | Key attributes |
 | `projects/new/actions.ts` | Extraction on the brief at creation (non-fatal) | Key attributes |
-| `KeyAttributesPanel.tsx`, `KeyAttributeForm.tsx`, `BriefGateNotice.tsx` (`BriefGateAlert`, `BriefCompletenessWarning`), `BriefReadinessIndicator.tsx`, `StartSowDevelopmentPanel.tsx`, `Phase1Workspace.tsx`, `PositionDocumentView.tsx`, `ProjectWorkflow.tsx` | Key details panel, per-attribute forms, the SOW gate alert, past-Phase-1 warning, "x of 4 confirmed" strip, "Other details from the brief" | Key attributes |
+| `BriefChecklist.tsx` ("What We Need to Find Out"), `KeyAttributeRow.tsx`, `KeyAttributeForm.tsx`, `BriefGateNotice.tsx` (`BriefGateAlert`, `BriefCompletenessWarning`), `BriefReadinessIndicator.tsx`, `StartSowDevelopmentPanel.tsx`, `Phase1Workspace.tsx`, `PositionDocumentView.tsx`, `ProjectWorkflow.tsx` | Key details panel, per-attribute forms, the SOW gate alert, past-Phase-1 warning, "x of 4 confirmed" strip, "Other details from the brief" | Key attributes |
 
 Removed in the key-attributes session: `src/lib/foundationDetails.ts`, `FoundationDetailsBlock.tsx` (the old keyword-matched "5 of 5" readiness).
 
@@ -113,4 +123,4 @@ Unchanged recently — see `progress.md`. Auth (`src/lib/{auth,permissions}.ts`,
 - **Scripted edits**: no Python on this machine; use Node. Many files are CRLF — normalize to LF while editing and restore on write. The shell tool mangles apostrophes and backslashes in heredocs, so write edit scripts to the scratchpad with the Write tool first.
 
 ## Current State Summary
-All MVP scope plus Build The Estimate, Generate SOW, brief key attributes and the PM perspective are built. **This session**: fixed key-detail extraction (the API had rejected its schema) and made each key detail recorded once, backfilling the 9 existing projects (`0685340`); then simplified the PM perspective to Initial thoughts + Proposed solution with the title inside the box (`8206fdc`). Tests (487), typecheck and lint clean; deployed, and the user is testing on live. Next: the UI pass on key details (a clearer label than "Missing" when a suggestion exists, surfacing `extractionFailure`), a decision on removing the now-unused PM → key-detail link, then moving "What We Need to Find Out" / the client email / the SOW PM review onto `getBriefCompleteness()`; propagate later PM edits to generated documents; remove the Draft Scope.
+All MVP scope plus Build The Estimate, Generate SOW, brief key attributes and the PM perspective are built. **This session**: "What We Need to Find Out" became a fixed checklist from `getBriefCompleteness()` that replaces the Key details panel. The clarification email asks only those details. The AI no longer generates open questions or the Estimate Brief timeline, which now renders from the key details as "Timeline and Key Milestones". Tests (509), typecheck and lint are clean. Next: surface `extractionFailure` in the checklist, decide whether to remove the unused PM → key-detail link, move the SOW PM review onto `getBriefCompleteness()`, propagate later PM edits to generated documents, and remove the Draft Scope.

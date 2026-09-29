@@ -54,7 +54,6 @@ const estimateBriefContent = {
   projectOverview: {
     context: "A campaign refresh for a coffee client.",
     whatIsKnown: ["Objective: refresh the campaign"],
-    timeline: "Q4 2026",
     constraints: ["UK market only"],
   },
   capabilitySections: [

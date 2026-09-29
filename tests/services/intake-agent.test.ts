@@ -61,7 +61,6 @@ describe("extractPositionFields", () => {
   it("returns the parsed position document fields", async () => {
     const fields = {
       whatWeKnow: [{ topic: "Audience", detail: "18-34 year olds." }],
-      whatWeNeedToFindOut: ["Target audience"],
       clientFlaggedOpenItems: ["Budget"],
     };
     mockParse.mockResolvedValueOnce({ parsed_output: fields });
@@ -73,7 +72,7 @@ describe("extractPositionFields", () => {
 
   it("keeps every key detail out of 'whatWeKnow' — they're recorded once, as key details", async () => {
     mockParse.mockResolvedValueOnce({
-      parsed_output: { whatWeKnow: [], whatWeNeedToFindOut: [], clientFlaggedOpenItems: [] },
+      parsed_output: { whatWeKnow: [], clientFlaggedOpenItems: [] },
     });
 
     await extractPositionFields("brief text", "EMAIL");
@@ -86,11 +85,12 @@ describe("extractPositionFields", () => {
     }
     expect(prompt).toMatch(/secondary objective/);
     // No contact fields in the Position Document any more — Client Contact is a key detail.
+    // No AI-generated gaps either — what we need to find out is derived from the key details.
     expect(Object.keys(call.output_config.format.schema.properties)).toEqual([
       "whatWeKnow",
-      "whatWeNeedToFindOut",
       "clientFlaggedOpenItems",
     ]);
+    expect(prompt).not.toContain("whatWeNeedToFindOut");
   });
 });
 
@@ -100,13 +100,32 @@ describe("generateClarificationEmail", () => {
     mockParse.mockResolvedValueOnce({ parsed_output: email });
 
     const result = await generateClarificationEmail(
-      { whatWeKnow: [], whatWeNeedToFindOut: ["Target audience"], clientFlaggedOpenItems: [] },
+      { whatWeKnow: [], clientFlaggedOpenItems: [] },
+      { toAsk: ["Budget — What is the budget for the project?"], toConfirm: [] },
       {},
       "Jamie Chen"
     );
 
     expect(result).toEqual(email);
     expect(mockParse.mock.calls[0][0].messages[0].content).toContain("Address it to Jamie Chen");
+  });
+
+  it("asks only the fixed key-detail questions it's given, plus the client's own open items", async () => {
+    mockParse.mockResolvedValueOnce({ parsed_output: { subject: "Hi", bodyText: "Hello," } });
+
+    await generateClarificationEmail(
+      { whatWeKnow: [], clientFlaggedOpenItems: ["Launch market TBC"] },
+      {
+        toAsk: ["Budget — What is the budget for the project?"],
+        toConfirm: ["Objective — we understood: Objective: Drive repeat purchases"],
+      }
+    );
+
+    const prompt = mockParse.mock.calls[0][0].messages[0].content as string;
+    expect(prompt).toContain("Budget — What is the budget for the project?");
+    expect(prompt).toContain("we understood: Objective: Drive repeat purchases");
+    expect(prompt).toContain("Launch market TBC");
+    expect(prompt).toMatch(/don't add questions of your own/);
   });
 });
 
@@ -119,7 +138,7 @@ describe("generateSetupChecklist", () => {
   });
 });
 
-const emptyPosition = { whatWeKnow: [], whatWeNeedToFindOut: [], clientFlaggedOpenItems: [] };
+const emptyPosition = { whatWeKnow: [], clientFlaggedOpenItems: [] };
 
 function queueIntake(keyFacts: unknown = { facts: [] }) {
   mockParse
@@ -147,6 +166,14 @@ describe("runIntakeAgent", () => {
     expect(prompts[2]).toMatch(/captured separately/);
     // The email is addressed to the contact the key details found.
     expect(prompts[3]).toContain("Address it to Jamie Chen");
+    // Its questions are the fixed required key details: what the brief gave is
+    // there to confirm, what it didn't is asked for — never free-form gaps.
+    expect(prompts[3]).toContain("Objective — we understood: Objective: Drive more frequent purchases");
+    expect(prompts[3]).toContain("Objective — still need: Success measures (OKRs/KPIs)");
+    expect(prompts[3]).toContain("Budget — What is the budget for the project?");
+    expect(prompts[3]).toContain("Client Contact — still need: Email");
+    // Optional details never make it into the email.
+    expect(prompts[3]).not.toContain("Which markets or regions");
 
     expect(result.classification.briefType).toBe("PDF");
     expect(result.keyAttributes?.objective.values.objective).toBe("Drive more frequent purchases");

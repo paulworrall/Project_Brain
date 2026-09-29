@@ -23,7 +23,7 @@ describe("DocumentVersionContent", () => {
     expect(screen.getByText("Following up on your brief")).toBeInTheDocument();
   });
 
-  it("renders a Position Document version", () => {
+  it("renders a Position Document version, keeping an older version's AI-generated questions readable", () => {
     render(
       <DocumentVersionContent
         projectId="proj_1"
@@ -39,6 +39,7 @@ describe("DocumentVersionContent", () => {
     );
 
     expect(screen.getByText("Other details from the brief")).toBeInTheDocument();
+    expect(screen.getByText("Earlier open questions")).toBeInTheDocument();
     expect(screen.getByText("Target audience")).toBeInTheDocument();
   });
 

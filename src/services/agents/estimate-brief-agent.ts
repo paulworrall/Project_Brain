@@ -35,7 +35,7 @@ export async function generateEstimateBriefContent(
       messages: [
         {
           role: "user",
-          content: `Draft a brief for the specialist capability teams below, so each can produce an estimate for this project. Write one shared project-overview section (context, what's known so far, timeline, constraints) that every capability will read, followed by one section per capability describing specifically what's expected of them to estimate against — grounded in the brief content, not generic boilerplate. Produce a complete, useful brief even where information is missing; state reasonable assumptions explicitly rather than leaving a section empty.\n\nCapabilities to write a section for, in this order: ${confirmedCapabilities.map(capabilityLabel).join(", ")}.\n\n<project_brief_content>\n${briefContext}\n</project_brief_content>`,
+          content: `Draft a brief for the specialist capability teams below, so each can produce an estimate for this project. Write one shared project-overview section (context, what's known so far, constraints) that every capability will read — leave out the timeline, dates and milestones: that section is added separately from the PM-confirmed key details — followed by one section per capability describing specifically what's expected of them to estimate against — grounded in the brief content, not generic boilerplate. Produce a complete, useful brief even where information is missing; state reasonable assumptions explicitly rather than leaving a section empty.\n\nCapabilities to write a section for, in this order: ${confirmedCapabilities.map(capabilityLabel).join(", ")}.\n\n<project_brief_content>\n${briefContext}\n</project_brief_content>`,
         },
       ],
     });

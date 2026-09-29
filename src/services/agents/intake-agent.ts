@@ -15,6 +15,11 @@ import {
 import { removeItemsCoveredByKeyDetails } from "@/services/agents/position-key-detail-filter";
 import { describeKnownKeyDetails } from "@/lib/keyDetailsContext";
 import {
+  clarificationQuestionsFrom,
+  completenessFromExtraction,
+  type ClarificationQuestions,
+} from "@/lib/clarificationQuestions";
+import {
   BriefClassificationSchema,
   ClarificationEmailSchema,
   DEFAULT_SETUP_CHECKLIST_ITEMS,
@@ -89,7 +94,7 @@ export async function extractPositionFields(
       messages: [
         {
           role: "user",
-          content: `This client brief was classified as ${briefType}. Extract everything it clearly states into "whatWeKnow" as topic/detail pairs. Separately, identify genuine gaps the brief never addresses ("whatWeNeedToFindOut") from items the client themselves flagged as still-deciding — TBC, "???", "tbd", "still deciding" — ("clientFlaggedOpenItems"). These two lists are semantically different: a genuine gap is silence; a client-flagged item is the client explicitly saying they don't know yet.\n\n${keyDetailsExclusionForPrompt()}\n\n<brief>\n${briefText}\n</brief>${pmPerspectivePromptSection(pmPerspective, PM_PERSPECTIVE_POSITION_GUIDANCE)}`,
+          content: `This client brief was classified as ${briefType}. Extract everything it clearly states into "whatWeKnow" as topic/detail pairs. Separately, list the items the client themselves flagged as still-deciding — TBC, "???", "tbd", "still deciding" — in "clientFlaggedOpenItems". Only list what the client explicitly says they don't know yet; don't list things the brief is simply silent on.\n\n${keyDetailsExclusionForPrompt()}\n\n<brief>\n${briefText}\n</brief>${pmPerspectivePromptSection(pmPerspective, PM_PERSPECTIVE_POSITION_GUIDANCE)}`,
         },
       ],
     });
@@ -103,8 +108,14 @@ export async function extractPositionFields(
   }
 }
 
+/**
+ * The questions come from the fixed set of required key details (see
+ * clarificationQuestionsFrom) — never generated — plus the client's own
+ * still-deciding items from the Position Document.
+ */
 export async function generateClarificationEmail(
   fields: PositionDocumentExtraction,
+  questions: ClarificationQuestions,
   pmPerspective: PmPerspectiveValues = {},
   contactName: string | null = null
 ): Promise<ClarificationEmail> {
@@ -118,7 +129,7 @@ export async function generateClarificationEmail(
           role: "user",
           content: `Draft a polite, professional clarification email to the client, to be reviewed by an account manager before sending — never state or imply it has already been sent. Address it to ${
             contactName ?? "the client contact"
-          } if a name is available. In clearly separate, labeled sections, list:\n1. Genuine open questions the agency needs answered: ${JSON.stringify(fields.whatWeNeedToFindOut)}\n2. Items the client already flagged as still deciding, just to confirm status: ${JSON.stringify(fields.clientFlaggedOpenItems)}\n\nIf both lists are empty, write a short note confirming there are no outstanding questions right now instead of an empty email.${pmPerspectivePromptSection(
+          } if a name is available. In clearly separate, labeled sections, list:\n1. Key details we still need from the client — ask for each one: ${JSON.stringify(questions.toAsk)}\n2. Key details we've read from the brief, for the client to confirm we've understood correctly: ${JSON.stringify(questions.toConfirm)}\n3. Items the client already flagged as still deciding, just to confirm status: ${JSON.stringify(fields.clientFlaggedOpenItems)}\n\nAsk only about the items listed — don't add questions of your own. Leave out any section whose list is empty. If all three lists are empty, write a short note confirming there are no outstanding questions right now instead of an empty email.${pmPerspectivePromptSection(
             pmPerspective,
             "Use the PM perspective above only to judge which questions matter most and how to frame them. It is internal: don't quote it, reveal it, or present it as anything the client said."
           )}`,
@@ -145,7 +156,8 @@ export function generateSetupChecklist(): SetupChecklist {
  * then the Position Document, which is told to leave those key details out
  * — and then checked, removing anything the key details already cover — so
  * nothing is recorded twice; then the clarification email, addressed to
- * the contact the key details found. A key-detail failure never blocks
+ * the contact the key details found and asking about the required key
+ * details still outstanding. A key-detail failure never blocks
  * intake — it's returned so the caller can record it on the project.
  *
  * The PM perspective, if any, goes to the Position Document and the email as
@@ -184,6 +196,7 @@ export async function runIntakeAgent(
   const contactName = keyAttributes?.[CLIENT_CONTACT_FIELDS.attributeId]?.values[CLIENT_CONTACT_FIELDS.name];
   const clarificationEmail = await generateClarificationEmail(
     positionDocument,
+    clarificationQuestionsFrom(completenessFromExtraction(keyAttributes)),
     pmPerspective,
     typeof contactName === "string" ? contactName : null
   );

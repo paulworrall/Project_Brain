@@ -106,10 +106,13 @@ describe("extractClarificationUpdate — key details stay in their own record", 
     expect(prompt).toMatch(/captured separately/);
     expect(prompt).toMatch(/remove them from it/);
     expect(prompt).not.toMatch(/Keep primaryContactName/);
+    // The retired AI gaps list an older version carries isn't sent back to the agent.
+    expect(prompt).not.toContain("Target audience");
+    // No AI-generated gaps either — what we need to find out is derived from the key details.
     expect(Object.keys(call.output_config.format.schema.properties)).toEqual([
       "whatWeKnow",
-      "whatWeNeedToFindOut",
       "clientFlaggedOpenItems",
     ]);
+    expect(prompt).not.toContain("whatWeNeedToFindOut");
   });
 });

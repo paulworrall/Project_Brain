@@ -22,7 +22,6 @@ const briefContent = {
   projectOverview: {
     context: "A campaign refresh for a coffee client.",
     whatIsKnown: ["Objective: refresh the campaign"],
-    timeline: "Q4 2026",
     constraints: ["UK market only"],
   },
   capabilitySections: [
@@ -48,6 +47,20 @@ describe("generateEstimateBriefContent", () => {
     expect(callArgs.model).toBe("claude-opus-5");
     expect(callArgs.output_config.format.type).toBe("json_schema");
     expect(callArgs.messages[0].content).toContain("Some brief context");
+  });
+
+  it("never asks the AI for a timeline — that section comes from the confirmed key details", async () => {
+    mockParse.mockResolvedValueOnce({ parsed_output: briefContent });
+
+    await generateEstimateBriefContent("context", ["TECH_AND_DATA"]);
+
+    const callArgs = mockParse.mock.calls[0][0];
+    expect(Object.keys(callArgs.output_config.format.schema.properties.projectOverview.properties)).toEqual([
+      "context",
+      "whatIsKnown",
+      "constraints",
+    ]);
+    expect(callArgs.messages[0].content).toMatch(/leave out the timeline, dates and milestones/);
   });
 
   it("throws a friendly error when Claude returns no parsed output", async () => {

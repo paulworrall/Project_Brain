@@ -184,7 +184,7 @@ describe("ProjectWorkflow", () => {
     render(<ProjectWorkflow {...baseProps()} />);
 
     expect(screen.getByText("Refresh the campaign.")).toBeInTheDocument();
-    expect(screen.getByText("Target audience")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "What We Need to Find Out" })).toBeInTheDocument();
     expect(screen.queryByText("Step 1.1")).not.toBeInTheDocument();
   });
 

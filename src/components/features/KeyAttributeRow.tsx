@@ -1,24 +1,19 @@
 "use client";
 
-import { useActionState } from "react";
-import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
 import { Disclosure } from "@/components/ui/Disclosure";
-import {
-  suggestBriefAttributesAction,
-  type ActionState,
-} from "@/app/(dashboard)/projects/[projectId]/actions";
 import {
   getBriefAttribute,
   isSubFieldFilled,
   type BriefAttributeValues,
   type BriefSubFieldDefinition,
 } from "@/lib/briefAttributes";
-import type {
-  BriefAttributeCompleteness,
-  BriefAttributeStatus,
-  BriefCompleteness,
-} from "@/lib/briefCompleteness";
+import {
+  formatBriefDate,
+  formatMilestone,
+  NO_MILESTONES_TEXT,
+  NOT_CONFIRMED_TEXT,
+} from "@/lib/briefAttributeDisplay";
+import type { BriefAttributeCompleteness, BriefAttributeStatus } from "@/lib/briefCompleteness";
 import type { BriefAttributeSource } from "@/generated/prisma/enums";
 import { KeyAttributeForm } from "./KeyAttributeForm";
 
@@ -46,29 +41,6 @@ const SOURCE_LABEL: Record<BriefAttributeSource, string> = {
   PM_ENTRY: "PM entry",
 };
 
-function formatDate(iso: string): string {
-  const date = new Date(`${iso}T00:00:00Z`);
-  return Number.isNaN(date.getTime())
-    ? iso
-    : date.toLocaleDateString("en-GB", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-        timeZone: "UTC",
-      });
-}
-
-function formatSubField(
-  subField: BriefSubFieldDefinition,
-  value: BriefAttributeValues[string]
-): string {
-  if (Array.isArray(value)) {
-    return value.map((m) => (m.date ? `${m.name} (${formatDate(m.date)})` : m.name)).join(" · ");
-  }
-  if (typeof value !== "string") return "";
-  return subField.type === "date" ? formatDate(value) : value;
-}
-
 function formatTimestamp(date: Date): string {
   return new Date(date).toLocaleDateString("en-GB", {
     day: "numeric",
@@ -77,24 +49,63 @@ function formatTimestamp(date: Date): string {
   });
 }
 
+function SubFieldValue({
+  subField,
+  value,
+}: {
+  subField: BriefSubFieldDefinition;
+  value: BriefAttributeValues[string];
+}) {
+  if (!isSubFieldFilled(subField, value)) {
+    return (
+      <span className="italic text-muted-foreground">
+        {subField.type === "milestones" ? NO_MILESTONES_TEXT : NOT_CONFIRMED_TEXT}
+      </span>
+    );
+  }
+  if (Array.isArray(value)) {
+    return (
+      <ul className="list-inside list-disc space-y-0.5">
+        {value.map((milestone, i) => (
+          <li key={i}>{formatMilestone(milestone)}</li>
+        ))}
+      </ul>
+    );
+  }
+  if (typeof value !== "string") return null;
+  return <>{subField.type === "date" ? formatBriefDate(value) : value}</>;
+}
+
+/**
+ * An attribute's values. For confirmed values every sub-field is shown, so a
+ * gap (no end date, no milestones yet) is stated rather than left blank; a
+ * suggestion shows only what was actually read.
+ */
 function ValuesList({
   attributeId,
   values,
+  showUnfilled = false,
 }: {
   attributeId: string;
   values: BriefAttributeValues;
+  showUnfilled?: boolean;
 }) {
   const attribute = getBriefAttribute(attributeId);
   if (!attribute) return null;
-  const filled = attribute.subFields.filter((f) => isSubFieldFilled(f, values[f.id]));
-  if (filled.length === 0) return null;
+  const shown = showUnfilled
+    ? attribute.subFields
+    : attribute.subFields.filter((f) => isSubFieldFilled(f, values[f.id]));
+  if (shown.length === 0) return null;
   return (
     <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-sm sm:grid-cols-2">
-      {filled.map((subField) => (
-        <div key={subField.id} className="min-w-0">
+      {shown.map((subField) => (
+        <div
+          key={subField.id}
+          className={`min-w-0 ${subField.type === "milestones" ? "sm:col-span-2" : ""}`}
+        >
           <dt className="text-xs text-muted-foreground">{subField.label}</dt>
           <dd className="break-words text-foreground">
-            {formatSubField(subField, values[subField.id])}
+            <SubFieldValue subField={subField} value={values[subField.id]} />
           </dd>
         </div>
       ))}
@@ -130,24 +141,30 @@ export function KeyAttributeRow({
           {STATUS_LABEL[status]}
         </span>
         {attribute.required && <span className="text-xs text-muted-foreground">· Required</span>}
+        {(suggestion || pmSuggestion) && (
+          <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs text-foreground">
+            Suggestion to review
+          </span>
+        )}
       </div>
 
       {confirmed ? (
         <div className="space-y-1">
-          <ValuesList attributeId={attribute.id} values={confirmed.values} />
+          <ValuesList attributeId={attribute.id} values={confirmed.values} showUnfilled />
           <p className="text-xs text-muted-foreground">
             Confirmed {formatTimestamp(confirmed.createdAt)}
             {confirmed.createdByName ? ` by ${confirmed.createdByName}` : ""} · from{" "}
             {SOURCE_LABEL[confirmed.source]}
           </p>
-          {attribute.missingSubFields.length > 0 && (
-            <p className="text-xs text-warning">
-              Still needed: {attribute.missingSubFields.map((f) => f.label).join(", ")}
-            </p>
-          )}
         </div>
       ) : (
         <p className="text-sm italic text-muted-foreground">{attribute.question}</p>
+      )}
+
+      {status === "partial" && attribute.missingSubFields.length > 0 && (
+        <p className="text-xs text-warning">
+          Still needed: {attribute.missingSubFields.map((f) => f.label).join(", ")}
+        </p>
       )}
 
       {suggestion && (
@@ -203,75 +220,5 @@ export function KeyAttributeRow({
         </Disclosure>
       )}
     </li>
-  );
-}
-
-/**
- * Phase 1's key details — the required attributes every brief must have
- * before a SOW can be generated, plus optional ones that never block
- * anything. AI-extracted values are shown as suggestions until a PM
- * confirms them. Everything shown comes from getBriefCompleteness.
- */
-export function KeyAttributesPanel({
-  projectId,
-  completeness,
-}: {
-  projectId: string;
-  completeness: BriefCompleteness;
-}) {
-  const action = suggestBriefAttributesAction.bind(null, projectId);
-  const [state, formAction, pending] = useActionState<ActionState | undefined, FormData>(
-    action,
-    undefined
-  );
-
-  const required = completeness.attributes.filter((a) => a.required);
-  const optional = completeness.attributes.filter((a) => !a.required);
-  const confirmedCount = required.filter((a) => a.status === "confirmed").length;
-  const pendingSuggestions = completeness.attributes.filter((a) => a.suggestion || a.pmSuggestion).length;
-
-  return (
-    <Card className="space-y-4 p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-semibold text-foreground">Key details</h3>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {confirmedCount} of {required.length} required details confirmed
-            {pendingSuggestions > 0
-              ? ` · ${pendingSuggestions} AI suggestion${pendingSuggestions === 1 ? "" : "s"} to review`
-              : ""}
-            . All required details must be confirmed before a SOW can be generated.
-          </p>
-        </div>
-        <form action={formAction}>
-          <Button type="submit" variant="secondary" className="text-xs" disabled={pending}>
-            {pending ? "Reading…" : "Suggest from brief & inputs"}
-          </Button>
-        </form>
-      </div>
-      {state?.message && (
-        <p className="text-xs text-danger" role="alert">
-          {state.message}
-        </p>
-      )}
-
-      <ul className="space-y-3">
-        {required.map((attribute) => (
-          <KeyAttributeRow key={attribute.id} projectId={projectId} attribute={attribute} />
-        ))}
-      </ul>
-
-      <div className="border-t border-border pt-3">
-        <Disclosure
-          summary={`Optional details (${optional.filter((a) => a.status !== "missing").length} of ${optional.length} captured)`}
-        >
-          <ul className="space-y-3">
-            {optional.map((attribute) => (
-              <KeyAttributeRow key={attribute.id} projectId={projectId} attribute={attribute} />
-            ))}
-          </ul>
-        </Disclosure>
-      </div>
-    </Card>
   );
 }

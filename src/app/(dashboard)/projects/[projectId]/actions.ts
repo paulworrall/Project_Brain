@@ -27,6 +27,7 @@ import {
   generateEstimateBriefContent,
 } from "@/services/agents/estimate-brief-agent";
 import { renderEstimateBriefDocx } from "@/services/documents/estimate-brief-docx";
+import { timelineSection } from "@/lib/briefAttributeDisplay";
 import { CapabilityEnum, type CapabilitySuggestion } from "@/types/capabilities";
 import { SowAgentError, generateSowContent } from "@/services/agents/sow-agent";
 import { renderSowDocx } from "@/services/documents/sow-docx";
@@ -1146,7 +1147,9 @@ export async function generateEstimateBriefAction(
     throw error;
   }
 
-  const fileBytes = new Uint8Array(await renderEstimateBriefDocx(content));
+  const fileBytes = new Uint8Array(
+    await renderEstimateBriefDocx(content, timelineSection(await getBriefCompleteness(projectId)))
+  );
 
   await prisma.$transaction(async (tx) => {
     const existing = await tx.estimateBrief.findUnique({

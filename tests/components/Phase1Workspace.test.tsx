@@ -15,7 +15,9 @@ vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
 }));
 
 const { Phase1Workspace } = await import("@/components/features/Phase1Workspace");
-const { briefCompleteness, briefRecord } = await import("../fixtures/briefCompleteness");
+const { briefCompleteness, briefRecord, ALL_REQUIRED_CONFIRMED } = await import(
+  "../fixtures/briefCompleteness"
+);
 const { pmPerspectiveView } = await import("../fixtures/pmPerspective");
 
 const positionDocument = {
@@ -45,14 +47,21 @@ function baseProps() {
 }
 
 describe("Phase1Workspace", () => {
-  it("shows the Key details panel, the other brief details and What We Need to Find Out", () => {
+  it("shows the What We Need to Find Out checklist and the other brief details", () => {
     render(<Phase1Workspace {...baseProps()} />);
 
-    expect(screen.getByText("Key details")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "What We Need to Find Out" })).toBeInTheDocument();
+    // One checklist — the key details aren't repeated in a second panel.
+    expect(screen.queryByText("Key details")).not.toBeInTheDocument();
     expect(screen.getByText("Other details from the brief")).toBeInTheDocument();
-    expect(screen.getByText("What We Need to Find Out")).toBeInTheDocument();
     expect(screen.getByText("Refresh the campaign.")).toBeInTheDocument();
-    expect(screen.getByText("Target audience")).toBeInTheDocument();
+  });
+
+  it("never shows the old AI-generated questions an existing project's Position Document still carries", () => {
+    render(<Phase1Workspace {...baseProps()} />);
+
+    expect(screen.queryByText("Target audience")).not.toBeInTheDocument();
+    expect(screen.queryByText("Earlier open questions")).not.toBeInTheDocument();
   });
 
   it("shows a 'not generated yet' placeholder when there's no Position Document", () => {
@@ -112,7 +121,8 @@ describe("Phase1Workspace", () => {
 
     const summary = screen.getByLabelText("Phase 1 progress summary");
     expect(summary).toHaveTextContent("1 confirmed detail");
-    expect(summary).toHaveTextContent("1 open question");
+    // Nothing confirmed yet: all 4 required details are still to find out.
+    expect(summary).toHaveTextContent("4 required details to find out");
     expect(summary).toHaveTextContent("1 client update logged");
     expect(summary).toHaveTextContent("1/2 checklist items complete");
   });
@@ -127,8 +137,8 @@ describe("Phase1Workspace", () => {
             { topic: "Objective", detail: "Refresh the campaign." },
             { topic: "Timeline", detail: "By end of Q3." },
           ],
-          whatWeNeedToFindOut: [],
         }}
+        briefCompleteness={briefCompleteness(ALL_REQUIRED_CONFIRMED.slice(1))}
         clientUpdates={[]}
         checklistItems={[]}
       />
@@ -136,7 +146,7 @@ describe("Phase1Workspace", () => {
 
     const summary = screen.getByLabelText("Phase 1 progress summary");
     expect(summary).toHaveTextContent("2 confirmed details");
-    expect(summary).toHaveTextContent("0 open questions");
+    expect(summary).toHaveTextContent("1 required detail to find out");
     expect(summary).toHaveTextContent("0 client updates logged");
     expect(summary).toHaveTextContent("0/0 checklist items complete");
   });

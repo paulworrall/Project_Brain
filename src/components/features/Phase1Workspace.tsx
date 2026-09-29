@@ -9,7 +9,7 @@ import {
   type EstimateBriefVersionMeta,
 } from "./CapabilitiesAndEstimateBriefPanel";
 import type { ChecklistItemView } from "./ChecklistView";
-import { KeyAttributesPanel } from "./KeyAttributesPanel";
+import { BriefChecklist } from "./BriefChecklist";
 import type { BriefCompleteness } from "@/lib/briefCompleteness";
 import { PmPerspectivePanel } from "./PmPerspectivePanel";
 import type { PmPerspectiveFieldView } from "@/lib/pmPerspectiveStore";
@@ -66,7 +66,7 @@ export function Phase1Workspace({
   estimateBriefVersion,
 }: Phase1WorkspaceProps) {
   const confirmedDetailsCount = positionDocument?.whatWeKnow.length ?? 0;
-  const openQuestionsCount = positionDocument?.whatWeNeedToFindOut.length ?? 0;
+  const outstandingCount = briefCompleteness.requiredOutstanding.length;
   const completeChecklistCount = checklistItems.filter((item) => item.isComplete).length;
 
   return (
@@ -77,7 +77,7 @@ export function Phase1Workspace({
       >
         <span>{pluralize(confirmedDetailsCount, "confirmed detail")}</span>
         <span aria-hidden="true">·</span>
-        <span>{pluralize(openQuestionsCount, "open question")}</span>
+        <span>{pluralize(outstandingCount, "required detail")} to find out</span>
         <span aria-hidden="true">·</span>
         <span>{pluralize(clientUpdates.length, "client update")} logged</span>
         <span aria-hidden="true">·</span>
@@ -86,7 +86,7 @@ export function Phase1Workspace({
         </span>
       </div>
 
-      <KeyAttributesPanel projectId={projectId} completeness={briefCompleteness} />
+      <BriefChecklist projectId={projectId} completeness={briefCompleteness} />
 
       <PmPerspectivePanel projectId={projectId} fields={pmPerspective} />
 

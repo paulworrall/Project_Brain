@@ -5,7 +5,8 @@ import {
 } from "@/lib/briefAttributes";
 import type { BriefCompleteness } from "@/lib/briefCompleteness";
 
-function describeValues(attributeId: string, values: BriefAttributeValues): string {
+/** An attribute's filled sub-fields as one line, e.g. "Amount or range: 50,000 · Currency: GBP". */
+export function describeValues(attributeId: string, values: BriefAttributeValues): string {
   const attribute = getBriefAttribute(attributeId);
   if (!attribute) return "";
   return attribute.subFields
