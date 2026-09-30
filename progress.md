@@ -500,3 +500,4 @@
 - **Fix (read time, no data written)**: `withRecoveredUpdateLink()` in `briefCompleteness.ts` gives such a row the update link and passage of the newest earlier SUGGESTION with the same source and the same (normalised) values. Rows that already have a link, and rows with no matching suggestion, are unchanged. This avoids a backfill against the shared database.
 - **Live data** (read-only check): one affected row (a budget); it now resolves to "From update v1" with its passage.
 - **Tests**: two new cases (recovers number + passage; won't borrow from a suggestion with different values). 518 tests across 74 files passing; typecheck and lint clean.
+- **Deployed (2026-09-30)**: committed `703be42`, pushed, Vercel deployment completed.
