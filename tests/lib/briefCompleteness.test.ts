@@ -120,7 +120,7 @@ describe("evaluateBriefCompleteness — trusted by default, latest wins", () => 
       "budget"
     );
     expect(updated.current?.values.amount).toBe("£65k");
-    expect(updated.current?.origin).toEqual({ kind: "update", number: 2 });
+    expect(updated.current?.origin).toEqual({ kind: "update", number: 2, internalTeam: false });
 
     const laterEdit = record("budget", { amount: "£70k" });
     const edited = statusOf(evaluateBriefCompleteness([pmEdit, update, laterEdit], IN_PHASE_1), "budget");
@@ -142,7 +142,25 @@ describe("evaluateBriefCompleteness — trusted by default, latest wins", () => 
     expect(statusOf(evaluateBriefCompleteness([update], IN_PHASE_1), "budget").current?.origin).toEqual({
       kind: "update",
       number: null,
+      internalTeam: false,
     });
+  });
+
+  it("marks a value that came from an internal-team update", () => {
+    const update = record(
+      "budget",
+      { amount: "£65k" },
+      { kind: "SUGGESTION", source: "UPDATE", knowledgeItemId: "ki_3" }
+    );
+    const budget = statusOf(
+      evaluateBriefCompleteness(
+        [update],
+        IN_PHASE_1,
+        new Map([["ki_3", { number: 3, internalTeam: true }]])
+      ),
+      "budget"
+    );
+    expect(budget.current?.origin).toEqual({ kind: "update", number: 3, internalTeam: true });
   });
 
   it("recovers the update number and passage for a value accepted in the old Review and confirm flow", () => {
@@ -157,7 +175,7 @@ describe("evaluateBriefCompleteness — trusted by default, latest wins", () => 
       "budget"
     );
     expect(budget.current?.id).toBe(accepted.id);
-    expect(budget.current?.origin).toEqual({ kind: "update", number: 2 });
+    expect(budget.current?.origin).toEqual({ kind: "update", number: 2, internalTeam: false });
     expect(budget.current?.evidence).toBe("Budget is now £65k.");
   });
 
@@ -172,7 +190,7 @@ describe("evaluateBriefCompleteness — trusted by default, latest wins", () => 
       evaluateBriefCompleteness([suggestion, accepted], IN_PHASE_1, new Map([["ki_2", 2]])),
       "budget"
     );
-    expect(budget.current?.origin).toEqual({ kind: "update", number: null });
+    expect(budget.current?.origin).toEqual({ kind: "update", number: null, internalTeam: false });
   });
 });
 

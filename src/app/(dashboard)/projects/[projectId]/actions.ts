@@ -15,6 +15,7 @@ import {
 import { ChatbotError, answerProjectQuestion } from "@/services/agents/chatbot";
 import { summariseUpdate } from "@/services/agents/update-summary";
 import { runAfterResponse } from "@/lib/afterResponse";
+import { formatVersionsBefore, nextUpdateVersion } from "@/lib/updateVersions";
 import { parseDocumentToText, UnsupportedBriefFormatError } from "@/services/parsing";
 import { PositionDocumentFieldsSchema, type PositionDocumentFields } from "@/types/intake";
 import { DeliverablesServicesDocumentSchema } from "@/types/deliverables-services";
@@ -37,7 +38,7 @@ import { SowAgentError, generateSowContent } from "@/services/agents/sow-agent";
 import { renderSowDocx } from "@/services/documents/sow-docx";
 import { assembleSowContext } from "@/lib/sow-context";
 import type { SOWContent, SOWDocumentContent } from "@/types/sow";
-import type { Capability } from "@/generated/prisma/enums";
+import type { Capability, UpdateSource } from "@/generated/prisma/enums";
 import { Prisma } from "@/generated/prisma/client";
 import { BRIEF_ATTRIBUTES, getBriefAttribute, type BriefAttributeValues } from "@/lib/briefAttributes";
 import {
@@ -672,6 +673,12 @@ export async function uploadKnowledgeItemAction(
   const pasted = formData.get("content");
   const pastedText = typeof pasted === "string" ? pasted.trim() : "";
 
+  const sourceField = formData.get("source") || "CLIENT";
+  if (sourceField !== "CLIENT" && sourceField !== "INTERNAL_TEAM") {
+    return { message: "Choose whether this update is from the client or the internal team." };
+  }
+  const source: UpdateSource = sourceField;
+
   const file = formData.get("file");
   const hasFile = file instanceof File && file.size > 0;
   const hasPastedText = !!pastedText;
@@ -750,12 +757,15 @@ export async function uploadKnowledgeItemAction(
   }
 
   const knowledgeItem = await prisma.$transaction(async (tx) => {
+    // Each update is the next version of the brief (the brief is v1).
     const item = await tx.knowledgeItem.create({
       data: {
         projectId,
         type: hasFile ? "DOCUMENT" : "NOTE",
         content,
         originalFileName,
+        source,
+        versionNumber: await nextUpdateVersion(tx, projectId),
         uploadedById: session?.user?.id,
       },
     });
@@ -790,11 +800,17 @@ export async function uploadKnowledgeItemAction(
   }
 
   // Optional, and after the response: the date label stands on its own
-  // until (or unless) this lands.
+  // until (or unless) these land.
   runAfterResponse(async () => {
     try {
-      const summary = await summariseUpdate(content);
-      await prisma.knowledgeItem.update({ where: { id: knowledgeItem.id }, data: { summary } });
+      const { summary, changeSummary } = await summariseUpdate({
+        content,
+        before: await formatVersionsBefore(projectId, knowledgeItem.versionNumber!),
+      });
+      await prisma.knowledgeItem.update({
+        where: { id: knowledgeItem.id },
+        data: { summary, changeSummary },
+      });
     } catch (error) {
       console.error("Update summary failed; the update keeps its date label:", error);
     }

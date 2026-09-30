@@ -14,7 +14,7 @@ import type { BriefCompleteness } from "@/lib/briefCompleteness";
 import type { PmPerspectiveFieldView } from "@/lib/pmPerspectiveStore";
 import type { ClientUpdateLogEntry } from "./Phase1Workspace";
 import { ChatPanel } from "./ChatPanel";
-import { KnowledgeUpload, type KnowledgeItemView } from "./KnowledgeUpload";
+import { KnowledgeUpload, type VersionView } from "./KnowledgeUpload";
 import type { ChecklistItemView } from "./ChecklistView";
 import { EditableChecklist } from "./EditableChecklist";
 import { SpecialistFeedbackForm } from "./SpecialistFeedbackForm";
@@ -113,7 +113,7 @@ interface ProjectWorkflowProps {
   checklistItems: ChecklistItemView[];
   specialistFeedback: SpecialistFeedbackView | null;
   deliverablesServicesDocument: DeliverablesServicesDocument | null;
-  knowledgeItems: KnowledgeItemView[];
+  versions: VersionView[];
   currentSowTemplate: { id: string; name: string } | null;
   currentSowTemplateVersion: { id: string } | null;
   sowTemplateOptions: SowTemplateSelectOption[];
@@ -156,7 +156,7 @@ export function ProjectWorkflow({
   checklistItems,
   specialistFeedback,
   deliverablesServicesDocument,
-  knowledgeItems,
+  versions,
   currentSowTemplate,
   currentSowTemplateVersion,
   sowTemplateOptions,
@@ -234,7 +234,7 @@ export function ProjectWorkflow({
       </div>
       <div className="space-y-4 lg:sticky lg:top-6 lg:self-start">
         <ChatPanel projectId={projectId} projectName={projectName} />
-        <KnowledgeUpload projectId={projectId} items={knowledgeItems} />
+        <KnowledgeUpload projectId={projectId} versions={versions} />
         <EditableChecklist projectId={projectId} items={checklistItems} />
       </div>
     </div>

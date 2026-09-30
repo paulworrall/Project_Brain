@@ -26,14 +26,21 @@ export interface BriefAttributeValueRecord {
 }
 
 /**
- * Where the current value came from, for its source tag: the brief, a
- * numbered update (its position among the project's Additional Inputs,
- * oldest first — null when it can't be told), or a PM's own edit.
+ * Where the current value came from, for its source tag: the brief, an
+ * update (its version number — the brief is v1, so updates start at v2;
+ * null when it can't be told — and whether it came from our internal team
+ * rather than the client), or a PM's own edit.
  */
 export type BriefAttributeOrigin =
   | { kind: "brief" }
-  | { kind: "update"; number: number | null }
+  | { kind: "update"; number: number | null; internalTeam: boolean }
   | { kind: "pm" };
+
+/** What getBriefCompleteness knows about an update: its version and who it came from. */
+export interface UpdateVersionRef {
+  number: number | null;
+  internalTeam: boolean;
+}
 
 export interface BriefAttributeEntry {
   id: string;
@@ -87,9 +94,14 @@ function newest<T extends { createdAt: Date }>(records: T[]): T | undefined {
   );
 }
 
+function updateRefOf(ref: number | UpdateVersionRef | undefined): UpdateVersionRef {
+  if (typeof ref === "number") return { number: ref, internalTeam: false };
+  return ref ?? { number: null, internalTeam: false };
+}
+
 function originOf(
   record: BriefAttributeValueRecord,
-  updateNumbers: ReadonlyMap<string, number>
+  updates: ReadonlyMap<string, number | UpdateVersionRef>
 ): BriefAttributeOrigin {
   switch (record.source) {
     case "BRIEF":
@@ -98,7 +110,7 @@ function originOf(
     case "CLARIFICATION_ANSWER":
       return {
         kind: "update",
-        number: record.knowledgeItemId ? (updateNumbers.get(record.knowledgeItemId) ?? null) : null,
+        ...updateRefOf(record.knowledgeItemId ? updates.get(record.knowledgeItemId) : undefined),
       };
     case "PM_ENTRY":
       return { kind: "pm" };
@@ -138,7 +150,8 @@ function withRecoveredUpdateLink(
  * The pure core of getBriefCompleteness — exported for tests. The latest
  * row wins, whoever wrote it: a value the agent captured counts straight
  * away, and a PM edit replaces it until newer information arrives.
- * `updateNumbers` maps a knowledge item id to its update number (vN).
+ * `updates` maps a knowledge item id to its version (and source); a plain
+ * number means a client update with that version.
  */
 export function evaluateBriefCompleteness(
   records: BriefAttributeValueRecord[],
@@ -147,7 +160,7 @@ export function evaluateBriefCompleteness(
     keyAttributeExtractionFailedAt?: Date | null;
     keyAttributeExtractionError?: string | null;
   },
-  updateNumbers: ReadonlyMap<string, number> = new Map()
+  updates: ReadonlyMap<string, number | UpdateVersionRef> = new Map()
 ): BriefCompleteness {
   const attributes = BRIEF_ATTRIBUTES.map((definition): BriefAttributeCompleteness => {
     const own = records.filter((r) => r.attributeId === definition.id);
@@ -160,7 +173,7 @@ export function evaluateBriefCompleteness(
       id: record.id,
       values: normalizeAttributeValues(definition, record.values),
       source: record.source,
-      origin: originOf(record, updateNumbers),
+      origin: originOf(record, updates),
       evidence: record.evidence,
       createdAt: record.createdAt,
       createdByName: record.createdByName,
@@ -238,8 +251,7 @@ export async function getBriefCompleteness(projectId: string): Promise<BriefComp
     }),
     prisma.knowledgeItem.findMany({
       where: { projectId },
-      orderBy: { uploadedAt: "asc" },
-      select: { id: true },
+      select: { id: true, versionNumber: true, source: true },
     }),
   ]);
 
@@ -258,6 +270,11 @@ export async function getBriefCompleteness(projectId: string): Promise<BriefComp
         createdByName: row.createdBy?.name ?? null,
       })),
     project,
-    new Map(knowledgeItems.map((item, index) => [item.id, index + 1]))
+    new Map(
+      knowledgeItems.map((item) => [
+        item.id,
+        { number: item.versionNumber, internalTeam: item.source === "INTERNAL_TEAM" },
+      ])
+    )
   );
 }

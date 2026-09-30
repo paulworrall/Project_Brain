@@ -21,32 +21,47 @@ beforeEach(() => {
 });
 
 describe("summariseUpdate", () => {
-  it("returns a one-line summary as structured output, with a request timeout", async () => {
+  it("returns a one-line summary and what changed against what we knew before, with a timeout", async () => {
     mockParse.mockResolvedValueOnce({
-      parsed_output: { summary: "Client moved the launch to March and raised the budget." },
+      parsed_output: {
+        summary: "Client moved the launch to March and raised the budget.",
+        changeSummary: "Budget increased; launch date moved.",
+      },
     });
 
-    const summary = await summariseUpdate("Launch is now March; budget up to £120k.");
+    const result = await summariseUpdate({
+      content: "Launch is now March; budget up to £120k.",
+      before: "BRIEF_MARKER: budget £100k, launch in February.",
+    });
 
-    expect(summary).toBe("Client moved the launch to March and raised the budget.");
+    expect(result).toEqual({
+      summary: "Client moved the launch to March and raised the budget.",
+      changeSummary: "Budget increased; launch date moved.",
+    });
     const [params, options] = mockParse.mock.calls[0];
     expect(params.output_config.format.type).toBe("json_schema");
     expect(params.messages[0].content).toContain("Launch is now March");
+    expect(params.messages[0].content).toContain("BRIEF_MARKER");
     expect(options?.timeout).toBeGreaterThan(0);
   });
 
-  it("collapses a multi-line answer to one line", async () => {
-    mockParse.mockResolvedValueOnce({ parsed_output: { summary: "  Budget up.\nNew milestone.  " } });
-    expect(await summariseUpdate("…")).toBe("Budget up. New milestone.");
+  it("collapses multi-line answers to one line each", async () => {
+    mockParse.mockResolvedValueOnce({
+      parsed_output: { summary: "  Budget up.\nNew milestone.  ", changeSummary: "Budget\nincreased" },
+    });
+    expect(await summariseUpdate({ content: "…", before: "…" })).toEqual({
+      summary: "Budget up. New milestone.",
+      changeSummary: "Budget increased",
+    });
   });
 
   it("throws a friendly error when Claude returns nothing", async () => {
     mockParse.mockResolvedValueOnce({ parsed_output: null });
-    await expect(summariseUpdate("…")).rejects.toThrow(UpdateSummaryError);
+    await expect(summariseUpdate({ content: "…", before: "…" })).rejects.toThrow(UpdateSummaryError);
   });
 
   it("wraps any other failure", async () => {
     mockParse.mockRejectedValueOnce(new Error("timed out"));
-    await expect(summariseUpdate("…")).rejects.toThrow(UpdateSummaryError);
+    await expect(summariseUpdate({ content: "…", before: "…" })).rejects.toThrow(UpdateSummaryError);
   });
 });

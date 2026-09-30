@@ -27,7 +27,7 @@ export function describeOrigin(origin: BriefAttributeOrigin): string {
     case "brief":
       return "from the brief";
     case "update":
-      return origin.number ? `from update v${origin.number}` : "from an update";
+      return `${origin.number ? `from update v${origin.number}` : "from an update"}${origin.internalTeam ? ", from our internal team" : ""}`;
     case "pm":
       return "edited by the PM";
   }

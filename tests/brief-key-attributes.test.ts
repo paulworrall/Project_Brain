@@ -182,7 +182,7 @@ describe("Key details captured by the agent — trusted by default", () => {
     const budget = completeness.attributes.find((a) => a.id === "budget")!;
     expect(budget.status).toBe("confirmed");
     expect(budget.current?.values).toEqual({ amount: "£50,000" });
-    expect(budget.current?.origin).toEqual({ kind: "update", number: 1 });
+    expect(budget.current?.origin).toEqual({ kind: "update", number: 2, internalTeam: false });
     expect(budget.current?.evidence).toBe("our budget is £50,000");
     // The other required details are still missing, so the gate stays shut.
     expect(completeness.canProceed).toBe(false);
@@ -211,7 +211,7 @@ describe("Key details captured by the agent — trusted by default", () => {
     const attributes = (await getBriefCompleteness(projectId)).attributes;
     const budget = attributes.find((a) => a.id === "budget")!;
     expect(budget.current?.values.amount).toBe("£80k");
-    expect(budget.current?.origin).toEqual({ kind: "update", number: 1 });
+    expect(budget.current?.origin).toEqual({ kind: "update", number: 2, internalTeam: false });
     const objective = attributes.find((a) => a.id === "objective")!;
     expect(objective.current?.values.objective).toBe("PM objective");
     expect(objective.current?.origin).toEqual({ kind: "pm" });
@@ -273,7 +273,7 @@ describe("Key details captured by the agent — trusted by default", () => {
   it("re-reads the brief and inputs to fill empty details, the later source winning", async () => {
     const projectId = await createProject("On Demand Suggest Project");
     await prisma.knowledgeItem.create({
-      data: { projectId, type: "NOTE", title: "Update", content: "Budget now £60k." },
+      data: { projectId, type: "NOTE", title: "Update", content: "Budget now £60k.", versionNumber: 2 },
     });
     mockParse.mockResolvedValueOnce({
       parsed_output: extraction({ budget: { amount: "£50k", evidence: "Budget is £50k" } }),
@@ -290,7 +290,7 @@ describe("Key details captured by the agent — trusted by default", () => {
     )!;
     expect(budget.status).toBe("confirmed");
     expect(budget.current?.values.amount).toBe("£60k");
-    expect(budget.current?.origin).toEqual({ kind: "update", number: 1 });
+    expect(budget.current?.origin).toEqual({ kind: "update", number: 2, internalTeam: false });
   });
 
   it("never lets a re-read undo a PM's edit — it only fills what's still empty", async () => {

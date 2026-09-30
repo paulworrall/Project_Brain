@@ -1,3 +1,4 @@
+import { getVersionHistory } from "@/lib/updateVersions";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -61,9 +62,6 @@ export default async function ProjectDetailPage({
         orderBy: { createdAt: "desc" },
         include: { createdBy: true },
       },
-      knowledgeItems: {
-        orderBy: { uploadedAt: "desc" },
-      },
       capabilities: true,
       estimateBrief: {
         include: {
@@ -97,7 +95,6 @@ export default async function ProjectDetailPage({
     documents,
     checklistItems,
     touchpointNotes,
-    knowledgeItems,
     capabilities,
     estimateBrief,
     estimates,
@@ -162,9 +159,10 @@ export default async function ProjectDetailPage({
     ? "COMPLETE"
     : "ACTIVE";
 
-  const [briefCompleteness, pmPerspective] = await Promise.all([
+  const [briefCompleteness, pmPerspective, versionHistory] = await Promise.all([
     getBriefCompleteness(project.id),
     getPmPerspective(project.id),
+    getVersionHistory(project.id),
   ]);
 
   const confirmedCapabilities = capabilities.map((c) => c.capability);
@@ -246,14 +244,7 @@ export default async function ProjectDetailPage({
         deliverablesServicesDocument={
           deliverablesServicesDocument.success ? deliverablesServicesDocument.data : null
         }
-        knowledgeItems={knowledgeItems.map((item) => ({
-          id: item.id,
-          type: item.type,
-          title: item.title,
-          originalFileName: item.originalFileName,
-          uploadedAt: item.uploadedAt,
-          summary: item.summary,
-        }))}
+        versions={versionHistory.map(({ content: _content, ...version }) => version)}
         currentSowTemplate={project.sowTemplate ? { id: project.sowTemplate.id, name: project.sowTemplate.name } : null}
         currentSowTemplateVersion={project.sowTemplateVersion ? { id: project.sowTemplateVersion.id } : null}
         sowTemplateOptions={sowTemplateOptions.map((t) => ({

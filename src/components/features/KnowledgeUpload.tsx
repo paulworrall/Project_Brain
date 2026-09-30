@@ -7,27 +7,26 @@ import {
   uploadKnowledgeItemAction,
   type ActionState,
 } from "@/app/(dashboard)/projects/[projectId]/actions";
-import { updateTitle, updateTypeLabel } from "@/lib/updateLabel";
+import { formatUkDateTime } from "@/lib/updateLabel";
+import type { VersionEntry } from "@/lib/updateVersions";
 
-export interface KnowledgeItemView {
-  id: string;
-  type: "DOCUMENT" | "NOTE";
-  /** Only updates saved before titles were removed have one. */
-  title: string | null;
-  originalFileName: string | null;
-  uploadedAt: Date;
-  /** One-line AI summary; null until it lands, or if it failed. */
-  summary: string | null;
-}
+/** One version of the brief (v1 the brief, then each update), as getVersionHistory returns it. */
+export type VersionView = Omit<VersionEntry, "content">;
 
 type InputMode = "paste" | "upload";
 
+const SOURCE_LABEL: Record<VersionView["source"], string> = {
+  CLIENT: "Client",
+  INTERNAL_TEAM: "Internal team",
+};
+
 export function KnowledgeUpload({
   projectId,
-  items,
+  versions,
 }: {
   projectId: string;
-  items: KnowledgeItemView[];
+  /** Oldest first; shown newest first. */
+  versions: VersionView[];
 }) {
   const action = uploadKnowledgeItemAction.bind(null, projectId);
   const [state, formAction, pending] = useActionState<ActionState | undefined, FormData>(
@@ -62,6 +61,24 @@ export function KnowledgeUpload({
       </div>
 
       <form action={formAction} className="mt-3 space-y-2">
+        <div
+          role="radiogroup"
+          aria-labelledby="update-source-label"
+          className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-foreground"
+        >
+          <span id="update-source-label" className="font-medium">
+            From
+          </span>
+          <label className="flex items-center gap-1.5">
+            <input type="radio" name="source" value="CLIENT" defaultChecked />
+            Client
+          </label>
+          <label className="flex items-center gap-1.5">
+            <input type="radio" name="source" value="INTERNAL_TEAM" />
+            Internal team
+          </label>
+        </div>
+
         <div className="flex gap-4 text-xs text-foreground">
           <label className="flex items-center gap-1.5">
             <input
@@ -117,14 +134,28 @@ export function KnowledgeUpload({
         </Button>
       </form>
 
-      {items.length > 0 && (
-        <ul className="mt-4 space-y-1.5 border-t border-border pt-3">
-          {items.map((item) => (
-            <li key={item.id} className="text-xs text-foreground">
-              <span>{updateTitle(item)}</span>{" "}
-              <span className="text-muted-foreground">({updateTypeLabel(item)})</span>
-              {item.summary && (
-                <p className="mt-0.5 text-muted-foreground">{item.summary}</p>
+      {versions.length > 0 && (
+        <ul
+          aria-label="Version history"
+          className="mt-4 space-y-2.5 border-t border-border pt-3"
+        >
+          {[...versions].reverse().map((version) => (
+            <li key={version.id} className="text-xs text-foreground">
+              <p>
+                <span className="font-semibold text-primary">
+                  {version.versionNumber ? `v${version.versionNumber}` : "—"}
+                </span>{" "}
+                {version.label}
+              </p>
+              <p className="text-muted-foreground">
+                {SOURCE_LABEL[version.source]}
+                {/* An untitled update's label already carries its date. */}
+                {!version.label.startsWith("Update — ") && ` · ${formatUkDateTime(version.createdAt)}`}
+                {version.detail && ` · ${version.detail}`}
+              </p>
+              {version.summary && <p className="mt-0.5 text-foreground/80">{version.summary}</p>}
+              {version.changeSummary && (
+                <p className="mt-0.5 text-muted-foreground">Changed: {version.changeSummary}</p>
               )}
             </li>
           ))}

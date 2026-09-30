@@ -765,6 +765,19 @@ enum KnowledgeItemType {
   NOTE
 }
 
+// Who a project update came from. Both kinds are versioned alike; values
+// from INTERNAL_TEAM updates are never put to the client to confirm.
+enum UpdateSource {
+  CLIENT
+  INTERNAL_TEAM
+}
+
+// A project update ("Keep This Project Up to Date"). Each one is a version
+// of the brief: the original brief (Project.briefRawText) is v1, updates are
+// v2, v3, … (src/lib/updateVersions.ts). Immutable once saved — a database
+// trigger refuses changes to content, type, title, file name, source,
+// project, uploadedAt or a set versionNumber; corrections are a new update.
+// Only the after-save AI summaries (summary, changeSummary) are filled in later.
 model KnowledgeItem {
   id               String            @id @default(cuid())
   projectId        String
@@ -776,6 +789,12 @@ model KnowledgeItem {
   // One-line AI summary, added after the update is saved — null until then,
   // or if summarising failed. Never required.
   summary          String?
+  // AI summary of what changed against everything known before this version.
+  changeSummary    String?
+  // 2, 3, … (v1 is the brief). Null only for rows saved before versioning,
+  // until assignMissingUpdateVersions numbers them.
+  versionNumber    Int?
+  source           UpdateSource      @default(CLIENT)
   originalFileName String?
   uploadedById     String?
   uploadedAt       DateTime          @default(now())
@@ -783,6 +802,8 @@ model KnowledgeItem {
   project              Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
   uploadedBy           User?                 @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
   briefAttributeValues BriefAttributeValue[]
+
+  @@unique([projectId, versionNumber])
 }
 
 // ---------------------------------------------------------------------------

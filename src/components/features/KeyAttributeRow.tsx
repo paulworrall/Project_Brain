@@ -45,7 +45,7 @@ export function sourceTagText(origin: BriefAttributeOrigin): string {
     case "brief":
       return "From brief";
     case "update":
-      return origin.number ? `From update v${origin.number}` : "From an update";
+      return `${origin.number ? `From update v${origin.number}` : "From an update"}${origin.internalTeam ? " (Internal team)" : ""}`;
     case "pm":
       return "Edited by PM";
   }

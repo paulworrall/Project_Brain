@@ -115,7 +115,7 @@ function baseProps() {
       otherCapabilityLabel: string | null;
     } | null,
     deliverablesServicesDocument: null as typeof deliverablesServices | null,
-    knowledgeItems: [],
+    versions: [],
     currentSowTemplate: null as { id: string; name: string } | null,
     currentSowTemplateVersion: null as { id: string } | null,
     sowTemplateOptions: [] as {

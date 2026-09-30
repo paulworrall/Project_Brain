@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
-import { flushAfterResponse } from "./helpers/afterResponse";
+import { afterResponseQueue, flushAfterResponse } from "./helpers/afterResponse";
 
 // Real-DB tests for "Keep This Project Up to Date" updates. Only the
 // Anthropic SDK, next/cache and auth are mocked; after-response work (the AI
@@ -26,6 +26,8 @@ const mockParse = anthropic.messages.parse as ReturnType<typeof vi.fn>;
 const { keyAttributeFacts } = await import("./fixtures/keyAttributeFacts");
 const { uploadKnowledgeItemAction } = await import("@/app/(dashboard)/projects/[projectId]/actions");
 const { updateLabel } = await import("@/lib/updateLabel");
+const { getVersionHistory } = await import("@/lib/updateVersions");
+const { getBriefCompleteness } = await import("@/lib/briefCompleteness");
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
@@ -43,14 +45,17 @@ const positionFields = {
   clientFlaggedOpenItems: [] as string[],
 };
 
-function notesFormData(content: string): FormData {
+function notesFormData(content: string, source?: string): FormData {
   const formData = new FormData();
   formData.set("content", content);
+  if (source) formData.set("source", source);
   return formData;
 }
 
 async function newProject(name: string, withPositionDocument = false): Promise<string> {
-  const project = await prisma.project.create({ data: { name, workstreamId } });
+  const project = await prisma.project.create({
+    data: { name, workstreamId, briefRawText: "BRIEF_MARKER: relaunch the loyalty app, budget £100k." },
+  });
   if (withPositionDocument) {
     await prisma.document.create({
       data: {
@@ -111,7 +116,9 @@ describe("saving an update without a title", () => {
     let item = await prisma.knowledgeItem.findFirstOrThrow({ where: { projectId } });
     expect(item.summary).toBeNull();
 
-    mockParse.mockResolvedValueOnce({ parsed_output: { summary: "Budget raised to £120k." } });
+    mockParse.mockResolvedValueOnce({
+      parsed_output: { summary: "Budget raised to £120k.", changeSummary: "Budget increased." },
+    });
     await flushAfterResponse();
 
     item = await prisma.knowledgeItem.findFirstOrThrow({ where: { projectId } });
@@ -170,5 +177,105 @@ describe("saving an update without a title", () => {
 
     const item = await prisma.knowledgeItem.findFirstOrThrow({ where: { projectId } });
     expect(item.title).toBeNull();
+  });
+});
+
+describe("versioned updates", () => {
+  it("treats the brief as v1, and each update takes the next version", async () => {
+    const projectId = await newProject("Versioned Project");
+    mockParse.mockResolvedValueOnce({ parsed_output: keyAttributeFacts() });
+    await uploadKnowledgeItemAction(projectId, undefined, notesFormData("First update."));
+    mockParse.mockResolvedValueOnce({ parsed_output: keyAttributeFacts() });
+    await uploadKnowledgeItemAction(projectId, undefined, notesFormData("Second update."));
+
+    const history = await getVersionHistory(projectId);
+    expect(history.map((v) => v.versionNumber)).toEqual([1, 2, 3]);
+    expect(history[0].label).toBe("Initial brief");
+    expect(history.slice(1).map((v) => v.content)).toEqual(["First update.", "Second update."]);
+  });
+
+  it("stores and shows the source — Client by default, or Internal team", async () => {
+    const projectId = await newProject("Sourced Project");
+    mockParse.mockResolvedValueOnce({ parsed_output: keyAttributeFacts() });
+    await uploadKnowledgeItemAction(projectId, undefined, notesFormData("From the client."));
+    mockParse.mockResolvedValueOnce({ parsed_output: keyAttributeFacts() });
+    await uploadKnowledgeItemAction(
+      projectId,
+      undefined,
+      notesFormData("From our team.", "INTERNAL_TEAM")
+    );
+
+    const history = await getVersionHistory(projectId);
+    expect(history.slice(1).map((v) => [v.versionNumber, v.source])).toEqual([
+      [2, "CLIENT"],
+      [3, "INTERNAL_TEAM"],
+    ]);
+  });
+
+  it("rejects an unknown source without saving anything", async () => {
+    const projectId = await newProject("Bad Source Project");
+    const result = await uploadKnowledgeItemAction(
+      projectId,
+      undefined,
+      notesFormData("Hello.", "SOMEONE_ELSE")
+    );
+    expect(result?.message).toMatch(/client or the internal team/i);
+    expect(await prisma.knowledgeItem.count({ where: { projectId } })).toBe(0);
+    expect(mockParse).not.toHaveBeenCalled();
+  });
+
+  it("never changes an earlier version when a new one is added", async () => {
+    const projectId = await newProject("Earlier Versions Project");
+    mockParse.mockResolvedValueOnce({ parsed_output: keyAttributeFacts() });
+    await uploadKnowledgeItemAction(projectId, undefined, notesFormData("Original v2."));
+    const before = await prisma.knowledgeItem.findFirstOrThrow({ where: { projectId } });
+
+    mockParse.mockResolvedValueOnce({ parsed_output: keyAttributeFacts() });
+    await uploadKnowledgeItemAction(projectId, undefined, notesFormData("A correction, as v3."));
+
+    const after = await prisma.knowledgeItem.findUniqueOrThrow({ where: { id: before.id } });
+    expect(after).toEqual(before);
+  });
+
+  it("tags key details read from an update with its version number and source", async () => {
+    const projectId = await newProject("Key Detail Version Project");
+    mockParse.mockResolvedValueOnce({
+      parsed_output: keyAttributeFacts({ budget: { amount: "£90k", evidence: "Budget is £90k." } }),
+    });
+    await uploadKnowledgeItemAction(projectId, undefined, notesFormData("Budget is £90k."));
+    mockParse.mockResolvedValueOnce({
+      parsed_output: keyAttributeFacts({ clientContact: { name: "Caroline", evidence: "Caroline runs it." } }),
+    });
+    await uploadKnowledgeItemAction(
+      projectId,
+      undefined,
+      notesFormData("Caroline runs it.", "INTERNAL_TEAM")
+    );
+
+    const completeness = await getBriefCompleteness(projectId);
+    const origin = (id: string) => completeness.attributes.find((a) => a.id === id)?.current?.origin;
+    expect(origin("budget")).toEqual({ kind: "update", number: 2, internalTeam: false });
+    expect(origin("clientContact")).toEqual({ kind: "update", number: 3, internalTeam: true });
+  });
+
+  it("summarises what changed against everything known before this version, after the save", async () => {
+    const projectId = await newProject("Change Summary Project");
+    mockParse.mockResolvedValueOnce({ parsed_output: keyAttributeFacts() });
+    await uploadKnowledgeItemAction(projectId, undefined, notesFormData("EARLIER_UPDATE_MARKER"));
+    afterResponseQueue().length = 0; // skip v2's own summary
+
+    mockParse.mockResolvedValueOnce({ parsed_output: keyAttributeFacts() });
+    await uploadKnowledgeItemAction(projectId, undefined, notesFormData("Budget now £150k."));
+    mockParse.mockResolvedValueOnce({
+      parsed_output: { summary: "Budget up to £150k.", changeSummary: "Budget increased." },
+    });
+    await flushAfterResponse();
+
+    const prompt = mockParse.mock.calls.at(-1)![0].messages[0].content as string;
+    expect(prompt).toContain("BRIEF_MARKER");
+    expect(prompt).toContain("EARLIER_UPDATE_MARKER");
+    expect(prompt).toContain("Budget now £150k.");
+    const latest = (await getVersionHistory(projectId)).at(-1)!;
+    expect(latest).toMatchObject({ versionNumber: 3, summary: "Budget up to £150k.", changeSummary: "Budget increased." });
   });
 });

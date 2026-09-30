@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { clarificationQuestionsFrom, completenessFromExtraction } from "@/lib/clarificationQuestions";
 import { briefCompleteness, briefRecord, ALL_REQUIRED_CONFIRMED } from "../fixtures/briefCompleteness";
+import { evaluateBriefCompleteness } from "@/lib/briefCompleteness";
 
 describe("clarificationQuestionsFrom", () => {
   it("asks each missing required detail's own question, in config order", () => {
@@ -43,6 +44,34 @@ describe("clarificationQuestionsFrom", () => {
     ]);
     expect(toAsk).toEqual(["Client Contact — still need: Email"]);
     expect([...toAsk, ...toConfirm].join(" ")).not.toContain("PM_ONLY_KPI");
+  });
+});
+
+describe("clarificationQuestionsFrom — internal-team updates", () => {
+  it("never asks the client to confirm what our own team told us, but doesn't ask for it either", () => {
+    const internal = briefRecord(
+      "budget",
+      { amount: "INTERNAL_BUDGET" },
+      { kind: "SUGGESTION", source: "UPDATE", knowledgeItemId: "ki_internal" }
+    );
+    const fromClient = briefRecord(
+      "clientContact",
+      { name: "Caroline", email: "caroline@fizzy.example" },
+      { kind: "SUGGESTION", source: "UPDATE", knowledgeItemId: "ki_client" }
+    );
+    const completeness = evaluateBriefCompleteness(
+      [...ALL_REQUIRED_CONFIRMED.filter((r) => r.attributeId !== "budget" && r.attributeId !== "clientContact"), internal, fromClient],
+      { currentStageNumber: 3 },
+      new Map([
+        ["ki_internal", { number: 3, internalTeam: true }],
+        ["ki_client", { number: 2, internalTeam: false }],
+      ])
+    );
+
+    const { toAsk, toConfirm } = clarificationQuestionsFrom(completeness);
+    expect(toConfirm).toEqual(["Client Contact — we understood: Name: Caroline · Email: caroline@fizzy.example"]);
+    expect(toAsk).toEqual([]);
+    expect([...toAsk, ...toConfirm].join(" ")).not.toContain("INTERNAL_BUDGET");
   });
 });
 

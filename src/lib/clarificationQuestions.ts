@@ -10,8 +10,8 @@ import type { KeyAttributeExtraction } from "@/services/agents/key-attribute-ext
  * What the clarification email asks about — the same fixed set of required
  * key details as the "What We Need to Find Out" checklist, never free-form
  * AI questions. Optional details never make it into the email (they never
- * count against readiness), and the PM's own suggestions are internal, so
- * they're never quoted back to the client.
+ * count against readiness), and the PM's own edits and internal-team
+ * updates are internal, so they're never quoted back to the client.
  */
 export interface ClarificationQuestions {
   /** Required details nobody has given us yet (or only in part). */
@@ -31,8 +31,10 @@ export function clarificationQuestionsFrom(completeness: BriefCompleteness): Cla
       continue;
     }
     // What we read from the client's own brief or updates goes back to them
-    // to check; a PM's own edit doesn't.
-    if (current.origin.kind !== "pm") {
+    // to check; a PM's own edit, or what our internal team told us, doesn't.
+    const fromClient =
+      current.origin.kind === "brief" || (current.origin.kind === "update" && !current.origin.internalTeam);
+    if (fromClient) {
       const understood = describeValues(attribute.id, current.values);
       if (understood) toConfirm.push(`${attribute.label} — we understood: ${understood}`);
     }
