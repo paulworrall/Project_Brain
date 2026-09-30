@@ -484,3 +484,4 @@
   - Measured on a test project: checklist 932 → 490px, capabilities 907 → 325px, current position 408 → 260px, PM perspective 330 → 250px.
 - **Tests**: 517 across 74 files passing; typecheck and lint clean. The live key-detail extraction smoke check passed. Checked in the browser (desktop and mobile, no overflow, inline Update/Cancel) without saving anything.
 - **Known**: values accepted in the old "Review and confirm" flow from an update have no knowledge item link, so they show "From an update" without a number.
+- **Deployed (2026-09-30)**: committed `3908199`, pushed, Vercel deployment completed.
