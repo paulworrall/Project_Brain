@@ -195,7 +195,7 @@ describe("PM perspective at intake", () => {
 
     expect(await prisma.briefAttributeValue.count({ where: { projectId: project.id } })).toBe(0);
     const completeness = await getBriefCompleteness(project.id);
-    expect(completeness.attributes.every((a) => a.pmSuggestion === null)).toBe(true);
+    expect(completeness.attributes.every((a) => a.current === null)).toBe(true);
   });
 });
 

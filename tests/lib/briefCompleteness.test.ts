@@ -231,38 +231,23 @@ describe("evaluateBriefCompleteness — existing projects past Phase 1", () => {
   });
 });
 
-describe("evaluateBriefCompleteness — suggestions from the PM perspective", () => {
-  it("keeps a PM-perspective suggestion apart from the current value, and never counts it", () => {
-    const clientSuggestion = record(
+describe("evaluateBriefCompleteness — leftover PM perspective suggestions", () => {
+  it("ignores an old PM-perspective suggestion row, even when it's the newest", () => {
+    const fromBrief = record(
       "objective",
       { objective: "Relaunch the app", successMeasures: "Client KPI: 10k downloads" },
       { kind: "SUGGESTION", source: "BRIEF" }
     );
-    const pmSuggestion = record(
+    const leftover = record(
       "objective",
       { objective: null, successMeasures: "PM view: 20% more monthly actives" },
       { kind: "SUGGESTION", source: "PM_ENTRY" }
     );
 
-    const objective = statusOf(evaluateBriefCompleteness([clientSuggestion, pmSuggestion], IN_PHASE_1), "objective");
+    const objective = statusOf(evaluateBriefCompleteness([fromBrief, leftover], IN_PHASE_1), "objective");
 
     expect(objective.status).toBe("confirmed");
-    // The newer PM suggestion doesn't replace what the client said.
     expect(objective.current?.source).toBe("BRIEF");
     expect(objective.current?.values.successMeasures).toBe("Client KPI: 10k downloads");
-    expect(objective.pmSuggestion?.source).toBe("PM_ENTRY");
-    expect(objective.pmSuggestion?.values.successMeasures).toBe("PM view: 20% more monthly actives");
-  });
-
-  it("drops a PM suggestion once the PM confirms after it", () => {
-    const pmSuggestion = record(
-      "objective",
-      { successMeasures: "PM view" },
-      { kind: "SUGGESTION", source: "PM_ENTRY" }
-    );
-    const confirmed = record("objective", { objective: "Relaunch", successMeasures: "PM view" });
-    const objective = statusOf(evaluateBriefCompleteness([pmSuggestion, confirmed], IN_PHASE_1), "objective");
-    expect(objective.pmSuggestion).toBeNull();
-    expect(objective.status).toBe("confirmed");
   });
 });

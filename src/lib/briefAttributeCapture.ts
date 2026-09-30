@@ -2,7 +2,6 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import type { BriefAttributeSource } from "@/generated/prisma/enums";
 import {
-  BRIEF_ATTRIBUTES,
   getBriefAttribute,
   isSubFieldFilled,
   type BriefAttributeDefinition,
@@ -13,7 +12,6 @@ import {
   mergeAttributeValues,
   normalizeAttributeValues,
 } from "@/lib/briefAttributeValues";
-import type { PmPerspectiveValues } from "@/lib/pmPerspective";
 import { getBriefCompleteness } from "@/lib/briefCompleteness";
 import type { KeyAttributeExtraction } from "@/services/agents/key-attribute-extraction";
 
@@ -116,55 +114,5 @@ export async function saveCapturedKeyAttributes(
       await tx.project.update({ where: { id: projectId }, data: dateColumns });
     }
   });
-  return rows.length;
-}
-
-/**
- * Offers PM perspective content as SUGGESTIONS, source PM_ENTRY, for the
- * sub-fields that accept it (pmPerspectiveFieldId in
- * src/lib/briefAttributes.ts — currently no sub-field is linked, since
- * Early KPIs was removed from the PM perspective). Each suggestion keeps the
- * attribute's other current sub-fields. These never count as captured.
- * Skips values already current or already offered.
- */
-export async function savePmPerspectiveSuggestions(
-  projectId: string,
-  pmPerspective: PmPerspectiveValues,
-  userId: string | null
-): Promise<number> {
-  const completeness = await getBriefCompleteness(projectId);
-  const rows: Prisma.BriefAttributeValueCreateManyInput[] = [];
-
-  for (const attribute of BRIEF_ATTRIBUTES) {
-    const linked = attribute.subFields.filter((f) => f.pmPerspectiveFieldId);
-    const incoming = Object.fromEntries(
-      linked.flatMap((f) => {
-        const content = (pmPerspective[f.pmPerspectiveFieldId!] ?? "").trim();
-        return content ? [[f.id, content]] : [];
-      })
-    );
-    if (Object.keys(incoming).length === 0) continue;
-
-    const current = completeness.attributes.find((a) => a.id === attribute.id);
-    const currentValues = current?.current?.values ?? null;
-    const values = normalizeAttributeValues(attribute, { ...(currentValues ?? {}), ...incoming });
-    const alreadyKnown =
-      (currentValues && attributeValuesEqual(values, currentValues)) ||
-      (current?.pmSuggestion && attributeValuesEqual(values, current.pmSuggestion.values));
-    if (alreadyKnown) continue;
-
-    rows.push({
-      projectId,
-      attributeId: attribute.id,
-      kind: "SUGGESTION",
-      source: "PM_ENTRY",
-      values: values as Prisma.InputJsonValue,
-      createdById: userId,
-    });
-  }
-
-  if (rows.length > 0) {
-    await prisma.briefAttributeValue.createMany({ data: rows });
-  }
   return rows.length;
 }

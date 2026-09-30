@@ -4,15 +4,6 @@ import {
   type PmPerspectiveFieldDefinition,
   type PmPerspectiveValues,
 } from "@/lib/pmPerspective";
-import { savePmPerspectiveSuggestions } from "@/lib/briefAttributeCapture";
-import { BRIEF_ATTRIBUTES } from "@/lib/briefAttributes";
-
-/** PM perspective fields that feed a key attribute (see pmPerspectiveFieldId). */
-const PM_LINKED_FIELD_IDS = new Set(
-  BRIEF_ATTRIBUTES.flatMap((a) =>
-    a.subFields.flatMap((f) => (f.pmPerspectiveFieldId ? [f.pmPerspectiveFieldId] : []))
-  )
-);
 
 export interface PmPerspectiveFieldView extends PmPerspectiveFieldDefinition {
   /** "" when the PM hasn't written anything for this field. */
@@ -51,9 +42,8 @@ export async function getPmPerspectiveValues(projectId: string): Promise<PmPersp
  * Saves the given fields, touching only those whose content actually
  * changed — so each field's updatedAt/updatedBy reflect its own last real
  * edit. A field that was never filled in and is still blank gets no row;
- * clearing a filled field is recorded as an edit. Afterwards, re-offers any
- * PM perspective content linked to a key attribute (pmPerspectiveFieldId —
- * none at present) as a PM_ENTRY suggestion. Returns the ids of the fields that changed.
+ * clearing a filled field is recorded as an edit. The PM perspective never
+ * feeds a key detail. Returns the ids of the fields that changed.
  */
 export async function savePmPerspective(
   projectId: string,
@@ -75,12 +65,6 @@ export async function savePmPerspective(
       update: { content, updatedById: userId },
     });
     changed.push(field.id);
-  }
-
-  // Only when a field linked to a key attribute changed — editing Context
-  // mustn't re-offer KPIs the PM already decided against.
-  if (changed.some((fieldId) => PM_LINKED_FIELD_IDS.has(fieldId))) {
-    await savePmPerspectiveSuggestions(projectId, await getPmPerspectiveValues(projectId), userId);
   }
   return changed;
 }

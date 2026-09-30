@@ -57,12 +57,6 @@ export interface BriefAttributeCompleteness {
    * approval step. Status is based on it.
    */
   current: BriefAttributeEntry | null;
-  /**
-   * A suggestion from the PM's own perspective (source PM_ENTRY — only
-   * possible for a sub-field linked via pmPerspectiveFieldId; currently
-   * none is). Kept apart and never counted, so it can't pass as the client's.
-   */
-  pmSuggestion: BriefAttributeEntry | null;
   /** Required sub-fields not filled in the current value. */
   missingSubFields: { id: string; label: string }[];
 }
@@ -113,8 +107,7 @@ function originOf(
 /**
  * The pure core of getBriefCompleteness — exported for tests. The latest
  * row wins, whoever wrote it: a value the agent captured counts straight
- * away, and a PM edit replaces it until newer information arrives. PM
- * perspective suggestions are the one exception — never counted.
+ * away, and a PM edit replaces it until newer information arrives.
  * `updateNumbers` maps a knowledge item id to its update number (vN).
  */
 export function evaluateBriefCompleteness(
@@ -128,10 +121,9 @@ export function evaluateBriefCompleteness(
 ): BriefCompleteness {
   const attributes = BRIEF_ATTRIBUTES.map((definition): BriefAttributeCompleteness => {
     const own = records.filter((r) => r.attributeId === definition.id);
-    const isPmPerspectiveSuggestion = (r: BriefAttributeValueRecord) =>
-      r.kind === "SUGGESTION" && r.source === "PM_ENTRY";
-    const latest = newest(own.filter((r) => !isPmPerspectiveSuggestion(r)));
-    const latestPmSuggestion = newest(own.filter(isPmPerspectiveSuggestion));
+    // SUGGESTION + PM_ENTRY rows came from the retired PM perspective link
+    // (Early KPIs). Any left over are ignored, so they never count.
+    const latest = newest(own.filter((r) => !(r.kind === "SUGGESTION" && r.source === "PM_ENTRY")));
 
     const entry = (record: BriefAttributeValueRecord): BriefAttributeEntry => ({
       id: record.id,
@@ -143,10 +135,6 @@ export function evaluateBriefCompleteness(
       createdByName: record.createdByName,
     });
     const current = latest ? entry(latest) : null;
-    const pmSuggestion =
-      latestPmSuggestion && (!latest || latestPmSuggestion.createdAt > latest.createdAt)
-        ? entry(latestPmSuggestion)
-        : null;
 
     // confirmed = every required sub-field filled; partial = something is
     // filled but not every required sub-field (counting optional ones too,
@@ -171,7 +159,6 @@ export function evaluateBriefCompleteness(
       required: definition.required,
       status,
       current,
-      pmSuggestion,
       missingSubFields: requiredSubFields
         .filter((f) => !filled.includes(f))
         .map((f) => ({ id: f.id, label: f.label })),
