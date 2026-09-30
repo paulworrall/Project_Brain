@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
-  generateDraftScopeDocumentAction: vi.fn(),
   updateChecklistItemDetailAction: vi.fn(),
   toggleChecklistItemAction: vi.fn(),
   suggestCapabilitiesAction: vi.fn(),
@@ -36,8 +35,6 @@ function baseProps() {
     positionDocument,
     clientUpdates: [],
     clarificationEmail,
-    draftScopeDocument: null,
-    draftScopeDocumentMeta: null,
     checklistItems: [],
     briefCompleteness: briefCompleteness(),
     pmPerspective: pmPerspectiveView(),
@@ -76,14 +73,25 @@ describe("Phase1Workspace", () => {
     expect(screen.queryByLabelText("Add a client update")).not.toBeInTheDocument();
   });
 
-  it("shows the Clarification Email and Draft Scope Document cards side by side", () => {
+  it("shows the Clarification Email, and no Draft Scope Document section", () => {
     render(<Phase1Workspace {...baseProps()} />);
 
     expect(screen.getByText("Clarification email")).toBeInTheDocument();
-    expect(screen.getByText("Draft scope document")).toBeInTheDocument();
     expect(screen.getByText("Quick questions")).toBeInTheDocument();
-    // No Draft Scope Document generated yet in this fixture.
-    expect(screen.getByText("Not yet generated.")).toBeInTheDocument();
+    expect(screen.queryByText(/draft scope document/i)).not.toBeInTheDocument();
+  });
+
+  it("places Other details from the brief and Client-Flagged Open Items side by side, Other details first", () => {
+    render(<Phase1Workspace {...baseProps()} />);
+
+    const other = screen.getByRole("heading", { name: "Other details from the brief" });
+    const flagged = screen.getByRole("heading", { name: "Client-Flagged Open Items" });
+    const row = other.closest(".grid");
+    expect(row).not.toBeNull();
+    expect(row).toContainElement(flagged);
+    expect(row).toHaveClass("md:grid-cols-2");
+    // Document order = left then right in the grid.
+    expect(other.compareDocumentPosition(flagged) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("does not render the checklist — it lives only in the sidebar (ProjectWorkflow), to avoid duplication", () => {

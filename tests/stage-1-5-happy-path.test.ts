@@ -39,7 +39,8 @@ const { keyAttributeFacts } = await import("./fixtures/keyAttributeFacts");
 const { createProjectAction } = await import("@/app/(dashboard)/projects/new/actions");
 const {
   uploadKnowledgeItemAction,
-  generateDraftScopeDocumentAction,
+  updateConfirmedCapabilitiesAction,
+  generateEstimateBriefAction,
   submitSpecialistFeedbackAction,
 } = await import("@/app/(dashboard)/projects/[projectId]/actions");
 
@@ -84,19 +85,16 @@ const positionFieldsV2 = {
   whatWeNeedToFindOut: [] as string[],
 };
 
-const draftScope = {
-  objectives: ["Refresh the loyalty app before the holidays"],
-  deliverables: ["Redesigned app", "Referral feature"],
-  milestones: [{ name: "Kick-off", dueDate: null }],
-  rolesAndResponsibilities: {
-    contacts: [{ name: "Jamie Chen", role: "Client contact", organization: "CLIENT" as const }],
-    capabilities: ["Design", "Engineering"],
+const estimateBrief = {
+  projectOverview: {
+    context: "Refresh the loyalty app before the holidays.",
+    whatIsKnown: ["Budget confirmed at £100k", "Referral feature in scope"],
+    constraints: ["UK market only"],
   },
-  budget: { summary: "Confirmed at £100k", isConfirmed: true },
-  assumptionsAndConstraints: ["UK market only"],
-  flaggedGaps: [] as string[],
+  capabilitySections: [
+    { capability: "TECH_AND_DATA" as const, whatIsExpected: ["Estimate the referral feature build"] },
+  ],
 };
-
 const deliverablesAndServices = {
   deliverables: ["Redesigned app", "Referral feature"],
   services: {
@@ -219,9 +217,15 @@ describe("Stage 1-5 happy path", () => {
       notesFormData("The referral feature is confirmed in scope after all.")
     );
 
-    // Stage 4 — Triage: generate the Draft Scope Document (1 Claude call).
-    mockParse.mockResolvedValueOnce({ parsed_output: draftScope });
-    await generateDraftScopeDocumentAction(project.id, undefined, new FormData());
+    // End of Phase 1: confirm a capability team (no Claude call), then
+    // prepare the Estimate Brief (1 Claude call) — this completes Stages
+    // 3-4 and opens Stage 5.
+    const capabilities = new FormData();
+    capabilities.append("capabilities", "TECH_AND_DATA");
+    await updateConfirmedCapabilitiesAction(project.id, undefined, capabilities);
+    mockParse.mockResolvedValueOnce({ parsed_output: estimateBrief });
+    await generateEstimateBriefAction(project.id, undefined, new FormData());
+    expect((await prisma.project.findUniqueOrThrow({ where: { id: project.id } })).currentStageNumber).toBe(5);
 
     // Stage 5 — Specialist Review: Deliverables + Services Document (1 Claude call).
     mockParse.mockResolvedValueOnce({ parsed_output: deliverablesAndServices });
@@ -233,6 +237,9 @@ describe("Stage 1-5 happy path", () => {
 
     // Final state: all 10 Claude calls consumed in order, nothing left over.
     expect(mockParse).toHaveBeenCalledTimes(10);
+    // Specialist review read the Estimate Brief.
+    const reviewPrompt = mockParse.mock.calls[9][0].messages[0].content as string;
+    expect(reviewPrompt).toContain("Estimate the referral feature build");
 
     // The brief's budget was captured as a suggestion only — never confirmed.
     const keyAttributeRows = await prisma.briefAttributeValue.findMany({ where: { projectId: project.id } });
@@ -269,9 +276,13 @@ describe("Stage 1-5 happy path", () => {
     );
     expect(documentsByType.get("POSITION_DOCUMENT")?.versions[0]?.versionNumber).toBe(2);
     expect(documentsByType.get("CHECKLIST")).toBeDefined();
-    expect(documentsByType.get("DRAFT_SCOPE_DOCUMENT")?.versions[0]?.content).toEqual(
-      draftScope
-    );
+    // The Draft Scope Document has been removed from the flow.
+    expect(documentsByType.has("DRAFT_SCOPE_DOCUMENT")).toBe(false);
+    const estimateBriefRecord = await prisma.estimateBrief.findUniqueOrThrow({
+      where: { projectId: project.id },
+      include: { versions: true },
+    });
+    expect(estimateBriefRecord.versions[0]?.content).toEqual(estimateBrief);
     expect(documentsByType.get("DELIVERABLES_SERVICES_DOCUMENT")?.versions[0]?.content).toEqual(
       deliverablesAndServices
     );

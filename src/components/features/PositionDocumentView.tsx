@@ -62,31 +62,56 @@ export function PositionDocumentView({ fields, showLegacyQuestions = false }: Po
   const legacyQuestions = fields.whatWeNeedToFindOut ?? [];
   return (
     <div className="space-y-4">
-      <Card className="p-5">
-        <h3 className="text-sm font-semibold text-foreground">Other details from the brief</h3>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Everything else captured from the brief and later inputs.
-        </p>
-        {fields.whatWeKnow.length === 0 ? (
-          <p className="mt-2 text-sm text-muted-foreground">Nothing captured yet.</p>
-        ) : (
-          <Disclosure
-            className="mt-2"
-            summary={`${fields.whatWeKnow.length} detail${fields.whatWeKnow.length === 1 ? "" : "s"} captured`}
-          >
-            <dl className="space-y-2">
-              {fields.whatWeKnow.map((item, i) => (
-                <div key={i}>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {item.topic}
-                  </dt>
-                  <dd className="text-sm text-foreground">{item.detail}</dd>
-                </div>
-              ))}
-            </dl>
-          </Disclosure>
-        )}
-      </Card>
+      {/* Side by side from md up, "Other details" on the left; stacked on phones. */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Card className="h-full p-5">
+          <h3 className="text-sm font-semibold text-foreground">Other details from the brief</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Everything else captured from the brief and later inputs.
+          </p>
+          {fields.whatWeKnow.length === 0 ? (
+            <p className="mt-2 text-sm text-muted-foreground">Nothing captured yet.</p>
+          ) : (
+            <Disclosure
+              className="mt-2"
+              summary={`${fields.whatWeKnow.length} detail${fields.whatWeKnow.length === 1 ? "" : "s"} captured`}
+            >
+              <dl className="space-y-2">
+                {fields.whatWeKnow.map((item, i) => (
+                  <div key={i}>
+                    <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {item.topic}
+                    </dt>
+                    <dd className="text-sm text-foreground">{item.detail}</dd>
+                  </div>
+                ))}
+              </dl>
+            </Disclosure>
+          )}
+        </Card>
+
+        <Card className="h-full p-5">
+          <h3 className="text-sm font-semibold text-foreground">Client-Flagged Open Items</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            The client themselves flagged these as still deciding.
+          </p>
+          {fields.clientFlaggedOpenItems.length === 0 ? (
+            <p className="mt-2 text-sm text-muted-foreground">None flagged.</p>
+          ) : (
+            // Summary first, like "Other details" alongside — the full list on demand.
+            <Disclosure
+              className="mt-2"
+              summary={`${fields.clientFlaggedOpenItems.length} item${fields.clientFlaggedOpenItems.length === 1 ? "" : "s"} flagged by the client`}
+            >
+              <ul className="list-inside list-disc space-y-1 text-sm text-foreground">
+                {fields.clientFlaggedOpenItems.map((item, i) => (
+                  <li key={i}>{item}</li>
+                ))}
+              </ul>
+            </Disclosure>
+          )}
+        </Card>
+      </div>
 
       {showLegacyQuestions && legacyQuestions.length > 0 && (
         <Card className="p-5">
@@ -98,28 +123,6 @@ export function PositionDocumentView({ fields, showLegacyQuestions = false }: Po
           <TruncatedList items={legacyQuestions} />
         </Card>
       )}
-
-      <Card className="p-5">
-        <h3 className="text-sm font-semibold text-foreground">Client-Flagged Open Items</h3>
-        <p className="mt-1 text-xs text-muted-foreground">
-          The client themselves flagged these as still deciding.
-        </p>
-        {fields.clientFlaggedOpenItems.length === 0 ? (
-          <p className="mt-2 text-sm text-muted-foreground">None flagged.</p>
-        ) : (
-          // Summary first, like "Other details" above — the full list on demand.
-          <Disclosure
-            className="mt-2"
-            summary={`${fields.clientFlaggedOpenItems.length} item${fields.clientFlaggedOpenItems.length === 1 ? "" : "s"} flagged by the client`}
-          >
-            <ul className="list-inside list-disc space-y-1 text-sm text-foreground">
-              {fields.clientFlaggedOpenItems.map((item, i) => (
-                <li key={i}>{item}</li>
-              ))}
-            </ul>
-          </Disclosure>
-        )}
-      </Card>
     </div>
   );
 }

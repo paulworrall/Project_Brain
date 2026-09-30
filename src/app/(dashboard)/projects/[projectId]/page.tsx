@@ -9,7 +9,6 @@ import {
   ClarificationEmailSchema,
   PositionDocumentFieldsSchema,
 } from "@/types/intake";
-import { DraftScopeDocumentSchema } from "@/types/triage";
 import { DeliverablesServicesDocumentSchema } from "@/types/deliverables-services";
 import { getBriefCompleteness } from "@/lib/briefCompleteness";
 import { getPmPerspective } from "@/lib/pmPerspectiveStore";
@@ -130,16 +129,12 @@ export default async function ProjectDetailPage({
   const positionDocumentContent = documents.find(
     (d) => d.type === "POSITION_DOCUMENT"
   )?.versions[0]?.content;
-  const draftScopeDocumentVersion = documents.find(
-    (d) => d.type === "DRAFT_SCOPE_DOCUMENT"
-  )?.versions[0];
   const deliverablesServicesDocumentContent = documents.find(
     (d) => d.type === "DELIVERABLES_SERVICES_DOCUMENT"
   )?.versions[0]?.content;
 
   const clarificationEmail = ClarificationEmailSchema.safeParse(clarificationEmailContent);
   const positionDocument = PositionDocumentFieldsSchema.safeParse(positionDocumentContent);
-  const draftScopeDocument = DraftScopeDocumentSchema.safeParse(draftScopeDocumentVersion?.content);
   const deliverablesServicesDocument = DeliverablesServicesDocumentSchema.safeParse(
     deliverablesServicesDocumentContent
   );
@@ -247,15 +242,6 @@ export default async function ProjectDetailPage({
           isComplete: item.isComplete,
           detailText: item.detailText,
         }))}
-        draftScopeDocument={draftScopeDocument.success ? draftScopeDocument.data : null}
-        draftScopeDocumentMeta={
-          draftScopeDocument.success && draftScopeDocumentVersion
-            ? {
-                versionNumber: draftScopeDocumentVersion.versionNumber,
-                createdAt: draftScopeDocumentVersion.createdAt,
-              }
-            : null
-        }
         specialistFeedback={specialistFeedback}
         deliverablesServicesDocument={
           deliverablesServicesDocument.success ? deliverablesServicesDocument.data : null

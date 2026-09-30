@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import type { ClarificationEmail, PositionDocumentFields } from "@/types/intake";
-import type { DraftScopeDocument } from "@/types/triage";
 import type { DeliverablesServicesDocument } from "@/types/deliverables-services";
 import type { WorkflowStep } from "@/types/workflow";
 import type { Capability } from "@/generated/prisma/enums";
@@ -14,7 +13,6 @@ import { BriefCompletenessWarning } from "./BriefGateNotice";
 import type { BriefCompleteness } from "@/lib/briefCompleteness";
 import type { PmPerspectiveFieldView } from "@/lib/pmPerspectiveStore";
 import type { ClientUpdateLogEntry } from "./Phase1Workspace";
-import type { DraftScopeDocumentMeta } from "./DraftScopeDocumentCard";
 import { ChatPanel } from "./ChatPanel";
 import { KnowledgeUpload, type KnowledgeItemView } from "./KnowledgeUpload";
 import type { ChecklistItemView } from "./ChecklistView";
@@ -113,8 +111,6 @@ interface ProjectWorkflowProps {
   positionDocument: PositionDocumentFields | null;
   clientUpdates: ClientUpdateLogEntry[];
   checklistItems: ChecklistItemView[];
-  draftScopeDocument: DraftScopeDocument | null;
-  draftScopeDocumentMeta: DraftScopeDocumentMeta | null;
   specialistFeedback: SpecialistFeedbackView | null;
   deliverablesServicesDocument: DeliverablesServicesDocument | null;
   knowledgeItems: KnowledgeItemView[];
@@ -133,21 +129,18 @@ interface ProjectWorkflowProps {
 /**
  * Derives Phase 1's simplified badge status. Phase 1 no longer has 4
  * discrete completable stages — it's "not started" only in the brief moment
- * before Intake has run, "in progress" for as long as the Position Document
- * is still being shaped by client updates, and flips to "ready for
- * specialist review" once a Draft Scope Document has been generated at
- * least once. This is a status flag only; the real Phase 1 -> Phase 2
- * handoff gets designed when Phase 2 is reviewed next.
+ * before Intake has run, "in progress" for as long as the brief is still
+ * being shaped by client updates, and flips to "ready for specialist
+ * review" once Phase 1 has been completed (Stage 4 COMPLETE — set when the
+ * first Estimate Brief is prepared; older projects got there by generating
+ * the since-removed Draft Scope Document).
  */
-function derivePhase1Status(
-  stages: WorkflowStep[],
-  draftScopeDocument: DraftScopeDocument | null
-): Phase1Status {
-  const intakeComplete = stages.find((s) => s.stageNumber === 1)?.status === "COMPLETE";
-  if (!intakeComplete) {
+function derivePhase1Status(stages: WorkflowStep[]): Phase1Status {
+  const statusOf = (n: number) => stages.find((s) => s.stageNumber === n)?.status;
+  if (statusOf(1) !== "COMPLETE") {
     return "NOT_STARTED";
   }
-  if (draftScopeDocument) {
+  if (statusOf(4) === "COMPLETE") {
     return "READY_FOR_SPECIALIST_REVIEW";
   }
   return "IN_PROGRESS";
@@ -161,8 +154,6 @@ export function ProjectWorkflow({
   positionDocument,
   clientUpdates,
   checklistItems,
-  draftScopeDocument,
-  draftScopeDocumentMeta,
   specialistFeedback,
   deliverablesServicesDocument,
   knowledgeItems,
@@ -213,8 +204,6 @@ export function ProjectWorkflow({
       positionDocument={positionDocument}
       clientUpdates={clientUpdates}
       clarificationEmail={clarificationEmail}
-      draftScopeDocument={draftScopeDocument}
-      draftScopeDocumentMeta={draftScopeDocumentMeta}
       checklistItems={checklistItems}
       briefCompleteness={briefCompleteness}
       pmPerspective={pmPerspective}
@@ -238,7 +227,7 @@ export function ProjectWorkflow({
       <BriefCompletenessWarning completeness={briefCompleteness} />
       <StageTracker
         steps={steps}
-        phase1Status={derivePhase1Status(stages, draftScopeDocument)}
+        phase1Status={derivePhase1Status(stages)}
         phase1Content={phase1Content}
         headerExtraByPhaseKey={headerExtraByPhaseKey}
       />

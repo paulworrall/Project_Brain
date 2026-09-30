@@ -4,7 +4,6 @@ import { render, screen, within } from "@testing-library/react";
 import type { Capability } from "@/generated/prisma/enums";
 
 vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
-  generateDraftScopeDocumentAction: vi.fn(),
   updateChecklistItemDetailAction: vi.fn(),
   submitSpecialistFeedbackAction: vi.fn(),
   updateOtherServiceLabelAction: vi.fn(),
@@ -58,19 +57,6 @@ const positionDocument = {
 
 const clarificationEmail = { subject: "Quick questions", bodyText: "Hi Jamie," };
 
-const draftScope = {
-  objectives: ["Refresh the campaign"],
-  deliverables: ["Creative assets"],
-  milestones: [{ name: "Kick-off", dueDate: null }],
-  rolesAndResponsibilities: {
-    contacts: [{ name: "Jamie Chen", role: "Client contact", organization: "CLIENT" as const }],
-    capabilities: ["Creative"],
-  },
-  budget: { summary: "Not yet confirmed", isConfirmed: false },
-  assumptionsAndConstraints: ["Assumed UK market only"],
-  flaggedGaps: ["Target audience still unknown"],
-};
-
 const deliverablesServices = {
   deliverables: ["Creative concept territories"],
   services: {
@@ -123,8 +109,6 @@ function baseProps() {
       isComplete: boolean;
       detailText: string | null;
     }[],
-    draftScopeDocument: null as typeof draftScope | null,
-    draftScopeDocumentMeta: null as { versionNumber: number; createdAt: Date } | null,
     specialistFeedback: null as {
       content: string;
       capability: Capability | null;
@@ -212,24 +196,21 @@ describe("ProjectWorkflow", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows a compact Draft Scope Document summary — not the full content — once it has been generated", () => {
-    render(
-      <ProjectWorkflow
-        {...baseProps()}
-        draftScopeDocument={draftScope}
-        draftScopeDocumentMeta={{ versionNumber: 1, createdAt: new Date("2026-08-01T10:00:00Z") }}
-      />
-    );
+  it("has no Draft Scope Document section in Phase 1", () => {
+    render(<ProjectWorkflow {...baseProps()} stages={stagesUpTo(3, "IN_PROGRESS")} />);
+    expect(screen.queryByText(/draft scope document/i)).not.toBeInTheDocument();
+  });
 
-    expect(screen.getByText(/1 gap flagged/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Regenerate" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /View full draft/ })).toHaveAttribute(
-      "href",
-      "/projects/proj_1/outputs/DRAFT_SCOPE_DOCUMENT"
+  it("shows Phase 1 as in progress until Stage 4 is complete, then ready for specialist review", () => {
+    const { unmount } = render(
+      <ProjectWorkflow {...baseProps()} stages={stagesUpTo(3, "IN_PROGRESS")} />
     );
-    // Full inline content (including the gaps warning) no longer renders here.
-    expect(screen.queryByText("⚠ Gaps Carried Forward for Specialists")).not.toBeInTheDocument();
-    expect(screen.queryByText("Target audience still unknown")).not.toBeInTheDocument();
+    expect(screen.getByText("In progress")).toBeInTheDocument();
+    expect(screen.queryByText("Ready for specialist review")).not.toBeInTheDocument();
+    unmount();
+
+    render(<ProjectWorkflow {...baseProps()} stages={stagesUpTo(5, "IN_PROGRESS")} />);
+    expect(screen.getByText("Ready for specialist review")).toBeInTheDocument();
   });
 
   it("shows the specialist feedback form on Step 5 when no feedback has been submitted yet", () => {
@@ -329,13 +310,8 @@ describe("ProjectWorkflow", () => {
   });
 
   it("keeps the Brief Readiness strip visible in the header even after Phase 1 collapses", () => {
-    render(
-      <ProjectWorkflow
-        {...baseProps()}
-        draftScopeDocument={draftScope}
-        draftScopeDocumentMeta={{ versionNumber: 1, createdAt: new Date("2026-08-01T10:00:00Z") }}
-      />
-    );
+    // Stages 1-4 complete: Phase 1 is done, so it collapses.
+    render(<ProjectWorkflow {...baseProps()} stages={stagesUpTo(5, "IN_PROGRESS")} />);
 
     const clarifyingDetails = screen.getByText("Clarifying the brief and scope").closest("details");
     expect(clarifyingDetails?.open).toBe(false);

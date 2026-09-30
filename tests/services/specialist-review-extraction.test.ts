@@ -18,19 +18,19 @@ const { extractDeliverablesAndServices, SpecialistReviewExtractionError } = awai
 
 const mockParse = anthropic.messages.parse as ReturnType<typeof vi.fn>;
 
-const draftScopeDocument = {
-  objectives: ["Refresh the campaign"],
-  deliverables: ["Creative assets"],
-  milestones: [{ name: "Kick-off", dueDate: null }],
-  rolesAndResponsibilities: {
-    contacts: [{ name: "Jamie Chen", role: "Client contact", organization: "CLIENT" as const }],
-    capabilities: ["Creative"],
+const reviewInput = {
+  estimateBrief: {
+    projectOverview: {
+      context: "ESTIMATE_BRIEF_MARKER: a campaign refresh.",
+      whatIsKnown: ["Budget confirmed at £250k"],
+      constraints: ["UK market only"],
+    },
+    capabilitySections: [
+      { capability: "EXPERIENCE_DESIGN" as const, whatIsExpected: ["Estimate the concept work"] },
+    ],
   },
-  budget: { summary: "Confirmed at £250k", isConfirmed: true },
-  assumptionsAndConstraints: ["UK market only"],
-  flaggedGaps: ["No production lead named"],
+  outstandingGaps: ["Client Contact: not captured yet", "No production lead named"],
 };
-
 const deliverablesAndServices = {
   deliverables: ["Creative concept territories"],
   services: {
@@ -53,7 +53,7 @@ describe("extractDeliverablesAndServices", () => {
   it("returns the parsed Deliverables + Services Document, with all six service rows present", async () => {
     mockParse.mockResolvedValueOnce({ parsed_output: deliverablesAndServices });
 
-    const result = await extractDeliverablesAndServices(draftScopeDocument, "Feedback here");
+    const result = await extractDeliverablesAndServices(reviewInput, "Feedback here");
 
     expect(result).toEqual(deliverablesAndServices);
     expect(result.services.architecture.involvement).toBe("Not required.");
@@ -63,11 +63,24 @@ describe("extractDeliverablesAndServices", () => {
     expect(callArgs.output_config.format.type).toBe("json_schema");
   });
 
+  it("reviews the Estimate Brief and carries the outstanding gaps into the prompt — no Draft Scope Document", async () => {
+    mockParse.mockResolvedValueOnce({ parsed_output: deliverablesAndServices });
+
+    await extractDeliverablesAndServices(reviewInput, "Feedback here");
+
+    const prompt = mockParse.mock.calls[0][0].messages[0].content as string;
+    expect(prompt).toContain("<estimate_brief>");
+    expect(prompt).toContain("ESTIMATE_BRIEF_MARKER");
+    expect(prompt).toContain("- Client Contact: not captured yet");
+    expect(prompt).toContain("- No production lead named");
+    expect(prompt).not.toMatch(/draft scope/i);
+  });
+
   it("throws a friendly error when Claude returns no parsed output", async () => {
     mockParse.mockResolvedValueOnce({ parsed_output: null });
 
     await expect(
-      extractDeliverablesAndServices(draftScopeDocument, "Feedback here")
+      extractDeliverablesAndServices(reviewInput, "Feedback here")
     ).rejects.toThrow(SpecialistReviewExtractionError);
   });
 
@@ -75,7 +88,7 @@ describe("extractDeliverablesAndServices", () => {
     mockParse.mockRejectedValueOnce(new Error("network exploded"));
 
     await expect(
-      extractDeliverablesAndServices(draftScopeDocument, "Feedback here")
+      extractDeliverablesAndServices(reviewInput, "Feedback here")
     ).rejects.toThrow(SpecialistReviewExtractionError);
   });
 });

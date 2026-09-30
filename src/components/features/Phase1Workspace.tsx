@@ -1,9 +1,7 @@
 import type { ClarificationEmail, PositionDocumentFields } from "@/types/intake";
-import type { DraftScopeDocument } from "@/types/triage";
 import type { Capability } from "@/generated/prisma/enums";
 import { PositionDocumentView } from "./PositionDocumentView";
 import { ClarificationEmailCard } from "./ClarificationEmailCard";
-import { DraftScopeDocumentCard, type DraftScopeDocumentMeta } from "./DraftScopeDocumentCard";
 import {
   CapabilitiesAndEstimateBriefPanel,
   type EstimateBriefVersionMeta,
@@ -43,8 +41,6 @@ export interface Phase1WorkspaceProps {
   positionDocument: PositionDocumentFields | null;
   clientUpdates: ClientUpdateLogEntry[];
   clarificationEmail: ClarificationEmail | null;
-  draftScopeDocument: DraftScopeDocument | null;
-  draftScopeDocumentMeta: DraftScopeDocumentMeta | null;
   checklistItems: ChecklistItemView[];
   briefCompleteness: BriefCompleteness;
   pmPerspective: PmPerspectiveFieldView[];
@@ -57,8 +53,6 @@ export function Phase1Workspace({
   positionDocument,
   clientUpdates,
   clarificationEmail,
-  draftScopeDocument,
-  draftScopeDocumentMeta,
   checklistItems,
   briefCompleteness,
   pmPerspective,
@@ -101,14 +95,7 @@ export function Phase1Workspace({
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <ClarificationEmailCard projectId={projectId} email={clarificationEmail} />
-        <DraftScopeDocumentCard
-          projectId={projectId}
-          draftScopeDocument={draftScopeDocument}
-          meta={draftScopeDocumentMeta}
-        />
-      </div>
+      <ClarificationEmailCard projectId={projectId} email={clarificationEmail} />
 
       <CapabilitiesAndEstimateBriefPanel
         projectId={projectId}

@@ -27,7 +27,7 @@ function formatDate(date: Date): string {
  * against elsewhere — the isolation guarantee holds by construction.
  */
 export async function assembleSowContext(projectId: string): Promise<SowContext> {
-  const [project, positionDocument, draftScopeDocument, deliverablesServicesDocument, confirmedCapabilities, latestEstimateVersion, briefCompleteness] =
+  const [project, positionDocument, deliverablesServicesDocument, confirmedCapabilities, latestEstimateVersion, briefCompleteness] =
     await Promise.all([
       prisma.project.findUniqueOrThrow({
         where: { id: projectId },
@@ -42,10 +42,6 @@ export async function assembleSowContext(projectId: string): Promise<SowContext>
       }),
       prisma.document.findUnique({
         where: { projectId_type: { projectId, type: "POSITION_DOCUMENT" } },
-        include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
-      }),
-      prisma.document.findUnique({
-        where: { projectId_type: { projectId, type: "DRAFT_SCOPE_DOCUMENT" } },
         include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
       }),
       prisma.document.findUnique({
@@ -81,11 +77,6 @@ export async function assembleSowContext(projectId: string): Promise<SowContext>
   const positionContent = positionDocument?.versions[0]?.content;
   if (positionContent) {
     sections.push(`## Position Document\n${JSON.stringify(positionContent)}`);
-  }
-
-  const draftScopeContent = draftScopeDocument?.versions[0]?.content;
-  if (draftScopeContent) {
-    sections.push(`## Draft Scope Document\n${JSON.stringify(draftScopeContent)}`);
   }
 
   const deliverablesServicesContent = deliverablesServicesDocument?.versions[0]?.content;

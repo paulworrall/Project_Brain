@@ -47,7 +47,7 @@ function sameCapabilitySet(a: Capability[], b: Capability[]): boolean {
  * End-of-Phase-1 panel: which MAP capability teams to approach for
  * estimates, plus generating a downloadable brief for them. Additive —
  * never gates Stage 2. Mirrors the generate -> review -> Regenerate ->
- * download pattern from ClarificationEmailCard/DraftScopeDocumentCard for
+ * download pattern from ClarificationEmailCard for
  * the brief, and reuses ProcessingOverlay for the (optional) AI suggestion
  * call, same as NewProjectForm's intake flow.
  */

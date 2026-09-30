@@ -6,7 +6,7 @@
 
 Project Brain is an internal platform built for the Client Engagement and Delivery teams at a creative/marketing agency. It replaces ad hoc documents, emails, and inconsistent manual processes with a structured, staged workflow for scoping new client projects.
 
-A client brief — in whatever format it arrives (deck, Word doc, PDF, email, call transcript) — kicks off a Project. From there, Claude-powered agents generate the documents each stage needs: a clarification email, a position document, a draft scope, a specialist deliverables breakdown — while every client- and specialist-facing conversation stays firmly in human hands, drafted for review rather than sent automatically.
+A client brief — in whatever format it arrives (deck, Word doc, PDF, email, call transcript) — kicks off a Project. From there, Claude-powered agents generate the documents each stage needs: a clarification email, a position document, an estimate brief, a specialist deliverables breakdown — while every client- and specialist-facing conversation stays firmly in human hands, drafted for review rather than sent automatically.
 
 This is a real internal pilot, not a demo, currently scoped to Stages 1-5 of a 10-stage pipeline (Intake, Get Clarifications, Triage, Review with Specialist Leads), plus an ad-hoc knowledge base and a project-scoped Q&A chatbot.
 
@@ -16,8 +16,8 @@ This is a real internal pilot, not a demo, currently scoped to Stages 1-5 of a 1
 - **Multi-format brief ingestion**: Upload or paste a brief in whatever format it arrives (Word, PDF, PPTX, plain text)
 - **Intake Agent**: Classifies the brief, extracts what it can, drafts a clarification email, a Project Position Document, and a set-up checklist
 - **Clarification capture**: Paste the client's reply as freeform notes; the platform updates the Position Document, separating genuine gaps from things the client themselves flagged as "still deciding"
-- **Triage Agent**: Produces a Draft Scope Document, proceeding even with open gaps — but flagging them clearly for specialists
-- **Specialist review capture**: Paste specialist feedback; the platform generates a Deliverables + Services breakdown
+- **Estimate Brief**: Prepared at the end of Phase 1 for the chosen capability teams; preparing it opens specialist review
+- **Specialist review capture**: Paste specialist feedback on the Estimate Brief; the platform generates a Deliverables + Services breakdown, carrying forward any gaps still open
 - **Stage Tracker**: See which of the 3 phases (Clarifying the Brief and Scope / Estimation and Team Planning / Statement of Work and Delivery Setup) each project is in, expandable to granular stage detail — plus a separate Delivery Monitoring indicator once a project reaches delivery
 - **Outputs Library & Version History**: Every generated document, kept and versioned at each stage transition
 - **Hub → Client → Workstream → Project taxonomy**
@@ -129,7 +129,7 @@ project-root/
 │   │   ├── features/           # StageTracker, DocumentViewer, Chatbot, etc.
 │   │   └── layout/
 │   ├── services/
-│   │   ├── agents/              # One module per agent (intake, triage, extraction steps, chatbot)
+│   │   ├── agents/              # One module per agent (intake, extraction steps, estimate brief, chatbot)
 │   │   └── parsing/              # docx/pdf/pptx → plain text
 │   ├── lib/                     # Prisma client, auth config, utils
 │   └── types/

@@ -82,7 +82,7 @@ Removed in the key-attributes session: `src/lib/foundationDetails.ts`, `Foundati
 | `src/types/sow.ts`, `src/lib/sow-context.ts`, `src/services/agents/sow-agent.ts`, `src/services/documents/sow-docx.ts` | SOW content, context assembly, drafting, rendering | Generate SOW |
 
 ### Source Files — everything else
-Unchanged recently — see `progress.md`. Auth (`src/lib/{auth,permissions}.ts`, `src/proxy.ts`), taxonomy pages, MSA/Rate Card/SOW Template libraries + `VersionHistory.tsx`, `CapabilitiesAndEstimateBriefPanel.tsx`, and the Stage 1-5 agents in `src/services/agents/{intake-agent,triage-agent,clarification-extraction,specialist-review-extraction,chatbot}.ts`.
+Unchanged recently — see `progress.md`. Auth (`src/lib/{auth,permissions}.ts`, `src/proxy.ts`), taxonomy pages, MSA/Rate Card/SOW Template libraries + `VersionHistory.tsx`, `CapabilitiesAndEstimateBriefPanel.tsx`, and the Stage 1-5 agents in `src/services/agents/{intake-agent,clarification-extraction,specialist-review-extraction,chatbot}.ts (the triage agent / Draft Scope Document was removed 2026-09-30)`.
 
 ### Configuration Files
 | File | Purpose |
@@ -138,11 +138,9 @@ All MVP scope plus Build The Estimate, Generate SOW, brief key attributes and th
 - Key details are now **trusted by default**: the latest information wins, shown with source tags and an inline Update/Add, and Budget is free text.
 - Phase 1 is summary-first.
 
-Tests (517), typecheck and lint are clean.
+Tests (515 across 72 files), typecheck and lint are clean.
 
 Next:
 - SOW-specific rules for which captured values may appear on the SOW (user will define).
 - Surface `extractionFailure` in the checklist.
-- Decide whether to remove the unused PM → key-detail link.
 - Propagate later PM edits to generated documents.
-- Remove the Draft Scope.

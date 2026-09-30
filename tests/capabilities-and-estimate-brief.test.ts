@@ -190,3 +190,93 @@ describe("generateEstimateBriefAction", () => {
     expect(afterSecond.versions[1].capabilities.sort()).toEqual(["EXPERIENCE_DESIGN", "TECH_AND_DATA"]);
   });
 });
+
+describe("generateEstimateBriefAction — completing Phase 1", () => {
+  async function statusByStage(id: string): Promise<Map<number, string>> {
+    const rows = await prisma.projectStageStatus.findMany({
+      where: { projectId: id },
+      include: { stage: true },
+    });
+    return new Map(rows.map((r) => [r.stage.number, r.status]));
+  }
+
+  async function projectWithCapability(name: string, currentStageNumber = 1): Promise<string> {
+    const workstream = await prisma.workstream.findFirstOrThrow({
+      where: { client: { hubId } },
+    });
+    const project = await prisma.project.create({
+      data: { name, workstreamId: workstream.id, currentStageNumber },
+    });
+    await prisma.projectCapability.create({
+      data: { projectId: project.id, capability: "TECH_AND_DATA" },
+    });
+    return project.id;
+  }
+
+  it("completes Phase 1 and opens specialist review — even with no stage rows yet (an older project)", async () => {
+    // The project above started with no ProjectStageStatus rows at all.
+    expect((await prisma.project.findUniqueOrThrow({ where: { id: projectId } })).currentStageNumber).toBe(5);
+    const statuses = await statusByStage(projectId);
+    expect(statuses.get(3)).toBe("COMPLETE");
+    expect(statuses.get(4)).toBe("COMPLETE");
+    expect(statuses.get(5)).toBe("IN_PROGRESS");
+  });
+
+  it("moves a project that already had an Estimate Brief but was still in Phase 1", async () => {
+    const id = await projectWithCapability("Estimate Brief Before Phase Change", 3);
+    await prisma.estimateBrief.create({
+      data: {
+        projectId: id,
+        versions: {
+          create: {
+            versionNumber: 1,
+            fileName: "old.docx",
+            fileBytes: new Uint8Array([80, 75]),
+            content: estimateBriefContent,
+            capabilities: ["TECH_AND_DATA"],
+          },
+        },
+      },
+    });
+
+    mockParse.mockResolvedValueOnce({ parsed_output: estimateBriefContent });
+    await generateEstimateBriefAction(id, undefined, new FormData());
+
+    expect((await prisma.project.findUniqueOrThrow({ where: { id } })).currentStageNumber).toBe(5);
+    expect((await statusByStage(id)).get(5)).toBe("IN_PROGRESS");
+  });
+
+  it("never moves a project that's already past Phase 1 backwards", async () => {
+    const id = await projectWithCapability("Already In Estimation", 6);
+    const specialistReview = await prisma.stage.findUniqueOrThrow({ where: { number: 5 } });
+    await prisma.projectStageStatus.create({
+      data: { projectId: id, stageId: specialistReview.id, status: "COMPLETE" },
+    });
+
+    mockParse.mockResolvedValueOnce({ parsed_output: estimateBriefContent });
+    await generateEstimateBriefAction(id, undefined, new FormData());
+
+    expect((await prisma.project.findUniqueOrThrow({ where: { id } })).currentStageNumber).toBe(6);
+    expect((await statusByStage(id)).get(5)).toBe("COMPLETE");
+  });
+
+  it("doesn't feed an old Draft Scope Document into the brief", async () => {
+    const id = await projectWithCapability("Legacy Draft Scope Project");
+    await prisma.document.create({
+      data: {
+        projectId: id,
+        type: "DRAFT_SCOPE_DOCUMENT",
+        versions: {
+          create: { versionNumber: 1, stageNumber: 4, content: { objectives: ["LEGACY_SCOPE_MARKER"] } },
+        },
+      },
+    });
+
+    mockParse.mockResolvedValueOnce({ parsed_output: estimateBriefContent });
+    await generateEstimateBriefAction(id, undefined, new FormData());
+
+    const prompt = JSON.stringify(mockParse.mock.calls[0][0].messages);
+    expect(prompt).not.toContain("LEGACY_SCOPE_MARKER");
+    expect(prompt).not.toContain("Draft Scope Document");
+  });
+});

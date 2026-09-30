@@ -19,8 +19,8 @@ const PHASE_STATUS_LABEL: Record<StepStatus, string> = {
 /**
  * Phase 1's badge status — it no longer has 4 discrete completable stages to
  * count, so its accordion header shows one of these instead of "x/N stages".
- * READY_FOR_SPECIALIST_REVIEW is just a status flag for now; the real
- * Phase 1 -> Phase 2 handoff gets designed when Phase 2 is reviewed next.
+ * READY_FOR_SPECIALIST_REVIEW means Phase 1 is complete (the first Estimate
+ * Brief has been prepared) and specialist review is open.
  */
 export type Phase1Status = "NOT_STARTED" | "IN_PROGRESS" | "READY_FOR_SPECIALIST_REVIEW";
 

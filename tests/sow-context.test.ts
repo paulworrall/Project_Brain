@@ -93,7 +93,7 @@ describe("assembleSowContext", () => {
         documentId: draftScopeDoc.id,
         versionNumber: 1,
         stageNumber: 4,
-        content: { objectives: ["Deliver a refreshed loyalty app"] },
+        content: { objectives: ["LEGACY_SCOPE_MARKER"] },
       },
     });
 
@@ -148,7 +148,9 @@ describe("assembleSowContext", () => {
     expect(narrativeContext).toContain("## Key details");
     expect(narrativeContext).toContain("Objective (from the brief): Objective: Refresh the loyalty app");
     expect(narrativeContext).toContain("Position Document");
-    expect(narrativeContext).toContain("Draft Scope Document");
+    // An old Draft Scope Document is no longer fed into the SOW.
+    expect(narrativeContext).not.toContain("Draft Scope Document");
+    expect(narrativeContext).not.toContain("LEGACY_SCOPE_MARKER");
     expect(narrativeContext).toContain("Deliverables & Services Document");
     expect(narrativeContext).toContain("Tech & Data");
     expect(narrativeContext).toContain("5700 GBP");

@@ -28,7 +28,6 @@ const mockParse = anthropic.messages.parse as ReturnType<typeof vi.fn>;
 
 const {
   uploadKnowledgeItemAction,
-  generateDraftScopeDocumentAction,
   updateChecklistItemDetailAction,
   toggleChecklistItemAction,
 } = await import("@/app/(dashboard)/projects/[projectId]/actions");
@@ -65,21 +64,6 @@ const positionFieldsV3 = {
   whatWeKnow: [...positionFieldsV2.whatWeKnow, { topic: "Launch date", detail: "15 Sept 2026." }],
   whatWeNeedToFindOut: [] as string[],
 };
-
-function draftScopeWithSummary(summary: string) {
-  return {
-    objectives: ["Refresh the loyalty app"],
-    deliverables: ["Redesigned app"],
-    milestones: [{ name: "Kick-off", dueDate: null }],
-    rolesAndResponsibilities: {
-      contacts: [{ name: "Jamie Chen", role: "Client contact", organization: "CLIENT" as const }],
-      capabilities: ["Design"],
-    },
-    budget: { summary, isConfirmed: true },
-    assumptionsAndConstraints: [] as string[],
-    flaggedGaps: [] as string[],
-  };
-}
 
 function notesFormData(notes: string, title = "Client update") {
   const formData = new FormData();
@@ -123,9 +107,7 @@ beforeAll(async () => {
   });
 
   // Mirrors what createProjectAction sets up at creation time (Intake and
-  // Clarification Email complete, Get Clarifications in progress) — needed
-  // for generateDraftScopeDocumentAction's first-run stage transition to
-  // find an existing Stage 3 status row to update.
+  // Clarification Email complete, Get Clarifications in progress).
   const [intakeStage, clarificationEmailStage, getClarificationsStage] = await Promise.all([
     prisma.stage.findUniqueOrThrow({ where: { number: 1 } }),
     prisma.stage.findUniqueOrThrow({ where: { number: 2 } }),
@@ -195,79 +177,6 @@ describe("uploadKnowledgeItemAction (Position Document side)", () => {
       "The referral feature is confirmed in scope.",
       "Launch date is confirmed for 15 Sept 2026.",
     ]);
-  });
-});
-
-describe("generateDraftScopeDocumentAction", () => {
-  it("can be triggered multiple times, each producing a new version", async () => {
-    mockParse.mockResolvedValueOnce({ parsed_output: draftScopeWithSummary("Confirmed at £100k") });
-    await generateDraftScopeDocumentAction(projectId, undefined, new FormData());
-
-    mockParse.mockResolvedValueOnce({
-      parsed_output: draftScopeWithSummary("Confirmed at £120k after scope increase"),
-    });
-    await generateDraftScopeDocumentAction(projectId, undefined, new FormData());
-
-    const document = await prisma.document.findUniqueOrThrow({
-      where: { projectId_type: { projectId, type: "DRAFT_SCOPE_DOCUMENT" } },
-      include: { versions: { orderBy: { versionNumber: "asc" } } },
-    });
-    expect(document.versions.map((v) => v.versionNumber)).toEqual([1, 2]);
-    expect(document.versions[0].content).toEqual(draftScopeWithSummary("Confirmed at £100k"));
-    expect(document.versions[1].content).toEqual(
-      draftScopeWithSummary("Confirmed at £120k after scope increase")
-    );
-
-    const stageStatuses = await prisma.projectStageStatus.findMany({
-      where: { projectId },
-      include: { stage: true },
-    });
-    const statusByStage = new Map(stageStatuses.map((s) => [s.stage.number, s.status]));
-    // The first generation transitions stages; the second (a regenerate)
-    // must not regress stage 5 back out of progress.
-    expect(statusByStage.get(4)).toBe("COMPLETE");
-    expect(statusByStage.get(5)).toBe("IN_PROGRESS");
-  });
-
-  it("works for a project with no pre-existing Stage 3 status row (created before this Phase 1 rework)", async () => {
-    // Regression test: caught via live browser verification against the
-    // seeded "Lemonade project", created under the old createProjectAction
-    // logic that only ever set up a Stage 2 status at creation — Stage 3's
-    // ProjectStageStatus row didn't exist until a clarification reply was
-    // submitted. generateDraftScopeDocumentAction used tx.projectStageStatus
-    // .update() for Stage 3, which throws P2025 when no row exists yet.
-    const client = await prisma.client.create({ data: { name: "LegacyClient", hubId } });
-    const workstream = await prisma.workstream.create({
-      data: { name: "LegacyWorkstream", clientId: client.id },
-    });
-    const legacyProject = await prisma.project.create({
-      data: { name: "Legacy Project", workstreamId: workstream.id },
-    });
-    await prisma.document.create({
-      data: {
-        projectId: legacyProject.id,
-        type: "POSITION_DOCUMENT",
-        versions: { create: { versionNumber: 1, stageNumber: 1, content: positionFieldsV1 } },
-      },
-    });
-    // Deliberately no ProjectStageStatus rows created at all.
-
-    mockParse.mockResolvedValueOnce({ parsed_output: draftScopeWithSummary("Confirmed at £100k") });
-    await generateDraftScopeDocumentAction(legacyProject.id, undefined, new FormData());
-
-    const document = await prisma.document.findUniqueOrThrow({
-      where: { projectId_type: { projectId: legacyProject.id, type: "DRAFT_SCOPE_DOCUMENT" } },
-    });
-    expect(document).toBeDefined();
-
-    const stageStatuses = await prisma.projectStageStatus.findMany({
-      where: { projectId: legacyProject.id },
-      include: { stage: true },
-    });
-    const statusByStage = new Map(stageStatuses.map((s) => [s.stage.number, s.status]));
-    expect(statusByStage.get(3)).toBe("COMPLETE");
-    expect(statusByStage.get(4)).toBe("COMPLETE");
-    expect(statusByStage.get(5)).toBe("IN_PROGRESS");
   });
 });
 

@@ -113,7 +113,7 @@ function EstimateReviewLineRow({
 
 /**
  * The generated preview — generate -> review -> save -> download, matching
- * ClarificationEmailCard/DraftScopeDocumentCard. A fresh role added or
+ * ClarificationEmailCard. A fresh role added or
  * re-resolved one level up produces a fresh version of this content
  * automatically (no separate "Regenerate" control here). One flat table
  * across every resolved role — capability is a column, not a section

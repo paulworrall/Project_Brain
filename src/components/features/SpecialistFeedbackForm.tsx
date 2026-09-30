@@ -74,7 +74,7 @@ export function SpecialistFeedbackForm({ projectId }: { projectId: string }) {
         id="feedback"
         name="feedback"
         rows={6}
-        placeholder="Paste the specialist leads' feedback on the Draft Scope Document here…"
+        placeholder="Paste the specialist leads' feedback on the Estimate Brief here…"
         className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
       />
       {state?.message && (

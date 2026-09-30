@@ -8,7 +8,6 @@ import {
   ClarificationExtractionError,
   extractClarificationUpdate,
 } from "@/services/agents/clarification-extraction";
-import { TriageAgentError, generateDraftScopeDocument } from "@/services/agents/triage-agent";
 import {
   SpecialistReviewExtractionError,
   extractDeliverablesAndServices,
@@ -16,7 +15,6 @@ import {
 import { ChatbotError, answerProjectQuestion } from "@/services/agents/chatbot";
 import { parseDocumentToText, UnsupportedBriefFormatError } from "@/services/parsing";
 import { PositionDocumentFieldsSchema, type PositionDocumentFields } from "@/types/intake";
-import { DraftScopeDocumentSchema } from "@/types/triage";
 import { DeliverablesServicesDocumentSchema } from "@/types/deliverables-services";
 import {
   CapabilityAssessmentError,
@@ -28,7 +26,11 @@ import {
 } from "@/services/agents/estimate-brief-agent";
 import { renderEstimateBriefDocx } from "@/services/documents/estimate-brief-docx";
 import { timelineSection } from "@/lib/briefAttributeDisplay";
-import { CapabilityEnum, type CapabilitySuggestion } from "@/types/capabilities";
+import {
+  CapabilityEnum,
+  EstimateBriefContentSchema,
+  type CapabilitySuggestion,
+} from "@/types/capabilities";
 import { SowAgentError, generateSowContent } from "@/services/agents/sow-agent";
 import { renderSowDocx } from "@/services/documents/sow-docx";
 import { assembleSowContext } from "@/lib/sow-context";
@@ -367,124 +369,57 @@ export async function generateSowAction(
 }
 
 /**
- * "Generate / refresh" the Draft Scope Document — an explicit action the
- * user triggers whenever they choose, using the Position Document's current
- * state (including whatever client updates have been submitted so far) as
- * input. Repeatable: the first run also completes Stage 3/4 and unlocks
- * Stage 5 for Phase 2 (mirroring the old auto-triggered behaviour once);
- * later re-runs just append a new version without re-triggering that
- * transition, so regenerating after specialist review has begun doesn't
- * regress it back out of progress.
+ * Completes Phase 1: marks Stage 3 (Get Clarifications) and Stage 4 (Triage)
+ * complete, opens Stage 5 (Review with Specialist Leads) and moves the
+ * project to it. Runs when the Estimate Brief is prepared, and only
+ * for a project that hasn't reached Stage 5 yet, so it never moves a project
+ * backwards. (This used to happen on the first Draft Scope Document, which
+ * has been removed.)
  */
-export async function generateDraftScopeDocumentAction(
-  projectId: string,
-  _prevState: ActionState | undefined,
-  _formData: FormData
-): Promise<ActionState | undefined> {
-  const session = await auth();
+async function completePhase1(tx: Prisma.TransactionClient, projectId: string): Promise<void> {
+  const [getClarificationsStage, triageStage, specialistReviewStage] = await Promise.all([
+    tx.stage.findUniqueOrThrow({ where: { number: 3 } }),
+    tx.stage.findUniqueOrThrow({ where: { number: 4 } }),
+    tx.stage.findUniqueOrThrow({ where: { number: 5 } }),
+  ]);
 
-  const positionDocument = await prisma.document.findUnique({
-    where: { projectId_type: { projectId, type: "POSITION_DOCUMENT" } },
-    include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
+  // upsert, not update — a project created before this Phase 1 rework may
+  // not have a Stage 3 status row at all (it used to only appear once a
+  // clarification reply was submitted).
+  await tx.projectStageStatus.upsert({
+    where: { projectId_stageId: { projectId, stageId: getClarificationsStage.id } },
+    update: { status: "COMPLETE", completedAt: new Date() },
+    create: {
+      projectId,
+      stageId: getClarificationsStage.id,
+      status: "COMPLETE",
+      startedAt: new Date(),
+      completedAt: new Date(),
+    },
   });
-  const currentFields = PositionDocumentFieldsSchema.safeParse(
-    positionDocument?.versions[0]?.content
-  );
-
-  if (!currentFields.success) {
-    return { message: "No Position Document found to generate a Draft Scope Document from." };
-  }
-
-  let draftScope;
-  try {
-    draftScope = await generateDraftScopeDocument(currentFields.data);
-  } catch (error) {
-    if (error instanceof TriageAgentError) {
-      return { message: error.message };
-    }
-    throw error;
-  }
-
-  await prisma.$transaction(async (tx) => {
-    const existingDocument = await tx.document.findUnique({
-      where: { projectId_type: { projectId, type: "DRAFT_SCOPE_DOCUMENT" } },
-      include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
-    });
-
-    if (existingDocument) {
-      await tx.documentVersion.create({
-        data: {
-          documentId: existingDocument.id,
-          versionNumber: (existingDocument.versions[0]?.versionNumber ?? 0) + 1,
-          stageNumber: 4,
-          content: draftScope,
-          createdById: session?.user?.id,
-        },
-      });
-      return;
-    }
-
-    await tx.document.create({
-      data: {
-        projectId,
-        type: "DRAFT_SCOPE_DOCUMENT",
-        versions: {
-          create: {
-            versionNumber: 1,
-            stageNumber: 4,
-            content: draftScope,
-            createdById: session?.user?.id,
-          },
-        },
-      },
-    });
-
-    const [getClarificationsStage, triageStage, specialistReviewStage] = await Promise.all([
-      tx.stage.findUniqueOrThrow({ where: { number: 3 } }),
-      tx.stage.findUniqueOrThrow({ where: { number: 4 } }),
-      tx.stage.findUniqueOrThrow({ where: { number: 5 } }),
-    ]);
-
-    // upsert, not update — a project created before this Phase 1 rework may
-    // not have a Stage 3 status row at all (it used to only appear once a
-    // clarification reply was submitted).
-    await tx.projectStageStatus.upsert({
-      where: { projectId_stageId: { projectId, stageId: getClarificationsStage.id } },
-      update: { status: "COMPLETE", completedAt: new Date() },
-      create: {
-        projectId,
-        stageId: getClarificationsStage.id,
-        status: "COMPLETE",
-        startedAt: new Date(),
-        completedAt: new Date(),
-      },
-    });
-    await tx.projectStageStatus.upsert({
-      where: { projectId_stageId: { projectId, stageId: triageStage.id } },
-      update: { status: "COMPLETE", completedAt: new Date() },
-      create: {
-        projectId,
-        stageId: triageStage.id,
-        status: "COMPLETE",
-        startedAt: new Date(),
-        completedAt: new Date(),
-      },
-    });
-    await tx.projectStageStatus.upsert({
-      where: { projectId_stageId: { projectId, stageId: specialistReviewStage.id } },
-      update: { status: "IN_PROGRESS" },
-      create: {
-        projectId,
-        stageId: specialistReviewStage.id,
-        status: "IN_PROGRESS",
-        startedAt: new Date(),
-      },
-    });
-
-    await tx.project.update({ where: { id: projectId }, data: { currentStageNumber: 5 } });
+  await tx.projectStageStatus.upsert({
+    where: { projectId_stageId: { projectId, stageId: triageStage.id } },
+    update: { status: "COMPLETE", completedAt: new Date() },
+    create: {
+      projectId,
+      stageId: triageStage.id,
+      status: "COMPLETE",
+      startedAt: new Date(),
+      completedAt: new Date(),
+    },
+  });
+  await tx.projectStageStatus.upsert({
+    where: { projectId_stageId: { projectId, stageId: specialistReviewStage.id } },
+    update: { status: "IN_PROGRESS" },
+    create: {
+      projectId,
+      stageId: specialistReviewStage.id,
+      status: "IN_PROGRESS",
+      startedAt: new Date(),
+    },
   });
 
-  revalidatePath(`/projects/${projectId}`);
+  await tx.project.update({ where: { id: projectId }, data: { currentStageNumber: 5 } });
 }
 
 const FeedbackSchema = z
@@ -523,22 +458,36 @@ export async function submitSpecialistFeedbackAction(
 
   const session = await auth();
 
-  const draftScopeDocument = await prisma.document.findUnique({
-    where: { projectId_type: { projectId, type: "DRAFT_SCOPE_DOCUMENT" } },
-    include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
-  });
-  const currentFields = DraftScopeDocumentSchema.safeParse(
-    draftScopeDocument?.versions[0]?.content
-  );
-
-  if (!currentFields.success) {
-    return { message: "No Draft Scope Document found to review." };
+  const [latestEstimateBrief, positionDocument, briefCompleteness] = await Promise.all([
+    prisma.estimateBriefVersion.findFirst({
+      where: { estimateBrief: { projectId } },
+      orderBy: { versionNumber: "desc" },
+      select: { content: true },
+    }),
+    prisma.document.findUnique({
+      where: { projectId_type: { projectId, type: "POSITION_DOCUMENT" } },
+      include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
+    }),
+    getBriefCompleteness(projectId),
+  ]);
+  const estimateBrief = EstimateBriefContentSchema.safeParse(latestEstimateBrief?.content);
+  if (!estimateBrief.success) {
+    return { message: "Prepare the Estimate Brief in Phase 1 before adding specialist feedback." };
   }
+  const position = PositionDocumentFieldsSchema.safeParse(positionDocument?.versions[0]?.content);
+  const outstandingGaps = [
+    ...briefCompleteness.requiredOutstanding.map((a) =>
+      a.status === "partial"
+        ? `${a.label}: still missing ${a.missingSubFields.map((f) => f.label).join(", ")}`
+        : `${a.label}: not captured yet`
+    ),
+    ...(position.success ? position.data.clientFlaggedOpenItems : []),
+  ];
 
   let deliverablesAndServices;
   try {
     deliverablesAndServices = await extractDeliverablesAndServices(
-      currentFields.data,
+      { estimateBrief: estimateBrief.data, outstandingGaps },
       parsed.data.feedback
     );
   } catch (error) {
@@ -967,7 +916,7 @@ export async function askChatbotAction(
 
 /**
  * Everything captured about this project's brief so far — raw brief text,
- * Position Document, Draft Scope Document, and logged client updates — for
+ * key details, Position Document, and logged client updates — for
  * the capability-assessment and estimate-brief agents to reason from. Every
  * query below is scoped by `projectId`, matching the chatbot's isolation
  * pattern (CLAUDE.md: project scoping enforced at the query layer, never by
@@ -975,14 +924,10 @@ export async function askChatbotAction(
  * its own.
  */
 async function assembleCapabilityBriefContext(projectId: string): Promise<string> {
-  const [project, positionDocument, draftScopeDocument, clientUpdates, pmPerspective, briefCompleteness] = await Promise.all([
+  const [project, positionDocument, clientUpdates, pmPerspective, briefCompleteness] = await Promise.all([
     prisma.project.findUnique({ where: { id: projectId }, select: { briefRawText: true } }),
     prisma.document.findUnique({
       where: { projectId_type: { projectId, type: "POSITION_DOCUMENT" } },
-      include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
-    }),
-    prisma.document.findUnique({
-      where: { projectId_type: { projectId, type: "DRAFT_SCOPE_DOCUMENT" } },
       include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
     }),
     prisma.touchpointNote.findMany({
@@ -1006,10 +951,6 @@ async function assembleCapabilityBriefContext(projectId: string): Promise<string
   const positionContent = positionDocument?.versions[0]?.content;
   if (positionContent) {
     sections.push(`## Position Document\n${JSON.stringify(positionContent)}`);
-  }
-  const draftScopeContent = draftScopeDocument?.versions[0]?.content;
-  if (draftScopeContent) {
-    sections.push(`## Draft Scope Document\n${JSON.stringify(draftScopeContent)}`);
   }
   for (const update of clientUpdates) {
     sections.push(`## Client update\n${update.content}`);
@@ -1105,7 +1046,10 @@ export async function generateEstimateBriefAction(
   const session = await auth();
 
   const [project, confirmedCapabilities] = await Promise.all([
-    prisma.project.findUnique({ where: { id: projectId }, select: { name: true } }),
+    prisma.project.findUnique({
+      where: { id: projectId },
+      select: { name: true, currentStageNumber: true },
+    }),
     prisma.projectCapability.findMany({ where: { projectId }, orderBy: { createdAt: "asc" } }),
   ]);
 
@@ -1154,24 +1098,29 @@ export async function generateEstimateBriefAction(
           createdById: session?.user?.id,
         },
       });
-      return;
-    }
-
-    await tx.estimateBrief.create({
-      data: {
-        projectId,
-        versions: {
-          create: {
-            versionNumber: 1,
-            fileName,
-            fileBytes,
-            content,
-            capabilities,
-            createdById: session?.user?.id,
+    } else {
+      await tx.estimateBrief.create({
+        data: {
+          projectId,
+          versions: {
+            create: {
+              versionNumber: 1,
+              fileName,
+              fileBytes,
+              content,
+              capabilities,
+              createdById: session?.user?.id,
+            },
           },
         },
-      },
-    });
+      });
+    }
+
+    // Preparing the Estimate Brief completes Phase 1 and opens specialist
+    // review — once: a project already at Stage 5 or beyond is left as is.
+    if (project.currentStageNumber < 5) {
+      await completePhase1(tx, projectId);
+    }
   });
 
   revalidatePath(`/projects/${projectId}`);
