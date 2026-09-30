@@ -137,7 +137,7 @@ beforeEach(() => {
 });
 
 describe("uploadKnowledgeItemAction (Position Document side)", () => {
-  it("can be submitted multiple times in sequence, each producing a new Position Document version, a log entry, and a KnowledgeItem", async () => {
+  it("can be submitted multiple times in sequence, each producing a new Position Document version and a numbered update — no duplicate client-reply note", async () => {
     mockParse.mockResolvedValueOnce({ parsed_output: positionFieldsV2 });
     await uploadKnowledgeItemAction(
       projectId,
@@ -160,23 +160,18 @@ describe("uploadKnowledgeItemAction (Position Document side)", () => {
     expect(document.versions[1].content).toEqual(positionFieldsV2);
     expect(document.versions[2].content).toEqual(positionFieldsV3);
 
-    const notes = await prisma.touchpointNote.findMany({
-      where: { projectId, type: "CLARIFICATION_REPLY" },
-      orderBy: { createdAt: "asc" },
-    });
-    expect(notes.map((n) => n.content)).toEqual([
-      "The referral feature is confirmed in scope.",
-      "Launch date is confirmed for 15 Sept 2026.",
-    ]);
+    expect(await prisma.touchpointNote.count({ where: { projectId } })).toBe(0);
 
     const knowledgeItems = await prisma.knowledgeItem.findMany({
       where: { projectId },
       orderBy: { uploadedAt: "asc" },
     });
-    expect(knowledgeItems.map((k) => k.content)).toEqual([
-      "The referral feature is confirmed in scope.",
-      "Launch date is confirmed for 15 Sept 2026.",
+    expect(knowledgeItems.map((k) => [k.versionNumber, k.content])).toEqual([
+      [2, "The referral feature is confirmed in scope."],
+      [3, "Launch date is confirmed for 15 Sept 2026."],
     ]);
+    // Each refreshed Position Document records the update it was built from.
+    expect(document.versions.map((v) => v.builtFromVersion)).toEqual([null, 2, 3]);
   });
 });
 

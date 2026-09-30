@@ -1,5 +1,6 @@
 "use server";
 
+import { INITIAL_BRIEF_VERSION } from "@/lib/updateVersions";
 import * as z from "zod";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -369,6 +370,7 @@ export async function createProjectAction(
             versionNumber: 1,
             stageNumber: 1,
             content: intakeResult.clarificationEmail,
+            builtFromVersion: INITIAL_BRIEF_VERSION,
           },
         },
       },
@@ -382,6 +384,7 @@ export async function createProjectAction(
             versionNumber: 1,
             stageNumber: 1,
             content: intakeResult.positionDocument,
+            builtFromVersion: INITIAL_BRIEF_VERSION,
           },
         },
       },

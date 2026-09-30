@@ -14,6 +14,9 @@ import type { BriefCompleteness } from "@/lib/briefCompleteness";
 import type { PmPerspectiveFieldView } from "@/lib/pmPerspectiveStore";
 import type { ClientUpdateLogEntry } from "./Phase1Workspace";
 import { ChatPanel } from "./ChatPanel";
+import { StaleOutputNotice } from "./StaleOutputNotice";
+import type { OutputFreshness } from "@/lib/freshness";
+import type { ProjectOutputFreshness } from "@/lib/outputFreshness";
 import { KnowledgeUpload, type VersionView } from "./KnowledgeUpload";
 import type { ChecklistItemView } from "./ChecklistView";
 import { EditableChecklist } from "./EditableChecklist";
@@ -58,7 +61,9 @@ function SpecialistReviewStepContent({
   projectId,
   specialistFeedback,
   deliverablesServicesDocument,
+  freshness,
 }: {
+  freshness?: OutputFreshness;
   projectId: string;
   specialistFeedback: SpecialistFeedbackView | null;
   deliverablesServicesDocument: DeliverablesServicesDocument | null;
@@ -90,6 +95,12 @@ function SpecialistReviewStepContent({
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Output — Deliverables + Services Document
         </h3>
+        <div className="mb-2">
+          <StaleOutputNotice
+            freshness={freshness}
+            flagOnlyHint="This comes from the specialists' feedback, so it isn't regenerated automatically — check whether their input still holds."
+          />
+        </div>
         {deliverablesServicesDocument ? (
           <DeliverablesServicesDocumentView
             projectId={projectId}
@@ -104,6 +115,8 @@ function SpecialistReviewStepContent({
 }
 
 interface ProjectWorkflowProps {
+  /** Which generated outputs no longer reflect the project (see getOutputFreshness). */
+  outputFreshness?: ProjectOutputFreshness;
   projectId: string;
   projectName: string;
   stages: WorkflowStep[];
@@ -167,6 +180,7 @@ export function ProjectWorkflow({
   estimateBriefVersion,
   estimates,
   rateCardOptions,
+  outputFreshness = { estimates: {} },
 }: ProjectWorkflowProps) {
   const contentByStage: Record<number, ReactNode> = {
     5: (
@@ -174,14 +188,21 @@ export function ProjectWorkflow({
         projectId={projectId}
         specialistFeedback={specialistFeedback}
         deliverablesServicesDocument={deliverablesServicesDocument}
+        freshness={outputFreshness.deliverablesServices}
       />
     ),
     6: (
-      <EstimatesListPanel projectId={projectId} estimates={estimates} rateCardOptions={rateCardOptions} />
+      <EstimatesListPanel
+        projectId={projectId}
+        estimates={estimates}
+        rateCardOptions={rateCardOptions}
+        freshnessByEstimate={outputFreshness.estimates}
+      />
     ),
     8: (
       <StartSowDevelopmentPanel
         projectId={projectId}
+        sowFreshness={outputFreshness.sow}
         currentTemplate={currentSowTemplate}
         currentTemplateVersion={currentSowTemplateVersion}
         templateOptions={sowTemplateOptions}
@@ -201,6 +222,7 @@ export function ProjectWorkflow({
   const phase1Content = (
     <Phase1Workspace
       projectId={projectId}
+      outputFreshness={outputFreshness}
       positionDocument={positionDocument}
       clientUpdates={clientUpdates}
       clarificationEmail={clarificationEmail}

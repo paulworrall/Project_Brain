@@ -1,13 +1,16 @@
 import { prisma } from "@/lib/prisma";
-import { getBriefCompleteness } from "@/lib/briefCompleteness";
 import { CLIENT_CONTACT_FIELDS } from "@/lib/briefAttributes";
-import { currentText, formatKeyDetailsForPrompt } from "@/lib/keyDetailsContext";
+import { currentText } from "@/lib/keyDetailsContext";
+import { getProjectContext } from "@/lib/projectContext";
+import { latestPositionDocumentContent } from "@/lib/positionDocument";
 import { capabilityLabel } from "@/lib/mapCapabilities";
 import type { SowCoverDetails } from "@/types/sow";
 
 export interface SowContext {
   narrativeContext: string;
   coverDetails: SowCoverDetails;
+  /** The brief version the context reflects, for the SOW version to record. */
+  builtFromVersion: number;
 }
 
 function formatDate(date: Date): string {
@@ -15,35 +18,31 @@ function formatDate(date: Date): string {
 }
 
 /**
- * Everything captured about a project that a SOW draft needs — narrative
- * content for the agent (following assembleCapabilityBriefContext's
- * flattened "## Heading\n..." string style, extended to also cover the
- * Deliverables & Services Document, confirmed capabilities, and the
- * project's latest saved pricing, none of which that narrower assembler
- * includes), plus deterministic cover-details fields the agent never
- * touches (see src/types/sow.ts). Every query here is relation-scoped to
- * projectId directly, so there's no bare unscoped findMany to additionally
- * guard the way assembleProjectContext's redundant re-filter protects
- * against elsewhere — the isolation guarantee holds by construction.
+ * Everything captured about a project that a SOW draft needs — the shared
+ * project context (brief, every update, key details, the PM's view; see
+ * getProjectContext) plus the Position Document, the Deliverables &
+ * Services Document, confirmed capabilities and the latest saved pricing —
+ * and deterministic cover-details fields the agent never touches (see
+ * src/types/sow.ts). Every query here is scoped to projectId at the query
+ * layer.
  */
 export async function assembleSowContext(projectId: string): Promise<SowContext> {
-  const [project, positionDocument, deliverablesServicesDocument, confirmedCapabilities, latestEstimateVersion, briefCompleteness] =
+  const [project, context, positionContent, deliverablesServicesDocument, confirmedCapabilities, latestEstimateVersion] =
     await Promise.all([
       prisma.project.findUniqueOrThrow({
         where: { id: projectId },
         select: {
           name: true,
-          briefRawText: true,
           jobCode: true,
           kickOffDate: true,
           targetCompletionDate: true,
           workstream: { select: { client: { select: { name: true } } } },
         },
       }),
-      prisma.document.findUnique({
-        where: { projectId_type: { projectId, type: "POSITION_DOCUMENT" } },
-        include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
-      }),
+      // The brief, every update, key details and the PM's view — the same
+      // context every agent works from.
+      getProjectContext(projectId),
+      latestPositionDocumentContent(projectId),
       prisma.document.findUnique({
         where: { projectId_type: { projectId, type: "DELIVERABLES_SERVICES_DOCUMENT" } },
         include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
@@ -58,23 +57,13 @@ export async function assembleSowContext(projectId: string): Promise<SowContext>
         orderBy: { createdAt: "desc" },
         select: { totalValue: true, currency: true, description: true, needsRecalculation: true },
       }),
-      getBriefCompleteness(projectId),
     ]);
+  const briefCompleteness = context.keyDetails;
 
-  const sections: string[] = [];
-  if (project.briefRawText) {
-    sections.push(`## Original brief\n${project.briefRawText}`);
-  }
+  // Key details come with the context: current values, trusted by default.
+  // (SOW-specific rules for which values may appear are to be decided later.)
+  const sections: string[] = [context.text];
 
-  // Key details are their own record (the Position Document no longer
-  // carries them): the current values, trusted by default. (SOW-specific
-  // rules for which values may appear are to be decided later.)
-  const keyDetails = formatKeyDetailsForPrompt(briefCompleteness);
-  if (keyDetails) {
-    sections.push(`## Key details\n${keyDetails}`);
-  }
-
-  const positionContent = positionDocument?.versions[0]?.content;
   if (positionContent) {
     sections.push(`## Position Document\n${JSON.stringify(positionContent)}`);
   }
@@ -100,8 +89,7 @@ export async function assembleSowContext(projectId: string): Promise<SowContext>
       :"## Latest saved estimate\nNo estimate has been saved for this project yet."
   );
 
-  const narrativeContext =
-    sections.length > 0 ? sections.join("\n\n") : "No brief content has been captured for this project yet.";
+  const narrativeContext = sections.join("\n\n");
 
   const coverDetails: SowCoverDetails = {
     projectName: project.name,
@@ -123,5 +111,5 @@ export async function assembleSowContext(projectId: string): Promise<SowContext>
       : null,
   };
 
-  return { narrativeContext, coverDetails };
+  return { narrativeContext, coverDetails, builtFromVersion: context.latestVersion };
 }

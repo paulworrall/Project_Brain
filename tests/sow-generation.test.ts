@@ -158,6 +158,8 @@ describe("generateSowAction", () => {
     expect(sow.versions[0].versionNumber).toBe(1);
     expect(sow.versions[0].sowTemplateVersionId).toBe(templateAVersionId);
     expect(Buffer.from(sow.versions[0].fileBytes).subarray(0, 2).toString("utf-8")).toBe("PK");
+    // Records the brief version it was built from (no updates yet: the brief, v1).
+    expect(sow.versions[0].builtFromVersion).toBe(1);
     const v1Id = sow.versions[0].id;
 
     // Change the live template selection before regenerating.

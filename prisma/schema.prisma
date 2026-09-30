@@ -354,6 +354,10 @@ model DocumentVersion {
   // matching each DocumentType) — agents write this, never free text.
   content       Json
   stageNumber   Int
+  // The brief version (1 = the brief, then each update's) this was built
+  // from; null on outputs made before this was recorded (worked out from
+  // createdAt instead). Drives the "Built from v2 — v4 is available" flag.
+  builtFromVersion Int?
   createdById   String?
   createdAt     DateTime @default(now())
 
@@ -430,6 +434,10 @@ model EstimateBriefVersion {
   // array rather than another join table.
   capabilities    Capability[]
   createdById     String?
+  // The brief version (1 = the brief, then each update's) this was built
+  // from; null on outputs made before this was recorded (worked out from
+  // createdAt instead). Drives the "Built from v2 — v4 is available" flag.
+  builtFromVersion Int?
   createdAt       DateTime     @default(now())
 
   estimateBrief EstimateBrief @relation(fields: [estimateBriefId], references: [id], onDelete: Cascade)
@@ -475,6 +483,10 @@ model SOWVersion {
   sowTemplateId        String?
   sowTemplateVersionId String?
   createdById          String?
+  // The brief version (1 = the brief, then each update's) this was built
+  // from; null on outputs made before this was recorded (worked out from
+  // createdAt instead). Drives the "Built from v2 — v4 is available" flag.
+  builtFromVersion Int?
   createdAt            DateTime @default(now())
 
   sow                SOW                 @relation(fields: [sowId], references: [id], onDelete: Cascade)

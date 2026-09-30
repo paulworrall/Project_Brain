@@ -4,6 +4,9 @@ import Link from "next/link";
 import type { ClarificationEmail } from "@/types/intake";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { StaleOutputNotice } from "./StaleOutputNotice";
+import type { OutputFreshness } from "@/lib/freshness";
+import { regenerateClarificationEmailAction } from "@/app/(dashboard)/projects/[projectId]/actions";
 
 function downloadClarificationEmail(email: ClarificationEmail) {
   const text = `Subject: ${email.subject}\n\n${email.bodyText}`;
@@ -30,9 +33,12 @@ function wordCount(text: string): number {
 export function ClarificationEmailCard({
   projectId,
   email,
+  freshness,
 }: {
   projectId: string;
   email: ClarificationEmail | null;
+  /** Flagged when the brief changed after this draft; Regenerate makes a new draft (never sent). */
+  freshness?: OutputFreshness;
 }) {
   return (
     <div>
@@ -48,6 +54,12 @@ export function ClarificationEmailCard({
             Download
           </Button>
         )}
+      </div>
+      <div className="mb-2 empty:hidden">
+        <StaleOutputNotice
+          freshness={freshness}
+          regenerateAction={regenerateClarificationEmailAction.bind(null, projectId)}
+        />
       </div>
       {email ? (
         <Card className="space-y-1 p-4">

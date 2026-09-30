@@ -32,11 +32,23 @@ beforeAll(async () => {
   ]);
 
   const [projectA, projectB] = await Promise.all([
-    prisma.project.create({ data: { name: "IsolationSpecProjectA", workstreamId: workstreamA.id } }),
-    prisma.project.create({ data: { name: "IsolationSpecProjectB", workstreamId: workstreamB.id } }),
+    prisma.project.create({
+      data: { name: "IsolationSpecProjectA", workstreamId: workstreamA.id, briefRawText: "UNIQUE_MARKER_ALPHA_BRIEF_1402" },
+    }),
+    prisma.project.create({
+      data: { name: "IsolationSpecProjectB", workstreamId: workstreamB.id, briefRawText: "UNIQUE_MARKER_BETA_BRIEF_5520" },
+    }),
   ]);
   projectAId = projectA.id;
   projectBId = projectB.id;
+
+  // The PM perspective reaches the chatbot through the shared project context too.
+  await prisma.pmPerspectiveEntry.createMany({
+    data: [
+      { projectId: projectAId, fieldId: "initialThoughts", content: "UNIQUE_MARKER_ALPHA_PM_7075" },
+      { projectId: projectBId, fieldId: "initialThoughts", content: "UNIQUE_MARKER_BETA_PM_2217" },
+    ],
+  });
 
   // Key details are their own record now, also read by the chatbot.
   await prisma.briefAttributeValue.createMany({
@@ -82,7 +94,7 @@ beforeAll(async () => {
     prisma.touchpointNote.create({
       data: {
         projectId: projectAId,
-        type: "CLARIFICATION_REPLY",
+        type: "SPECIALIST_REVIEW",
         content: "UNIQUE_MARKER_ALPHA_TOUCHPOINT_7731",
       },
     }),
@@ -144,8 +156,12 @@ describe("assembleProjectContext cross-project isolation", () => {
     expect(context).toContain("UNIQUE_MARKER_ALPHA_DOCUMENT_5502");
     expect(context).toContain("UNIQUE_MARKER_ALPHA_CHECKLIST_2841");
     expect(context).toContain("UNIQUE_MARKER_ALPHA_KEYDETAIL_8812");
+    expect(context).toContain("UNIQUE_MARKER_ALPHA_BRIEF_1402");
+    expect(context).toContain("UNIQUE_MARKER_ALPHA_PM_7075");
 
     expect(context).not.toContain("UNIQUE_MARKER_BETA_3387");
+    expect(context).not.toContain("UNIQUE_MARKER_BETA_BRIEF_5520");
+    expect(context).not.toContain("UNIQUE_MARKER_BETA_PM_2217");
     expect(context).not.toContain("UNIQUE_MARKER_BETA_KEYDETAIL_3306");
     expect(context).not.toContain("UNIQUE_MARKER_BETA_TOUCHPOINT_1198");
     expect(context).not.toContain("UNIQUE_MARKER_BETA_DOCUMENT_6640");
@@ -160,8 +176,12 @@ describe("assembleProjectContext cross-project isolation", () => {
     expect(context).toContain("UNIQUE_MARKER_BETA_DOCUMENT_6640");
     expect(context).toContain("UNIQUE_MARKER_BETA_CHECKLIST_4409");
     expect(context).toContain("UNIQUE_MARKER_BETA_KEYDETAIL_3306");
+    expect(context).toContain("UNIQUE_MARKER_BETA_BRIEF_5520");
+    expect(context).toContain("UNIQUE_MARKER_BETA_PM_2217");
 
     expect(context).not.toContain("UNIQUE_MARKER_ALPHA_9214");
+    expect(context).not.toContain("UNIQUE_MARKER_ALPHA_BRIEF_1402");
+    expect(context).not.toContain("UNIQUE_MARKER_ALPHA_PM_7075");
     expect(context).not.toContain("UNIQUE_MARKER_ALPHA_KEYDETAIL_8812");
     expect(context).not.toContain("UNIQUE_MARKER_ALPHA_TOUCHPOINT_7731");
     expect(context).not.toContain("UNIQUE_MARKER_ALPHA_DOCUMENT_5502");

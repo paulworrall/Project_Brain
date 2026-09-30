@@ -3,9 +3,7 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import * as z from "zod";
 import { anthropic, CLAUDE_MODEL } from "@/lib/anthropic";
 import { prisma } from "@/lib/prisma";
-import { getBriefCompleteness } from "@/lib/briefCompleteness";
-import { formatKeyDetailsForPrompt } from "@/lib/keyDetailsContext";
-import { updateLabel } from "@/lib/updateLabel";
+import { getProjectContext } from "@/lib/projectContext";
 
 export class ChatbotError extends Error {
   constructor(
@@ -26,8 +24,10 @@ const ChatbotAnswerSchema = z.object({
 });
 
 /**
- * Assembles everything known about a single project — Documents, ChecklistItems,
- * TouchpointNotes, KnowledgeItems — for the chatbot to answer from. Every query
+ * Assembles everything known about a single project — the shared project
+ * context (brief, every update, key details, PM perspective), plus the
+ * generated Documents, ChecklistItems and specialist feedback — for the
+ * chatbot to answer from, fresh on every question. Every query
  * is filtered by `projectId` at the database layer (CLAUDE.md: isolation is
  * never enforced by prompting alone), and every fetched row is re-asserted to
  * belong to that project before being folded into context — an explicit,
@@ -35,26 +35,25 @@ const ChatbotAnswerSchema = z.object({
  * leaking another project's data into an answer.
  */
 export async function assembleProjectContext(projectId: string): Promise<string> {
-  const [documents, checklistItems, touchpointNotes, knowledgeItems, briefCompleteness] = await Promise.all([
+  const [context, documents, checklistItems, specialistNotes] = await Promise.all([
+    // The brief, every update in version order, key details and the PM's
+    // view — the same context every agent uses, so answers always reflect
+    // the latest update. Scoped by projectId at the query layer.
+    getProjectContext(projectId),
     prisma.document.findMany({
       where: { projectId },
       include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
     }),
     prisma.checklistItem.findMany({ where: { projectId } }),
-    prisma.touchpointNote.findMany({ where: { projectId } }),
-    prisma.knowledgeItem.findMany({ where: { projectId } }),
-    // Scoped by projectId at the query layer, like everything above.
-    getBriefCompleteness(projectId),
+    // Updates come from the context above; client-reply notes are old
+    // duplicate copies of them, so only specialist feedback is read here.
+    prisma.touchpointNote.findMany({
+      where: { projectId, type: "SPECIALIST_REVIEW" },
+      orderBy: { createdAt: "asc" },
+    }),
   ]);
 
-  const sections: string[] = [];
-
-  // Key details (budget, objective, timeline, contact…) are their own
-  // record — the Position Document no longer carries them.
-  const keyDetails = formatKeyDetailsForPrompt(briefCompleteness);
-  if (keyDetails) {
-    sections.push(`## Key details\n${keyDetails}`);
-  }
+  const sections: string[] = [context.text];
 
   for (const document of documents.filter((d) => d.projectId === projectId)) {
     const latestVersion = document.versions[0];
@@ -73,17 +72,11 @@ export async function assembleProjectContext(projectId: string): Promise<string>
     );
   }
 
-  for (const note of touchpointNotes.filter((n) => n.projectId === projectId)) {
-    sections.push(`## Touchpoint note — ${note.type}\n${note.content}`);
+  for (const note of specialistNotes.filter((n) => n.projectId === projectId)) {
+    sections.push(`## Specialist feedback\n${note.content}`);
   }
 
-  for (const item of knowledgeItems.filter((k) => k.projectId === projectId)) {
-    sections.push(`## Knowledge item — ${updateLabel(item)}\n${item.content}`);
-  }
-
-  return sections.length > 0
-    ? sections.join("\n\n")
-    : "No documents, notes, or knowledge items exist for this project yet.";
+  return sections.join("\n\n");
 }
 
 /** One Claude call answering `question` using only `context` — no DB access of its own. */

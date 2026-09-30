@@ -16,6 +16,10 @@ import { ChatbotError, answerProjectQuestion } from "@/services/agents/chatbot";
 import { summariseUpdate } from "@/services/agents/update-summary";
 import { runAfterResponse } from "@/lib/afterResponse";
 import { formatVersionsBefore, nextUpdateVersion } from "@/lib/updateVersions";
+import { getProjectContext } from "@/lib/projectContext";
+import { latestPositionDocumentContent } from "@/lib/positionDocument";
+import { rebuildPositionDocumentVersion, redraftClarificationEmail } from "@/lib/outputRegeneration";
+import { IntakeAgentError } from "@/services/agents/intake-agent";
 import { parseDocumentToText, UnsupportedBriefFormatError } from "@/services/parsing";
 import { PositionDocumentFieldsSchema, type PositionDocumentFields } from "@/types/intake";
 import { DeliverablesServicesDocumentSchema } from "@/types/deliverables-services";
@@ -52,10 +56,10 @@ import {
   extractKeyAttributesRecordingOutcome,
   fillKeyAttributeGapsFromProjectSources,
 } from "@/lib/keyAttributeSources";
-import { describeKnownKeyDetails, formatKeyDetailsForPrompt } from "@/lib/keyDetailsContext";
+import { describeKnownKeyDetails } from "@/lib/keyDetailsContext";
 import { removeItemsCoveredByKeyDetails } from "@/services/agents/position-key-detail-filter";
-import { formatPmPerspectiveForPrompt, getPmPerspectiveField } from "@/lib/pmPerspective";
-import { getPmPerspectiveValues, savePmPerspective } from "@/lib/pmPerspectiveStore";
+import { getPmPerspectiveField } from "@/lib/pmPerspective";
+import { savePmPerspective } from "@/lib/pmPerspectiveStore";
 
 export interface ActionState {
   /** Something went wrong; nothing (or not everything) was saved. */
@@ -328,7 +332,7 @@ export async function generateSowAction(
     };
   }
 
-  const { narrativeContext, coverDetails } = await assembleSowContext(projectId);
+  const { narrativeContext, coverDetails, builtFromVersion } = await assembleSowContext(projectId);
 
   let body: SOWDocumentContent;
   try {
@@ -358,6 +362,7 @@ export async function generateSowAction(
       content: content as unknown as Prisma.InputJsonValue,
       sowTemplateId: project.sowTemplateId,
       sowTemplateVersionId: project.sowTemplateVersionId,
+      builtFromVersion,
       createdById: session?.user?.id,
     };
 
@@ -464,36 +469,33 @@ export async function submitSpecialistFeedbackAction(
 
   const session = await auth();
 
-  const [latestEstimateBrief, positionDocument, briefCompleteness] = await Promise.all([
+  const [latestEstimateBrief, position, context] = await Promise.all([
     prisma.estimateBriefVersion.findFirst({
       where: { estimateBrief: { projectId } },
       orderBy: { versionNumber: "desc" },
       select: { content: true },
     }),
-    prisma.document.findUnique({
-      where: { projectId_type: { projectId, type: "POSITION_DOCUMENT" } },
-      include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
-    }),
-    getBriefCompleteness(projectId),
+    latestPositionDocumentContent(projectId),
+    getProjectContext(projectId),
   ]);
+  const briefCompleteness = context.keyDetails;
   const estimateBrief = EstimateBriefContentSchema.safeParse(latestEstimateBrief?.content);
   if (!estimateBrief.success) {
     return { message: "Prepare the Estimate Brief in Phase 1 before adding specialist feedback." };
   }
-  const position = PositionDocumentFieldsSchema.safeParse(positionDocument?.versions[0]?.content);
   const outstandingGaps = [
     ...briefCompleteness.requiredOutstanding.map((a) =>
       a.status === "partial"
         ? `${a.label}: still missing ${a.missingSubFields.map((f) => f.label).join(", ")}`
         : `${a.label}: not captured yet`
     ),
-    ...(position.success ? position.data.clientFlaggedOpenItems : []),
+    ...(position?.clientFlaggedOpenItems ?? []),
   ];
 
   let deliverablesAndServices;
   try {
     deliverablesAndServices = await extractDeliverablesAndServices(
-      { estimateBrief: estimateBrief.data, outstandingGaps },
+      { estimateBrief: estimateBrief.data, outstandingGaps, projectContext: context.text },
       parsed.data.feedback
     );
   } catch (error) {
@@ -660,9 +662,9 @@ export async function updateOtherServiceLabelAction(
  * be a separate "Add a client update" action/panel — merged here so there's
  * one input point instead of two that looked like they did the same thing)
  * also re-runs the clarification extraction against the Position Document's
- * current state when one exists, appending a new version and a timestamped
- * CLARIFICATION_REPLY TouchpointNote. If that refresh fails the update is
- * still saved, with a notice. A one-line AI summary is added after the
+ * current state when one exists (with the full project context as
+ * background), appending a new version that records the update it was built
+ * from. If that refresh fails the update is still saved, with a notice. A one-line AI summary is added after the
  * response — never blocking the save. Usable repeatedly at any time.
  */
 export async function uploadKnowledgeItemAction(
@@ -727,10 +729,12 @@ export async function uploadKnowledgeItemAction(
   let positionDocumentNotice: string | undefined;
   if (positionDocument && latestVersion && currentFields.success) {
     try {
+      const context = await getProjectContext(projectId);
       updatedFields = await extractClarificationUpdate(
         currentFields.data,
         content,
-        await getPmPerspectiveValues(projectId)
+        context.pmPerspective,
+        context.text
       );
     } catch (error) {
       if (!(error instanceof ClarificationExtractionError)) {
@@ -770,22 +774,15 @@ export async function uploadKnowledgeItemAction(
       },
     });
 
+    // The update itself is the record; no separate client-reply copy is kept.
     if (updatedFields && positionDocument && latestVersion) {
-      await tx.touchpointNote.create({
-        data: {
-          projectId,
-          type: "CLARIFICATION_REPLY",
-          content,
-          createdById: session?.user?.id,
-        },
-      });
-
       await tx.documentVersion.create({
         data: {
           documentId: positionDocument.id,
           versionNumber: latestVersion.versionNumber + 1,
           stageNumber: 3,
           content: updatedFields,
+          builtFromVersion: item.versionNumber,
           createdById: session?.user?.id,
         },
       });
@@ -941,56 +938,23 @@ export async function askChatbotAction(
 // ---------------------------------------------------------------------------
 
 /**
- * Everything captured about this project's brief so far — raw brief text,
- * key details, Position Document, and logged client updates — for
- * the capability-assessment and estimate-brief agents to reason from. Every
- * query below is scoped by `projectId`, matching the chatbot's isolation
- * pattern (CLAUDE.md: project scoping enforced at the query layer, never by
- * prompting alone) even though this feature has no cross-project surface of
- * its own.
+ * What the capability-assessment and estimate-brief agents reason from: the
+ * shared project context (brief, every update, key details, PM perspective —
+ * see getProjectContext) plus the Position Document's other details. Returns
+ * the brief version it reflects, for the output to record.
  */
-async function assembleCapabilityBriefContext(projectId: string): Promise<string> {
-  const [project, positionDocument, clientUpdates, pmPerspective, briefCompleteness] = await Promise.all([
-    prisma.project.findUnique({ where: { id: projectId }, select: { briefRawText: true } }),
-    prisma.document.findUnique({
-      where: { projectId_type: { projectId, type: "POSITION_DOCUMENT" } },
-      include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
-    }),
-    prisma.touchpointNote.findMany({
-      where: { projectId, type: "CLARIFICATION_REPLY" },
-      orderBy: { createdAt: "asc" },
-    }),
-    getPmPerspectiveValues(projectId),
-    getBriefCompleteness(projectId),
+async function assembleCapabilityBriefContext(
+  projectId: string
+): Promise<{ text: string; builtFromVersion: number }> {
+  const [context, positionDocument] = await Promise.all([
+    getProjectContext(projectId),
+    latestPositionDocumentContent(projectId),
   ]);
-
-  const sections: string[] = [];
-  if (project?.briefRawText) {
-    sections.push(`## Original brief\n${project.briefRawText}`);
+  const sections = [context.text];
+  if (positionDocument) {
+    sections.push(`## Position Document (other details from the brief)\n${JSON.stringify(positionDocument)}`);
   }
-  // Key details are their own record (the Position Document no longer
-  // carries them), each marked with where it came from.
-  const keyDetails = formatKeyDetailsForPrompt(briefCompleteness);
-  if (keyDetails) {
-    sections.push(`## Key details\n${keyDetails}`);
-  }
-  const positionContent = positionDocument?.versions[0]?.content;
-  if (positionContent) {
-    sections.push(`## Position Document\n${JSON.stringify(positionContent)}`);
-  }
-  for (const update of clientUpdates) {
-    sections.push(`## Client update\n${update.content}`);
-  }
-  // The PM's own view — always its own labelled block, never mixed into
-  // what the client said.
-  const pmBlock = formatPmPerspectiveForPrompt(pmPerspective);
-  if (pmBlock) {
-    sections.push(`## PM perspective (the PM's view, not the client's)\n${pmBlock}`);
-  }
-
-  return sections.length > 0
-    ? sections.join("\n\n")
-    : "No brief content has been captured for this project yet.";
+  return { text: sections.join("\n\n"), builtFromVersion: context.latestVersion };
 }
 
 export interface CapabilitySuggestionActionState extends ActionState {
@@ -1013,7 +977,7 @@ export async function suggestCapabilitiesAction(
   const briefContext = await assembleCapabilityBriefContext(projectId);
 
   try {
-    const assessment = await assessCapabilities(briefContext);
+    const assessment = await assessCapabilities(briefContext.text);
     return {
       suggestions: assessment.suggestions,
       isLowConfidence: assessment.isLowConfidence,
@@ -1091,7 +1055,7 @@ export async function generateEstimateBriefAction(
 
   let content;
   try {
-    content = await generateEstimateBriefContent(briefContext, capabilities);
+    content = await generateEstimateBriefContent(briefContext.text, capabilities);
   } catch (error) {
     if (error instanceof EstimateBriefAgentError) {
       return { message: error.message };
@@ -1121,6 +1085,7 @@ export async function generateEstimateBriefAction(
           fileBytes,
           content,
           capabilities,
+          builtFromVersion: briefContext.builtFromVersion,
           createdById: session?.user?.id,
         },
       });
@@ -1135,6 +1100,7 @@ export async function generateEstimateBriefAction(
               fileBytes,
               content,
               capabilities,
+              builtFromVersion: briefContext.builtFromVersion,
               createdById: session?.user?.id,
             },
           },
@@ -1177,5 +1143,45 @@ export async function updatePmPerspectiveFieldAction(
     { [fieldId]: typeof content === "string" ? content : "" },
     session?.user?.id ?? null
   );
+  revalidatePath(`/projects/${projectId}`);
+}
+
+// ---------------------------------------------------------------------------
+// Regenerating stale outputs (each a new version; earlier versions untouched)
+// ---------------------------------------------------------------------------
+
+/** A new draft of the client clarification email from the latest context. Never sent. */
+export async function regenerateClarificationEmailAction(
+  projectId: string,
+  _prevState: ActionState | undefined,
+  _formData: FormData
+): Promise<ActionState | undefined> {
+  const session = await auth();
+  try {
+    await redraftClarificationEmail(projectId, session?.user?.id ?? null);
+  } catch (error) {
+    if (error instanceof IntakeAgentError) {
+      return { message: error.message };
+    }
+    throw error;
+  }
+  revalidatePath(`/projects/${projectId}`);
+}
+
+/** Rebuilds the Position Document from the brief and every update. */
+export async function regeneratePositionDocumentAction(
+  projectId: string,
+  _prevState: ActionState | undefined,
+  _formData: FormData
+): Promise<ActionState | undefined> {
+  const session = await auth();
+  try {
+    await rebuildPositionDocumentVersion(projectId, session?.user?.id ?? null);
+  } catch (error) {
+    if (error instanceof ClarificationExtractionError) {
+      return { message: error.message };
+    }
+    throw error;
+  }
   revalidatePath(`/projects/${projectId}`);
 }

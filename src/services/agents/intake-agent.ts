@@ -117,7 +117,9 @@ export async function generateClarificationEmail(
   fields: PositionDocumentExtraction,
   questions: ClarificationQuestions,
   pmPerspective: PmPerspectiveValues = {},
-  contactName: string | null = null
+  contactName: string | null = null,
+  /** The shared project context (getProjectContext) when redrafting after updates; "" at intake. */
+  projectContext = ""
 ): Promise<ClarificationEmail> {
   try {
     const message = await anthropic.messages.parse({
@@ -127,7 +129,7 @@ export async function generateClarificationEmail(
       messages: [
         {
           role: "user",
-          content: `Draft a polite, professional clarification email to the client, to be reviewed by an account manager before sending — never state or imply it has already been sent. Address it to ${
+          content: `${projectContext.trim() ? `Background — everything known about this project so far (the brief, updates in version order, key details, and the PM's own view, which is internal and never to be quoted):\n\n<project_context>\n${projectContext}\n</project_context>\n\nUse this only to address the client appropriately and avoid asking about anything the updates have already settled.\n\n` : ""}Draft a polite, professional clarification email to the client, to be reviewed by an account manager before sending — never state or imply it has already been sent. Address it to ${
             contactName ?? "the client contact"
           } if a name is available. In clearly separate, labeled sections, list:\n1. Key details we still need from the client — ask for each one: ${JSON.stringify(questions.toAsk)}\n2. Key details we've read from the brief, for the client to confirm we've understood correctly: ${JSON.stringify(questions.toConfirm)}\n3. Items the client already flagged as still deciding, just to confirm status: ${JSON.stringify(fields.clientFlaggedOpenItems)}\n\nAsk only about the items listed — don't add questions of your own. Leave out any section whose list is empty. If all three lists are empty, write a short note confirming there are no outstanding questions right now instead of an empty email.${pmPerspectivePromptSection(
             pmPerspective,

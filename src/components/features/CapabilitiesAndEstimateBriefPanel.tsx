@@ -1,5 +1,7 @@
 "use client";
 
+import { StaleOutputNotice } from "./StaleOutputNotice";
+import type { OutputFreshness } from "@/lib/freshness";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -55,10 +57,13 @@ export function CapabilitiesAndEstimateBriefPanel({
   projectId,
   confirmedCapabilities,
   estimateBriefVersion,
+  estimateBriefFreshness,
 }: {
   projectId: string;
   confirmedCapabilities: Capability[];
   estimateBriefVersion: EstimateBriefVersionMeta | null;
+  /** Flagged when the brief changed after the latest Estimate Brief; Regenerate makes a new version. */
+  estimateBriefFreshness?: OutputFreshness;
 }) {
   const [checked, setChecked] = useState<Set<Capability>>(new Set(confirmedCapabilities));
   const [rationaleByCapability, setRationaleByCapability] = useState<
@@ -375,6 +380,9 @@ export function CapabilitiesAndEstimateBriefPanel({
                 date.
               </p>
             )}
+            <div className="mt-2 empty:hidden">
+              <StaleOutputNotice freshness={estimateBriefFreshness} regenerateAction={generateAction} />
+            </div>
           </Card>
         ) : (
           <p className="mt-3 text-sm text-muted-foreground">No estimate brief generated yet.</p>

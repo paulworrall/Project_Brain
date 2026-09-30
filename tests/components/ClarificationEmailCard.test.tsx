@@ -4,6 +4,10 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ClarificationEmailCard } from "@/components/features/ClarificationEmailCard";
 
+vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
+  regenerateClarificationEmailAction: vi.fn(),
+}));
+
 describe("ClarificationEmailCard", () => {
   it("shows a 'not yet generated' placeholder, no download button, and no view-full link when there's no email", () => {
     render(<ClarificationEmailCard projectId="proj_1" email={null} />);

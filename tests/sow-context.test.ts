@@ -146,7 +146,7 @@ describe("assembleSowContext", () => {
 
     expect(narrativeContext).toContain("A loyalty app refresh for a coffee client.");
     expect(narrativeContext).toContain("## Key details");
-    expect(narrativeContext).toContain("Objective (from the brief): Objective: Refresh the loyalty app");
+    expect(narrativeContext).toContain("Objective — captured (from the brief): Objective: Refresh the loyalty app");
     expect(narrativeContext).toContain("Position Document");
     // An old Draft Scope Document is no longer fed into the SOW.
     expect(narrativeContext).not.toContain("Draft Scope Document");
@@ -225,6 +225,6 @@ describe("assembleSowContext", () => {
 
     expect(coverDetails.primaryClientContactName).toBe("Captured Name");
     expect(coverDetails.primaryClientContactEmail).toBe("captured@example.com");
-    expect(narrativeContext).toContain("Client Contact (from the brief)");
+    expect(narrativeContext).toMatch(/Client Contact — (captured|partial) \(from the brief/);
   });
 });

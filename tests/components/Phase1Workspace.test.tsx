@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
+  regeneratePositionDocumentAction: vi.fn(),
+  regenerateClarificationEmailAction: vi.fn(),
   updateChecklistItemDetailAction: vi.fn(),
   toggleChecklistItemAction: vi.fn(),
   suggestCapabilitiesAction: vi.fn(),
@@ -131,7 +133,7 @@ describe("Phase1Workspace", () => {
     expect(summary).toHaveTextContent("1 other detail from the brief");
     // Nothing confirmed yet: all 4 required details are still to find out.
     expect(summary).toHaveTextContent("4 required details to find out");
-    expect(summary).toHaveTextContent("1 client update logged");
+    expect(summary).toHaveTextContent("1 update logged");
     expect(summary).toHaveTextContent("1/2 checklist items complete");
   });
 
@@ -155,7 +157,7 @@ describe("Phase1Workspace", () => {
     const summary = screen.getByLabelText("Phase 1 progress summary");
     expect(summary).toHaveTextContent("2 other details from the brief");
     expect(summary).toHaveTextContent("1 required detail to find out");
-    expect(summary).toHaveTextContent("0 client updates logged");
+    expect(summary).toHaveTextContent("0 updates logged");
     expect(summary).toHaveTextContent("0/0 checklist items complete");
   });
 

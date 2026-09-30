@@ -49,6 +49,29 @@ export function formatKeyDetailsForPrompt(completeness: BriefCompleteness): stri
 }
 
 /**
+ * Every key detail with its status, for the shared project context: what's
+ * captured (and from where), what's only partly known, and what's still
+ * missing — so an agent never mistakes a gap for a detail it simply wasn't told.
+ */
+export function formatKeyDetailsWithStatusForPrompt(completeness: BriefCompleteness): string {
+  return completeness.attributes
+    .map((attribute) => {
+      const name = `${attribute.label}${attribute.required ? "" : " (optional)"}`;
+      const text = attribute.current ? describeValues(attribute.id, attribute.current.values) : "";
+      if (attribute.status === "missing" || !attribute.current || !text) {
+        return `- ${name} — missing`;
+      }
+      const origin = describeOrigin(attribute.current.origin);
+      if (attribute.status === "partial") {
+        const stillNeed = attribute.missingSubFields.map((f) => f.label).join(", ");
+        return `- ${name} — partial (${origin}; still need ${stillNeed}): ${text}`;
+      }
+      return `- ${name} — captured (${origin}): ${text}`;
+    })
+    .join("\n");
+}
+
+/**
  * Key details for the de-duplication check: what's already known for the
  * project plus anything just extracted, one line per attribute. Returns ""
  * when there's nothing.

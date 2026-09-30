@@ -4,6 +4,8 @@ import { render, screen, within } from "@testing-library/react";
 import type { Capability } from "@/generated/prisma/enums";
 
 vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
+  regeneratePositionDocumentAction: vi.fn(),
+  regenerateClarificationEmailAction: vi.fn(),
   updateChecklistItemDetailAction: vi.fn(),
   submitSpecialistFeedbackAction: vi.fn(),
   updateOtherServiceLabelAction: vi.fn(),
@@ -188,7 +190,7 @@ describe("ProjectWorkflow", () => {
     );
 
     expect(screen.getByLabelText("Phase 1 progress summary")).toHaveTextContent(
-      "1 client update logged"
+      "1 update logged"
     );
     // No standalone client-update log anymore — folded into Additional Inputs.
     expect(

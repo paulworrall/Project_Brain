@@ -1,4 +1,5 @@
 import { getVersionHistory } from "@/lib/updateVersions";
+import { getOutputFreshness } from "@/lib/outputFreshness";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -136,16 +137,6 @@ export default async function ProjectDetailPage({
     deliverablesServicesDocumentContent
   );
 
-  // Every past client update, newest first — Phase 1's fluid workspace shows
-  // the full timestamped log, not just the most recent one.
-  const clientUpdates = touchpointNotes
-    .filter((n) => n.type === "CLARIFICATION_REPLY")
-    .map((n) => ({
-      id: n.id,
-      content: n.content,
-      createdAt: n.createdAt,
-      createdByName: n.createdBy?.name ?? null,
-    }));
   const specialistFeedbackNote = touchpointNotes.find((n) => n.type === "SPECIALIST_REVIEW");
   const specialistFeedback = specialistFeedbackNote
     ? {
@@ -159,11 +150,19 @@ export default async function ProjectDetailPage({
     ? "COMPLETE"
     : "ACTIVE";
 
-  const [briefCompleteness, pmPerspective, versionHistory] = await Promise.all([
+  const [briefCompleteness, pmPerspective, versionHistory, outputFreshness] = await Promise.all([
     getBriefCompleteness(project.id),
     getPmPerspective(project.id),
     getVersionHistory(project.id),
+    getOutputFreshness(project.id),
   ]);
+  // Every update since the brief (v2 onwards), for Phase 1's progress count.
+  const clientUpdates = versionHistory.slice(1).map((v) => ({
+    id: v.id,
+    content: v.content,
+    createdAt: v.createdAt,
+    createdByName: null,
+  }));
 
   const confirmedCapabilities = capabilities.map((c) => c.capability);
   const latestEstimateBriefVersion = estimateBrief?.versions[0] ?? null;
@@ -245,6 +244,7 @@ export default async function ProjectDetailPage({
           deliverablesServicesDocument.success ? deliverablesServicesDocument.data : null
         }
         versions={versionHistory.map(({ content: _content, ...version }) => version)}
+        outputFreshness={outputFreshness}
         currentSowTemplate={project.sowTemplate ? { id: project.sowTemplate.id, name: project.sowTemplate.name } : null}
         currentSowTemplateVersion={project.sowTemplateVersion ? { id: project.sowTemplateVersion.id } : null}
         sowTemplateOptions={sowTemplateOptions.map((t) => ({

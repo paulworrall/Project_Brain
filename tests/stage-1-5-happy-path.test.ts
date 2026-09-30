@@ -275,6 +275,10 @@ describe("Stage 1-5 happy path", () => {
       positionFieldsV2
     );
     expect(documentsByType.get("POSITION_DOCUMENT")?.versions[0]?.versionNumber).toBe(2);
+    // Each output records the brief version it was built from: the email at
+    // intake (v1, the brief), the Position Document refreshed by update v2.
+    expect(documentsByType.get("CLARIFICATION_EMAIL")?.versions[0]?.builtFromVersion).toBe(1);
+    expect(documentsByType.get("POSITION_DOCUMENT")?.versions[0]?.builtFromVersion).toBe(2);
     expect(documentsByType.get("CHECKLIST")).toBeDefined();
     // The Draft Scope Document has been removed from the flow.
     expect(documentsByType.has("DRAFT_SCOPE_DOCUMENT")).toBe(false);
@@ -291,10 +295,8 @@ describe("Stage 1-5 happy path", () => {
       where: { projectId: project.id },
       orderBy: { createdAt: "asc" },
     });
-    expect(touchpointNotes.map((n) => n.type)).toEqual([
-      "CLARIFICATION_REPLY",
-      "SPECIALIST_REVIEW",
-    ]);
+    // The update itself is the record — no duplicate client-reply note.
+    expect(touchpointNotes.map((n) => n.type)).toEqual(["SPECIALIST_REVIEW"]);
     expect(touchpointNotes.find((n) => n.type === "SPECIALIST_REVIEW")?.capability).toBe(
       "TECH_AND_DATA"
     );

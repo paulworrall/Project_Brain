@@ -1,4 +1,7 @@
 import type { ClarificationEmail, PositionDocumentFields } from "@/types/intake";
+import { StaleOutputNotice } from "./StaleOutputNotice";
+import type { ProjectOutputFreshness } from "@/lib/outputFreshness";
+import { regeneratePositionDocumentAction } from "@/app/(dashboard)/projects/[projectId]/actions";
 import type { Capability } from "@/generated/prisma/enums";
 import { PositionDocumentView } from "./PositionDocumentView";
 import { ClarificationEmailCard } from "./ClarificationEmailCard";
@@ -46,6 +49,8 @@ export interface Phase1WorkspaceProps {
   pmPerspective: PmPerspectiveFieldView[];
   confirmedCapabilities: Capability[];
   estimateBriefVersion: EstimateBriefVersionMeta | null;
+  /** Which of Phase 1's outputs no longer reflect the project. */
+  outputFreshness?: ProjectOutputFreshness;
 }
 
 export function Phase1Workspace({
@@ -58,6 +63,7 @@ export function Phase1Workspace({
   pmPerspective,
   confirmedCapabilities,
   estimateBriefVersion,
+  outputFreshness,
 }: Phase1WorkspaceProps) {
   const otherDetailsCount = positionDocument?.whatWeKnow.length ?? 0;
   const outstandingCount = briefCompleteness.requiredOutstanding.length;
@@ -73,7 +79,7 @@ export function Phase1Workspace({
         <span aria-hidden="true">·</span>
         <span>{pluralize(outstandingCount, "required detail")} to find out</span>
         <span aria-hidden="true">·</span>
-        <span>{pluralize(clientUpdates.length, "client update")} logged</span>
+        <span>{pluralize(clientUpdates.length, "update")} logged</span>
         <span aria-hidden="true">·</span>
         <span>
           {completeChecklistCount}/{checklistItems.length} checklist items complete
@@ -88,6 +94,12 @@ export function Phase1Workspace({
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Current position — from the client
         </h3>
+        <div className="mb-2 empty:hidden">
+          <StaleOutputNotice
+            freshness={outputFreshness?.positionDocument}
+            regenerateAction={regeneratePositionDocumentAction.bind(null, projectId)}
+          />
+        </div>
         {positionDocument ? (
           <PositionDocumentView fields={positionDocument} />
         ) : (
@@ -95,12 +107,17 @@ export function Phase1Workspace({
         )}
       </div>
 
-      <ClarificationEmailCard projectId={projectId} email={clarificationEmail} />
+      <ClarificationEmailCard
+        projectId={projectId}
+        email={clarificationEmail}
+        freshness={outputFreshness?.clarificationEmail}
+      />
 
       <CapabilitiesAndEstimateBriefPanel
         projectId={projectId}
         confirmedCapabilities={confirmedCapabilities}
         estimateBriefVersion={estimateBriefVersion}
+        estimateBriefFreshness={outputFreshness?.estimateBrief}
       />
     </div>
   );
