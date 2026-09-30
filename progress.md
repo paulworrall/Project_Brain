@@ -493,3 +493,10 @@
 - **Kept**: `evaluateBriefCompleteness` still ignores any leftover SUGGESTION + PM_ENTRY rows, so old data can never count as a key detail. No schema change or migration; the enums are unchanged.
 - **Tests**: the two PM-suggestion tests became one asserting a leftover row is ignored even when newest; the PM perspective test now asserts no key detail is captured. 516 tests across 74 files passing; typecheck and lint clean.
 - **Deployed (2026-09-30)**: committed `a9da9f6`, pushed, Vercel deployment completed.
+
+### Fix: update numbers on values accepted in the old Review and confirm flow (2026-09-30)
+
+- **Problem**: the retired `confirmBriefAttributeAction` saved a CONFIRMED row that kept the suggestion's source (UPDATE) but not its `knowledgeItemId` or `evidence`, so the tag read "From an update" with no number and "Show more" had no passage.
+- **Fix (read time, no data written)**: `withRecoveredUpdateLink()` in `briefCompleteness.ts` gives such a row the update link and passage of the newest earlier SUGGESTION with the same source and the same (normalised) values. Rows that already have a link, and rows with no matching suggestion, are unchanged. This avoids a backfill against the shared database.
+- **Live data** (read-only check): one affected row (a budget); it now resolves to "From update v1" with its passage.
+- **Tests**: two new cases (recovers number + passage; won't borrow from a suggestion with different values). 518 tests across 74 files passing; typecheck and lint clean.

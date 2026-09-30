@@ -4,9 +4,10 @@ import {
   BRIEF_ATTRIBUTES,
   getBriefAttribute,
   isSubFieldFilled,
+  type BriefAttributeDefinition,
   type BriefAttributeValues,
 } from "@/lib/briefAttributes";
-import { normalizeAttributeValues } from "@/lib/briefAttributeValues";
+import { attributeValuesEqual, normalizeAttributeValues } from "@/lib/briefAttributeValues";
 import type { BriefAttributeSource, BriefAttributeValueKind } from "@/generated/prisma/enums";
 
 export type BriefAttributeStatus = "missing" | "partial" | "confirmed";
@@ -105,6 +106,35 @@ function originOf(
 }
 
 /**
+ * Values accepted in the retired "Review and confirm" flow were saved as
+ * CONFIRMED rows that kept the suggestion's source but not its update link
+ * or passage. Recover both from the newest earlier suggestion of the same
+ * source with the same values. Rows that already have a link are unchanged.
+ */
+function withRecoveredUpdateLink(
+  record: BriefAttributeValueRecord,
+  own: BriefAttributeValueRecord[],
+  definition: BriefAttributeDefinition
+): BriefAttributeValueRecord {
+  const fromAnUpdate = record.source === "UPDATE" || record.source === "CLARIFICATION_ANSWER";
+  if (record.kind !== "CONFIRMED" || !fromAnUpdate || record.knowledgeItemId) return record;
+  const values = normalizeAttributeValues(definition, record.values);
+  const original = newest(
+    own.filter(
+      (r) =>
+        r.kind === "SUGGESTION" &&
+        r.source === record.source &&
+        r.knowledgeItemId &&
+        r.createdAt < record.createdAt &&
+        attributeValuesEqual(normalizeAttributeValues(definition, r.values), values)
+    )
+  );
+  return original
+    ? { ...record, knowledgeItemId: original.knowledgeItemId, evidence: record.evidence ?? original.evidence }
+    : record;
+}
+
+/**
  * The pure core of getBriefCompleteness — exported for tests. The latest
  * row wins, whoever wrote it: a value the agent captured counts straight
  * away, and a PM edit replaces it until newer information arrives.
@@ -123,7 +153,8 @@ export function evaluateBriefCompleteness(
     const own = records.filter((r) => r.attributeId === definition.id);
     // SUGGESTION + PM_ENTRY rows came from the retired PM perspective link
     // (Early KPIs). Any left over are ignored, so they never count.
-    const latest = newest(own.filter((r) => !(r.kind === "SUGGESTION" && r.source === "PM_ENTRY")));
+    const newestRow = newest(own.filter((r) => !(r.kind === "SUGGESTION" && r.source === "PM_ENTRY")));
+    const latest = newestRow && withRecoveredUpdateLink(newestRow, own, definition);
 
     const entry = (record: BriefAttributeValueRecord): BriefAttributeEntry => ({
       id: record.id,

@@ -144,6 +144,36 @@ describe("evaluateBriefCompleteness — trusted by default, latest wins", () => 
       number: null,
     });
   });
+
+  it("recovers the update number and passage for a value accepted in the old Review and confirm flow", () => {
+    const suggestion = record(
+      "budget",
+      { amount: "£65k" },
+      { kind: "SUGGESTION", source: "UPDATE", knowledgeItemId: "ki_2", evidence: "Budget is now £65k." }
+    );
+    const accepted = record("budget", { amount: "£65k" }, { source: "UPDATE" });
+    const budget = statusOf(
+      evaluateBriefCompleteness([suggestion, accepted], IN_PHASE_1, new Map([["ki_1", 1], ["ki_2", 2]])),
+      "budget"
+    );
+    expect(budget.current?.id).toBe(accepted.id);
+    expect(budget.current?.origin).toEqual({ kind: "update", number: 2 });
+    expect(budget.current?.evidence).toBe("Budget is now £65k.");
+  });
+
+  it("doesn't borrow an update number from a suggestion with different values", () => {
+    const suggestion = record(
+      "budget",
+      { amount: "£65k" },
+      { kind: "SUGGESTION", source: "UPDATE", knowledgeItemId: "ki_2" }
+    );
+    const accepted = record("budget", { amount: "£60k" }, { source: "UPDATE" });
+    const budget = statusOf(
+      evaluateBriefCompleteness([suggestion, accepted], IN_PHASE_1, new Map([["ki_2", 2]])),
+      "budget"
+    );
+    expect(budget.current?.origin).toEqual({ kind: "update", number: null });
+  });
 });
 
 describe("evaluateBriefCompleteness — the gate", () => {
