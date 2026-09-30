@@ -3,17 +3,21 @@
 import { useActionState, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import {
   uploadKnowledgeItemAction,
   type ActionState,
 } from "@/app/(dashboard)/projects/[projectId]/actions";
+import { updateTitle, updateTypeLabel } from "@/lib/updateLabel";
 
 export interface KnowledgeItemView {
   id: string;
   type: "DOCUMENT" | "NOTE";
-  title: string;
+  /** Only updates saved before titles were removed have one. */
+  title: string | null;
   originalFileName: string | null;
+  uploadedAt: Date;
+  /** One-line AI summary; null until it lands, or if it failed. */
+  summary: string | null;
 }
 
 type InputMode = "paste" | "upload";
@@ -58,13 +62,6 @@ export function KnowledgeUpload({
       </div>
 
       <form action={formAction} className="mt-3 space-y-2">
-        <Input
-          name="title"
-          aria-label="Title"
-          placeholder="Title, e.g. Client call notes — 12 Aug"
-          required
-        />
-
         <div className="flex gap-4 text-xs text-foreground">
           <label className="flex items-center gap-1.5">
             <input
@@ -109,6 +106,11 @@ export function KnowledgeUpload({
             {state.message}
           </p>
         )}
+        {state?.notice && (
+          <p className="text-xs text-muted-foreground" role="status">
+            {state.notice}
+          </p>
+        )}
 
         <Button type="submit" disabled={pending} className="w-full">
           {pending ? "Adding…" : "Add"}
@@ -119,10 +121,11 @@ export function KnowledgeUpload({
         <ul className="mt-4 space-y-1.5 border-t border-border pt-3">
           {items.map((item) => (
             <li key={item.id} className="text-xs text-foreground">
-              {item.title}{" "}
-              <span className="text-muted-foreground">
-                ({item.type === "DOCUMENT" ? item.originalFileName ?? "Document" : "Note"})
-              </span>
+              <span>{updateTitle(item)}</span>{" "}
+              <span className="text-muted-foreground">({updateTypeLabel(item)})</span>
+              {item.summary && (
+                <p className="mt-0.5 text-muted-foreground">{item.summary}</p>
+              )}
             </li>
           ))}
         </ul>

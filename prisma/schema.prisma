@@ -769,8 +769,13 @@ model KnowledgeItem {
   id               String            @id @default(cuid())
   projectId        String
   type             KnowledgeItemType
-  title            String
+  // Only updates saved before titles were removed (2026-09-30) have one;
+  // newer ones are labelled from uploadedAt + type (src/lib/updateLabel.ts).
+  title            String?
   content          String
+  // One-line AI summary, added after the update is saved — null until then,
+  // or if summarising failed. Never required.
+  summary          String?
   originalFileName String?
   uploadedById     String?
   uploadedAt       DateTime          @default(now())

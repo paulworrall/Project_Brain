@@ -251,6 +251,8 @@ export default async function ProjectDetailPage({
           type: item.type,
           title: item.title,
           originalFileName: item.originalFileName,
+          uploadedAt: item.uploadedAt,
+          summary: item.summary,
         }))}
         currentSowTemplate={project.sowTemplate ? { id: project.sowTemplate.id, name: project.sowTemplate.name } : null}
         currentSowTemplateVersion={project.sowTemplateVersion ? { id: project.sowTemplateVersion.id } : null}

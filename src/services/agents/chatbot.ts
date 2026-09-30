@@ -5,6 +5,7 @@ import { anthropic, CLAUDE_MODEL } from "@/lib/anthropic";
 import { prisma } from "@/lib/prisma";
 import { getBriefCompleteness } from "@/lib/briefCompleteness";
 import { formatKeyDetailsForPrompt } from "@/lib/keyDetailsContext";
+import { updateLabel } from "@/lib/updateLabel";
 
 export class ChatbotError extends Error {
   constructor(
@@ -77,7 +78,7 @@ export async function assembleProjectContext(projectId: string): Promise<string>
   }
 
   for (const item of knowledgeItems.filter((k) => k.projectId === projectId)) {
-    sections.push(`## Knowledge item — ${item.title}\n${item.content}`);
+    sections.push(`## Knowledge item — ${updateLabel(item)}\n${item.content}`);
   }
 
   return sections.length > 0

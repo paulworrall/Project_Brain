@@ -13,6 +13,8 @@ import {
   extractDeliverablesAndServices,
 } from "@/services/agents/specialist-review-extraction";
 import { ChatbotError, answerProjectQuestion } from "@/services/agents/chatbot";
+import { summariseUpdate } from "@/services/agents/update-summary";
+import { runAfterResponse } from "@/lib/afterResponse";
 import { parseDocumentToText, UnsupportedBriefFormatError } from "@/services/parsing";
 import { PositionDocumentFieldsSchema, type PositionDocumentFields } from "@/types/intake";
 import { DeliverablesServicesDocumentSchema } from "@/types/deliverables-services";
@@ -55,7 +57,10 @@ import { formatPmPerspectiveForPrompt, getPmPerspectiveField } from "@/lib/pmPer
 import { getPmPerspectiveValues, savePmPerspective } from "@/lib/pmPerspectiveStore";
 
 export interface ActionState {
+  /** Something went wrong; nothing (or not everything) was saved. */
   message?: string;
+  /** Saved, with something the user should know. */
+  notice?: string;
 }
 
 const ProjectSummarySchema = z.object({
@@ -647,39 +652,29 @@ export async function updateOtherServiceLabelAction(
   revalidatePath(`/projects/${projectId}`);
 }
 
-const KnowledgeItemSchema = z.object({
-  title: z.string().trim().min(1, { error: "Give this item a short title." }),
-  content: z.string().trim().optional(),
-});
-
 /**
  * The single place any new information enters a project — pasted notes or
- * an uploaded file. Always adds a KnowledgeItem for the chatbot, and (this
- * used to be a separate "Add a client update" action/panel — merged here so
- * there's one input point instead of two that looked like they did the same
- * thing) also re-runs the clarification extraction against the Position
- * Document's current state when one exists, appending a new version and a
- * timestamped CLARIFICATION_REPLY TouchpointNote. Usable repeatedly at any
- * time in Phase 1, not gated behind a single one-time step.
+ * an uploaded file, with no title (it's labelled from its date and type; see
+ * src/lib/updateLabel.ts). Always saves a KnowledgeItem, and (this used to
+ * be a separate "Add a client update" action/panel — merged here so there's
+ * one input point instead of two that looked like they did the same thing)
+ * also re-runs the clarification extraction against the Position Document's
+ * current state when one exists, appending a new version and a timestamped
+ * CLARIFICATION_REPLY TouchpointNote. If that refresh fails the update is
+ * still saved, with a notice. A one-line AI summary is added after the
+ * response — never blocking the save. Usable repeatedly at any time.
  */
 export async function uploadKnowledgeItemAction(
   projectId: string,
   _prevState: ActionState | undefined,
   formData: FormData
 ): Promise<ActionState | undefined> {
-  const parsed = KnowledgeItemSchema.safeParse({
-    title: formData.get("title"),
-    content: formData.get("content"),
-  });
-  if (!parsed.success) {
-    return {
-      message: z.flattenError(parsed.error).fieldErrors.title?.[0] ?? "Invalid knowledge item.",
-    };
-  }
+  const pasted = formData.get("content");
+  const pastedText = typeof pasted === "string" ? pasted.trim() : "";
 
   const file = formData.get("file");
   const hasFile = file instanceof File && file.size > 0;
-  const hasPastedText = !!parsed.data.content;
+  const hasPastedText = !!pastedText;
 
   if (!hasFile && !hasPastedText) {
     return { message: "Paste some notes or upload a file." };
@@ -705,7 +700,7 @@ export async function uploadKnowledgeItemAction(
       return { message: "Couldn't read that file. Try pasting the notes instead." };
     }
   } else {
-    content = parsed.data.content!;
+    content = pastedText;
   }
 
   if (content.trim().length === 0) {
@@ -719,7 +714,10 @@ export async function uploadKnowledgeItemAction(
   const latestVersion = positionDocument?.versions[0];
   const currentFields = PositionDocumentFieldsSchema.safeParse(latestVersion?.content);
 
+  // The update itself always gets saved; if the Position Document can't be
+  // refreshed from it, the PM is told rather than losing what they added.
   let updatedFields: PositionDocumentFields | undefined;
+  let positionDocumentNotice: string | undefined;
   if (positionDocument && latestVersion && currentFields.success) {
     try {
       updatedFields = await extractClarificationUpdate(
@@ -728,10 +726,11 @@ export async function uploadKnowledgeItemAction(
         await getPmPerspectiveValues(projectId)
       );
     } catch (error) {
-      if (error instanceof ClarificationExtractionError) {
-        return { message: error.message };
+      if (!(error instanceof ClarificationExtractionError)) {
+        throw error;
       }
-      throw error;
+      console.error("Position Document refresh from an update failed:", error);
+      positionDocumentNotice = `Update saved, but the Position Document couldn't be refreshed from it this time (${error.message}).`;
     }
   }
 
@@ -755,7 +754,6 @@ export async function uploadKnowledgeItemAction(
       data: {
         projectId,
         type: hasFile ? "DOCUMENT" : "NOTE",
-        title: parsed.data.title,
         content,
         originalFileName,
         uploadedById: session?.user?.id,
@@ -791,7 +789,19 @@ export async function uploadKnowledgeItemAction(
     ]);
   }
 
+  // Optional, and after the response: the date label stands on its own
+  // until (or unless) this lands.
+  runAfterResponse(async () => {
+    try {
+      const summary = await summariseUpdate(content);
+      await prisma.knowledgeItem.update({ where: { id: knowledgeItem.id }, data: { summary } });
+    } catch (error) {
+      console.error("Update summary failed; the update keeps its date label:", error);
+    }
+  });
+
   revalidatePath(`/projects/${projectId}`);
+  return positionDocumentNotice ? { notice: positionDocumentNotice } : undefined;
 }
 
 // ---------------------------------------------------------------------------
