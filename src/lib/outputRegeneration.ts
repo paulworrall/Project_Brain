@@ -24,7 +24,8 @@ async function appendDocumentVersion(
   type: "CLARIFICATION_EMAIL" | "POSITION_DOCUMENT",
   content: Prisma.InputJsonValue,
   builtFromVersion: number,
-  userId: string | null
+  userId: string | null,
+  triggeredByUpdateVersion: number | null = null
 ): Promise<RegeneratedVersion> {
   return prisma.$transaction(async (tx) => {
     const project = await tx.project.findUniqueOrThrow({
@@ -44,6 +45,7 @@ async function appendDocumentVersion(
         stageNumber: project.currentStageNumber,
         content,
         builtFromVersion,
+        triggeredByUpdateVersion,
         createdById: userId,
       },
     });
@@ -56,11 +58,14 @@ async function appendDocumentVersion(
  * it asks for the key details still missing, asks the client to confirm
  * what we took from their own brief and updates, and lists their
  * still-deciding items — the same structure as at intake. Only ever a
- * draft; nothing is sent. Throws IntakeAgentError if drafting fails.
+ * draft; nothing is sent. `triggeredByUpdateVersion` is set when it's
+ * drafted automatically because that update was saved (userId is then null).
+ * Throws IntakeAgentError if drafting fails.
  */
 export async function redraftClarificationEmail(
   projectId: string,
-  userId: string | null
+  userId: string | null,
+  triggeredByUpdateVersion: number | null = null
 ): Promise<RegeneratedVersion> {
   const [context, position] = await Promise.all([
     getProjectContext(projectId),
@@ -73,7 +78,14 @@ export async function redraftClarificationEmail(
     currentText(context.keyDetails, CLIENT_CONTACT_FIELDS.attributeId, CLIENT_CONTACT_FIELDS.name),
     context.text
   );
-  return appendDocumentVersion(projectId, "CLARIFICATION_EMAIL", email, context.latestVersion, userId);
+  return appendDocumentVersion(
+    projectId,
+    "CLARIFICATION_EMAIL",
+    email,
+    context.latestVersion,
+    userId,
+    triggeredByUpdateVersion
+  );
 }
 
 /**

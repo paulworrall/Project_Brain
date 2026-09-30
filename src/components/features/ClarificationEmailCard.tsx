@@ -5,6 +5,7 @@ import type { ClarificationEmail } from "@/types/intake";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { StaleOutputNotice } from "./StaleOutputNotice";
+import { formatUkDateTime } from "@/lib/updateLabel";
 import type { OutputFreshness } from "@/lib/freshness";
 import { regenerateClarificationEmailAction } from "@/app/(dashboard)/projects/[projectId]/actions";
 
@@ -30,11 +31,21 @@ function wordCount(text: string): number {
  * canonical place documents render in full, rather than duplicating that
  * rendering logic on this page too.
  */
+/** The latest email version, to say when it's a new draft triggered by an update. */
+export interface ClarificationEmailDraftMeta {
+  versionNumber: number;
+  /** The update whose saving drafted this version automatically; null otherwise. */
+  triggeredByUpdateVersion: number | null;
+  createdAt: Date;
+}
+
 export function ClarificationEmailCard({
   projectId,
   email,
   freshness,
+  draft,
 }: {
+  draft?: ClarificationEmailDraftMeta | null;
   projectId: string;
   email: ClarificationEmail | null;
   /** Flagged when the brief changed after this draft; Regenerate makes a new draft (never sent). */
@@ -63,6 +74,16 @@ export function ClarificationEmailCard({
       </div>
       {email ? (
         <Card className="space-y-1 p-4">
+          {draft?.triggeredByUpdateVersion != null && (
+            <p
+              role="status"
+              aria-label="New draft"
+              className="text-xs font-medium text-primary"
+            >
+              New draft ready (v{draft.versionNumber}) — from update v{draft.triggeredByUpdateVersion} ·{" "}
+              {formatUkDateTime(draft.createdAt)}
+            </p>
+          )}
           <p className="text-sm font-medium text-foreground">{email.subject}</p>
           <p className="text-xs text-muted-foreground">
             Draft — never sent automatically · {wordCount(email.bodyText)} words

@@ -813,8 +813,20 @@ export async function uploadKnowledgeItemAction(
     }
   });
 
+  // A fresh draft of the client email from the latest context, as a new
+  // version (earlier drafts are kept). Only ever a draft — nothing is sent.
+  // If it fails the email stays flagged stale, with a Regenerate button.
+  runAfterResponse(async () => {
+    try {
+      await redraftClarificationEmail(projectId, null, knowledgeItem.versionNumber);
+    } catch (error) {
+      console.error("Clarification email redraft after an update failed:", error);
+    }
+  });
+
   revalidatePath(`/projects/${projectId}`);
-  return positionDocumentNotice ? { notice: positionDocumentNotice } : undefined;
+  const draftNotice = `Saved as v${knowledgeItem.versionNumber}. A fresh client email draft is being written from it — refresh in a moment to see it.`;
+  return { notice: positionDocumentNotice ? `${positionDocumentNotice} ${draftNotice}` : draftNotice };
 }
 
 // ---------------------------------------------------------------------------

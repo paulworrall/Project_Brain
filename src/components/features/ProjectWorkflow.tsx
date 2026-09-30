@@ -15,6 +15,7 @@ import type { PmPerspectiveFieldView } from "@/lib/pmPerspectiveStore";
 import type { ClientUpdateLogEntry } from "./Phase1Workspace";
 import { ChatPanel } from "./ChatPanel";
 import { StaleOutputNotice } from "./StaleOutputNotice";
+import type { ClarificationEmailDraftMeta } from "./ClarificationEmailCard";
 import type { OutputFreshness } from "@/lib/freshness";
 import type { ProjectOutputFreshness } from "@/lib/outputFreshness";
 import { KnowledgeUpload, type VersionView } from "./KnowledgeUpload";
@@ -117,6 +118,7 @@ function SpecialistReviewStepContent({
 interface ProjectWorkflowProps {
   /** Which generated outputs no longer reflect the project (see getOutputFreshness). */
   outputFreshness?: ProjectOutputFreshness;
+  clarificationEmailDraft?: ClarificationEmailDraftMeta | null;
   projectId: string;
   projectName: string;
   stages: WorkflowStep[];
@@ -181,6 +183,7 @@ export function ProjectWorkflow({
   estimates,
   rateCardOptions,
   outputFreshness = { estimates: {} },
+  clarificationEmailDraft = null,
 }: ProjectWorkflowProps) {
   const contentByStage: Record<number, ReactNode> = {
     5: (
@@ -223,6 +226,7 @@ export function ProjectWorkflow({
     <Phase1Workspace
       projectId={projectId}
       outputFreshness={outputFreshness}
+      clarificationEmailDraft={clarificationEmailDraft}
       positionDocument={positionDocument}
       clientUpdates={clientUpdates}
       clarificationEmail={clarificationEmail}

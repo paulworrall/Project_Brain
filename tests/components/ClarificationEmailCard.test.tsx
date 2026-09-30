@@ -35,6 +35,34 @@ describe("ClarificationEmailCard", () => {
     expect(link).toHaveAttribute("href", "/projects/proj_1/outputs/CLARIFICATION_EMAIL");
   });
 
+  it("shows that a new draft is ready and which update triggered it — still only a draft", () => {
+    render(
+      <ClarificationEmailCard
+        projectId="proj_1"
+        email={{ subject: "Updated questions", bodyText: "Hi Jamie." }}
+        draft={{ versionNumber: 3, triggeredByUpdateVersion: 4, createdAt: new Date("2026-09-30T13:25:00Z") }}
+      />
+    );
+
+    expect(screen.getByRole("status", { name: "New draft" })).toHaveTextContent(
+      "New draft ready (v3) — from update v4"
+    );
+    expect(screen.getByText(/Draft — never sent automatically/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /send/i })).not.toBeInTheDocument();
+  });
+
+  it("doesn't claim a new draft for the email written at intake", () => {
+    render(
+      <ClarificationEmailCard
+        projectId="proj_1"
+        email={{ subject: "Quick questions", bodyText: "Hi Jamie." }}
+        draft={{ versionNumber: 1, triggeredByUpdateVersion: null, createdAt: new Date() }}
+      />
+    );
+
+    expect(screen.queryByRole("status", { name: "New draft" })).not.toBeInTheDocument();
+  });
+
   describe("download button", () => {
     const originalCreateObjectURL = URL.createObjectURL;
     const originalRevokeObjectURL = URL.revokeObjectURL;

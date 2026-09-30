@@ -121,9 +121,8 @@ export default async function ProjectDetailPage({
     getRateCardsForWorkstreamAction(workstream.id),
   ]);
 
-  const clarificationEmailContent = documents.find(
-    (d) => d.type === "CLARIFICATION_EMAIL"
-  )?.versions[0]?.content;
+  const clarificationEmailVersion = documents.find((d) => d.type === "CLARIFICATION_EMAIL")?.versions[0];
+  const clarificationEmailContent = clarificationEmailVersion?.content;
   const positionDocumentContent = documents.find(
     (d) => d.type === "POSITION_DOCUMENT"
   )?.versions[0]?.content;
@@ -245,6 +244,15 @@ export default async function ProjectDetailPage({
         }
         versions={versionHistory.map(({ content: _content, ...version }) => version)}
         outputFreshness={outputFreshness}
+        clarificationEmailDraft={
+          clarificationEmailVersion
+            ? {
+                versionNumber: clarificationEmailVersion.versionNumber,
+                triggeredByUpdateVersion: clarificationEmailVersion.triggeredByUpdateVersion,
+                createdAt: clarificationEmailVersion.createdAt,
+              }
+            : null
+        }
         currentSowTemplate={project.sowTemplate ? { id: project.sowTemplate.id, name: project.sowTemplate.name } : null}
         currentSowTemplateVersion={project.sowTemplateVersion ? { id: project.sowTemplateVersion.id } : null}
         sowTemplateOptions={sowTemplateOptions.map((t) => ({

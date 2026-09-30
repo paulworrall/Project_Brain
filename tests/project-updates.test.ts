@@ -271,7 +271,10 @@ describe("versioned updates", () => {
     });
     await flushAfterResponse();
 
-    const prompt = mockParse.mock.calls.at(-1)![0].messages[0].content as string;
+    // The summary call (the email redraft runs after it).
+    const prompt = mockParse.mock.calls
+      .map((call) => call[0].messages[0].content as string)
+      .find((content) => content.includes("<before>"))!;
     expect(prompt).toContain("BRIEF_MARKER");
     expect(prompt).toContain("EARLIER_UPDATE_MARKER");
     expect(prompt).toContain("Budget now £150k.");

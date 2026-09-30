@@ -4,7 +4,7 @@ import type { ProjectOutputFreshness } from "@/lib/outputFreshness";
 import { regeneratePositionDocumentAction } from "@/app/(dashboard)/projects/[projectId]/actions";
 import type { Capability } from "@/generated/prisma/enums";
 import { PositionDocumentView } from "./PositionDocumentView";
-import { ClarificationEmailCard } from "./ClarificationEmailCard";
+import { ClarificationEmailCard, type ClarificationEmailDraftMeta } from "./ClarificationEmailCard";
 import {
   CapabilitiesAndEstimateBriefPanel,
   type EstimateBriefVersionMeta,
@@ -51,6 +51,7 @@ export interface Phase1WorkspaceProps {
   estimateBriefVersion: EstimateBriefVersionMeta | null;
   /** Which of Phase 1's outputs no longer reflect the project. */
   outputFreshness?: ProjectOutputFreshness;
+  clarificationEmailDraft?: ClarificationEmailDraftMeta | null;
 }
 
 export function Phase1Workspace({
@@ -64,6 +65,7 @@ export function Phase1Workspace({
   confirmedCapabilities,
   estimateBriefVersion,
   outputFreshness,
+  clarificationEmailDraft,
 }: Phase1WorkspaceProps) {
   const otherDetailsCount = positionDocument?.whatWeKnow.length ?? 0;
   const outstandingCount = briefCompleteness.requiredOutstanding.length;
@@ -111,6 +113,7 @@ export function Phase1Workspace({
         projectId={projectId}
         email={clarificationEmail}
         freshness={outputFreshness?.clarificationEmail}
+        draft={clarificationEmailDraft}
       />
 
       <CapabilitiesAndEstimateBriefPanel
