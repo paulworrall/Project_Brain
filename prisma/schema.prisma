@@ -490,14 +490,27 @@ model SOWVersion {
   // from; null on outputs made before this was recorded (worked out from
   // createdAt instead). Drives the "Built from v2 — v4 is available" flag.
   builtFromVersion Int?
+  // The exact estimate version this SOW's commercials came from, plus a
+  // snapshot of it taken at generation time (so the SOW still says what it
+  // was based on even if that version is later removed). Required for every
+  // new generation (generateSowAction); null only on SOW versions made before
+  // this link existed that the backfill (scripts/backfill-sow-estimate-links.mts)
+  // couldn't link unambiguously. Whether the SOW is out of date is derived at
+  // read time (getSowSyncStatus) — never stored.
+  sourceEstimateVersionId    String?
+  sourceEstimateTotal        Decimal?     @db.Decimal(14, 2)
+  sourceEstimateCurrency     String?
+  sourceEstimateCapabilities Capability[] @default([])
   createdAt            DateTime @default(now())
 
-  sow                SOW                 @relation(fields: [sowId], references: [id], onDelete: Cascade)
+  sow                   SOW                 @relation(fields: [sowId], references: [id], onDelete: Cascade)
+  sourceEstimateVersion EstimateVersion?    @relation(fields: [sourceEstimateVersionId], references: [id], onDelete: SetNull)
   sowTemplate        SOWTemplate?        @relation(fields: [sowTemplateId], references: [id], onDelete: SetNull)
   sowTemplateVersion SOWTemplateVersion? @relation(fields: [sowTemplateVersionId], references: [id], onDelete: SetNull)
   createdBy          User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
   @@unique([sowId, versionNumber])
+  @@index([sourceEstimateVersionId])
 }
 
 // ---------------------------------------------------------------------------
@@ -686,6 +699,7 @@ model EstimateVersion {
   rateCardVersion RateCardVersion    @relation(fields: [rateCardVersionId], references: [id], onDelete: Restrict)
   createdBy       User?              @relation(fields: [createdById], references: [id], onDelete: SetNull)
   lineItems       EstimateLineItem[]
+  sowVersions     SOWVersion[]
 
   @@unique([estimateId, versionNumber])
 }

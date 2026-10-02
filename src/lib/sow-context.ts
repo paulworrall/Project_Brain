@@ -5,12 +5,23 @@ import { getProjectContext } from "@/lib/projectContext";
 import { latestPositionDocumentContent } from "@/lib/positionDocument";
 import { capabilityLabel } from "@/lib/mapCapabilities";
 import type { SowCoverDetails } from "@/types/sow";
+import type { Capability } from "@/generated/prisma/enums";
 
 export interface SowContext {
   narrativeContext: string;
   coverDetails: SowCoverDetails;
   /** The brief version the context reflects, for the SOW version to record. */
   builtFromVersion: number;
+  /** The estimate version the commercials come from (null if none is saved yet), for the SOW to pin. */
+  sourceEstimate: SourceEstimateSnapshot | null;
+}
+
+/** What a SOW version records about the estimate version it was built from. */
+export interface SourceEstimateSnapshot {
+  estimateVersionId: string;
+  total: number;
+  currency: string;
+  capabilities: Capability[];
 }
 
 function formatDate(date: Date): string {
@@ -55,7 +66,14 @@ export async function assembleSowContext(projectId: string): Promise<SowContext>
       prisma.estimateVersion.findFirst({
         where: { estimate: { projectId } },
         orderBy: { createdAt: "desc" },
-        select: { totalValue: true, currency: true, description: true, needsRecalculation: true },
+        select: {
+          id: true,
+          totalValue: true,
+          currency: true,
+          description: true,
+          needsRecalculation: true,
+          capabilitiesIncluded: true,
+        },
       }),
     ]);
   const briefCompleteness = context.keyDetails;
@@ -111,5 +129,17 @@ export async function assembleSowContext(projectId: string): Promise<SowContext>
       : null,
   };
 
-  return { narrativeContext, coverDetails, builtFromVersion: context.latestVersion };
+  return {
+    narrativeContext,
+    coverDetails,
+    builtFromVersion: context.latestVersion,
+    sourceEstimate: latestEstimateVersion
+      ? {
+          estimateVersionId: latestEstimateVersion.id,
+          total: Number(latestEstimateVersion.totalValue),
+          currency: latestEstimateVersion.currency,
+          capabilities: latestEstimateVersion.capabilitiesIncluded,
+        }
+      : null,
+  };
 }

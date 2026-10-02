@@ -332,7 +332,12 @@ export async function generateSowAction(
     };
   }
 
-  const { narrativeContext, coverDetails, builtFromVersion } = await assembleSowContext(projectId);
+  const { narrativeContext, coverDetails, builtFromVersion, sourceEstimate } =
+    await assembleSowContext(projectId);
+  // Every new SOW records the exact estimate version its commercials came from.
+  if (!sourceEstimate) {
+    return { message: "Save an estimate version before generating the SOW — its fees come from the estimate." };
+  }
 
   let body: SOWDocumentContent;
   try {
@@ -363,6 +368,10 @@ export async function generateSowAction(
       sowTemplateId: project.sowTemplateId,
       sowTemplateVersionId: project.sowTemplateVersionId,
       builtFromVersion,
+      sourceEstimateVersionId: sourceEstimate.estimateVersionId,
+      sourceEstimateTotal: sourceEstimate.total,
+      sourceEstimateCurrency: sourceEstimate.currency,
+      sourceEstimateCapabilities: sourceEstimate.capabilities,
       createdById: session?.user?.id,
     };
 

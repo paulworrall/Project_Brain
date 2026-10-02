@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
+import { addEstimateVersion, createEstimate } from "./helpers/estimates";
 
 // Integration test for "Generate SOW" — real Server Actions against the real
 // dev database, only Anthropic/revalidatePath/auth mocked, matching
@@ -82,6 +83,9 @@ beforeAll(async () => {
     data: { name: "SOW Generation Spec Project", workstreamId: workstream.id },
   });
   projectId = project.id;
+  // Every SOW records the estimate version it's built from.
+  const estimate = await createEstimate(prisma, { projectId, clientId, label: "Generation estimate" });
+  await addEstimateVersion(prisma, { ...estimate, versionNumber: 1, total: 50000 });
 
   // Generate SOW is gated on the 4 required key details being PM-confirmed
   // (see brief-key-attributes.test.ts for the gate itself).
@@ -126,6 +130,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await prisma.estimate.deleteMany({ where: { projectId } });
   await prisma.hub.delete({ where: { id: hubId } });
   await prisma.$disconnect();
 });
