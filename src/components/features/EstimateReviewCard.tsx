@@ -1,7 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Card } from "@/components/ui/Card";
+import { Toast } from "@/components/ui/Toast";
+import { formatMoney } from "@/lib/sowSyncView";
 import { Button } from "@/components/ui/Button";
 import { capabilityLabel } from "@/lib/mapCapabilities";
 import {
@@ -111,6 +113,14 @@ function EstimateReviewLineRow({
   );
 }
 
+/** The project's SOW, when it's based on this estimate — for the save-time notice and toast. */
+export interface EstimateSowNotice {
+  sowVersionNumber: number;
+  estimateVersionNumber: number;
+  total: number;
+  currency: string;
+}
+
 /**
  * The generated preview — generate -> review -> save -> download, matching
  * ClarificationEmailCard. A fresh role added or
@@ -126,13 +136,18 @@ export function EstimateReviewCard({
   content,
   onUpdated,
   onSaved,
+  sowNotice,
 }: {
   projectId: string;
   estimateId: string;
   content: EstimateDocumentContent;
   onUpdated?: (view: EstimateBuildViewData) => void;
   onSaved?: (view: EstimateBuildViewData) => void;
+  /** Set when the project's SOW is based on this estimate (from getSowSyncStatus). Never blocks saving. */
+  sowNotice?: EstimateSowNotice | null;
 }) {
+  const [showSowToast, setShowSowToast] = useState(false);
+
   async function submitSave(
     prevState: SaveEstimateVersionActionState | undefined,
     formData: FormData
@@ -140,6 +155,9 @@ export function EstimateReviewCard({
     const result = await saveEstimateVersionAction(estimateId, prevState, formData);
     if (!result.message && result.view) {
       onSaved?.(result.view);
+    }
+    if (!result.message && sowNotice) {
+      setShowSowToast(true);
     }
     return result;
   }
@@ -221,6 +239,21 @@ export function EstimateReviewCard({
           </Button>
         </form>
       </div>
+
+      {sowNotice && (
+        <p role="note" className="rounded-md border border-warning bg-warning-bg px-3 py-2 text-xs text-foreground">
+          Your SOW is based on Estimate v{sowNotice.estimateVersionNumber} (
+          {formatMoney(sowNotice.total, sowNotice.currency)}) — saving this version will put it out of date.
+        </p>
+      )}
+      {showSowToast && (
+        <Toast onDismiss={() => setShowSowToast(false)}>
+          Estimate saved. Your SOW is now out of date.{" "}
+          <a href={`/projects/${projectId}#sow`} className="font-medium text-primary hover:underline">
+            Update SOW
+          </a>
+        </Toast>
+      )}
 
       {state?.message && (
         <p className="text-xs text-danger" role="alert">

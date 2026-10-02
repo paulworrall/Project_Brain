@@ -1206,3 +1206,57 @@ export async function regeneratePositionDocumentAction(
   }
   revalidatePath(`/projects/${projectId}`);
 }
+
+// ---------------------------------------------------------------------------
+// SOW ↔ estimate sync
+// ---------------------------------------------------------------------------
+
+/**
+ * For a SOW version whose source estimate isn't known (made before the link
+ * existed, and not linked by the backfill): the PM says which estimate
+ * version it reflects. Records the link and a snapshot of that version; the
+ * SOW's content isn't touched. Never re-points a version that already has a
+ * source, and only accepts this project's estimate versions.
+ */
+export async function confirmSowEstimateSourceAction(
+  projectId: string,
+  sowVersionId: string,
+  _prevState: ActionState | undefined,
+  formData: FormData
+): Promise<ActionState | undefined> {
+  const estimateVersionId = formData.get("estimateVersionId");
+  if (typeof estimateVersionId !== "string" || !estimateVersionId) {
+    return { message: "Choose the estimate version this SOW reflects." };
+  }
+
+  const [sowVersion, estimateVersion] = await Promise.all([
+    prisma.sOWVersion.findFirst({
+      where: { id: sowVersionId, sow: { projectId } },
+      select: { sourceEstimateVersionId: true },
+    }),
+    prisma.estimateVersion.findFirst({
+      where: { id: estimateVersionId, estimate: { projectId } },
+      select: { id: true, totalValue: true, currency: true, capabilitiesIncluded: true },
+    }),
+  ]);
+  if (!sowVersion) {
+    return { message: "SOW version not found." };
+  }
+  if (sowVersion.sourceEstimateVersionId) {
+    return { message: "This SOW version already records the estimate version it came from." };
+  }
+  if (!estimateVersion) {
+    return { message: "Estimate version not found on this project." };
+  }
+
+  await prisma.sOWVersion.update({
+    where: { id: sowVersionId },
+    data: {
+      sourceEstimateVersionId: estimateVersion.id,
+      sourceEstimateTotal: estimateVersion.totalValue,
+      sourceEstimateCurrency: estimateVersion.currency,
+      sourceEstimateCapabilities: estimateVersion.capabilitiesIncluded,
+    },
+  });
+  revalidatePath(`/projects/${projectId}`);
+}

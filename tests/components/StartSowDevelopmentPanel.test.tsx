@@ -2,6 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ProjectSowSync } from "@/lib/sowSyncView";
 
 const startSowDevelopmentAction = vi.fn(async () => undefined);
 const generateSowAction = vi.fn(async () => undefined);
@@ -10,6 +11,8 @@ vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
   startSowDevelopmentAction,
   generateSowAction,
   saveBriefAttributeAction: vi.fn(),
+  confirmSowEstimateSourceAction: vi.fn(),
+  updateSowFromEstimateAction: vi.fn(),
   rereadBriefAttributesAction: vi.fn(),
 }));
 
@@ -314,6 +317,77 @@ describe("StartSowDevelopmentPanel", () => {
 
       expect(generateSowAction).toHaveBeenCalledTimes(1);
       expect(screen.queryByText("We can't generate the SOW yet")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("estimate sync", () => {
+    const sowVersions = [
+      { id: "sowv_2", versionNumber: 2, createdAt: new Date("2026-09-20T10:00:00Z") },
+      { id: "sowv_1", versionNumber: 1, createdAt: new Date("2026-09-10T10:00:00Z") },
+    ];
+    const source = {
+      estimateVersionId: "ev_1",
+      estimateId: "est_1",
+      estimateLabel: "Main",
+      versionNumber: 1,
+      total: 50400,
+      currency: "USD",
+      capabilities: ["TECH_AND_DATA" as const],
+    };
+    const current = { ...source, estimateVersionId: "ev_3", versionNumber: 3, total: 93000 };
+    const staleSync: ProjectSowSync = {
+      sow: {
+        sowVersionId: "sowv_2",
+        sowVersionNumber: 2,
+        status: "stale",
+        source,
+        current,
+        diff: { totalDelta: 42600, currencyChange: null, capabilitiesAdded: [], capabilitiesRemoved: [] },
+      },
+      versions: [
+        { sowVersionId: "sowv_2", sowVersionNumber: 2, label: "SOW v2 — from Estimate v1 — 50,400 USD", status: "stale" },
+        { sowVersionId: "sowv_1", sowVersionNumber: 1, label: "SOW v1 — source unknown", status: "unlinked" },
+      ],
+      needsAttention: true,
+    };
+
+    function renderPanel(sowSync: ProjectSowSync) {
+      render(
+        <StartSowDevelopmentPanel
+          briefCompleteness={COMPLETE}
+          projectId="proj_1"
+          currentTemplate={{ id: "sow_baseline", name: "Standard SOW Template" }}
+          currentTemplateVersion={{ id: "sow_baseline_v1" }}
+          templateOptions={templateOptions}
+          sowVersions={sowVersions}
+          sowSync={sowSync}
+          estimateVersionOptions={[]}
+        />
+      );
+    }
+
+    it("labels each version with the estimate version it came from", () => {
+      renderPanel(staleSync);
+      expect(screen.getByText(/SOW v2 — from Estimate v1 — 50,400 USD/)).toBeInTheDocument();
+      expect(screen.getByText(/SOW v1 — source unknown/)).toBeInTheDocument();
+    });
+
+    it("shows the out-of-date banner and guards the stale download", () => {
+      renderPanel(staleSync);
+      expect(screen.getByText("Out of date")).toBeInTheDocument();
+      // The latest (stale) version's download is guarded; the unlinked older one isn't.
+      expect(screen.getByRole("button", { name: "Download .docx →" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Download →" })).toHaveAttribute("href", "/api/projects/proj_1/sow/sowv_1");
+    });
+
+    it("shows no banner and a plain download when the SOW is in sync", () => {
+      renderPanel({
+        sow: { ...staleSync.sow!, status: "in_sync", current: source, diff: null },
+        versions: staleSync.versions.map((v) => ({ ...v, status: "in_sync" })),
+        needsAttention: false,
+      });
+      expect(screen.queryByText("Out of date")).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Download .docx →" })).toBeInTheDocument();
     });
   });
 });

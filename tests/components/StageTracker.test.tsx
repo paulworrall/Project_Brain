@@ -317,4 +317,26 @@ describe("StageTracker", () => {
       expect(estimation).not.toHaveTextContent("stages complete");
     });
   });
+
+  describe("attention indicator", () => {
+    it("shows a text indicator in a phase's header — visible while collapsed — only when given one", () => {
+      const { rerender } = render(
+        <StageTracker
+          steps={steps}
+          phase1Status="IN_PROGRESS"
+          phase1Content={<p>Phase 1</p>}
+          attentionByPhaseKey={{ sow: "SOW out of date" }}
+        />
+      );
+
+      const sow = getPhaseDetails("Statement of work and delivery setup");
+      expect(sow.open).toBe(false);
+      expect(sow.querySelector("summary")).toHaveTextContent("Needs attention: SOW out of date");
+
+      rerender(<StageTracker steps={steps} phase1Status="IN_PROGRESS" phase1Content={<p>Phase 1</p>} />);
+      expect(getPhaseDetails("Statement of work and delivery setup").querySelector("summary")).not.toHaveTextContent(
+        "Needs attention"
+      );
+    });
+  });
 });

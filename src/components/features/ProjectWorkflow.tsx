@@ -15,6 +15,8 @@ import type { PmPerspectiveFieldView } from "@/lib/pmPerspectiveStore";
 import type { ClientUpdateLogEntry } from "./Phase1Workspace";
 import { ChatPanel } from "./ChatPanel";
 import { StaleOutputNotice } from "./StaleOutputNotice";
+import type { EstimateVersionOption } from "./SowSyncNotice";
+import type { ProjectSowSync } from "@/lib/sowSyncView";
 import type { ClarificationEmailDraftMeta } from "./ClarificationEmailCard";
 import type { OutputFreshness } from "@/lib/freshness";
 import type { ProjectOutputFreshness } from "@/lib/outputFreshness";
@@ -118,6 +120,9 @@ function SpecialistReviewStepContent({
 interface ProjectWorkflowProps {
   /** Which generated outputs no longer reflect the project (see getOutputFreshness). */
   outputFreshness?: ProjectOutputFreshness;
+  /** Whether the SOW still matches its estimate (getSowSyncStatus). */
+  sowSync?: ProjectSowSync;
+  estimateVersionOptions?: EstimateVersionOption[];
   clarificationEmailDraft?: ClarificationEmailDraftMeta | null;
   projectId: string;
   projectName: string;
@@ -184,6 +189,8 @@ export function ProjectWorkflow({
   rateCardOptions,
   outputFreshness = { estimates: {} },
   clarificationEmailDraft = null,
+  sowSync,
+  estimateVersionOptions = [],
 }: ProjectWorkflowProps) {
   const contentByStage: Record<number, ReactNode> = {
     5: (
@@ -206,6 +213,8 @@ export function ProjectWorkflow({
       <StartSowDevelopmentPanel
         projectId={projectId}
         sowFreshness={outputFreshness.sow}
+        sowSync={sowSync}
+        estimateVersionOptions={estimateVersionOptions}
         currentTemplate={currentSowTemplate}
         currentTemplateVersion={currentSowTemplateVersion}
         templateOptions={sowTemplateOptions}
@@ -256,6 +265,11 @@ export function ProjectWorkflow({
         phase1Status={derivePhase1Status(stages)}
         phase1Content={phase1Content}
         headerExtraByPhaseKey={headerExtraByPhaseKey}
+        attentionByPhaseKey={
+          sowSync?.needsAttention
+            ? { sow: sowSync.sow?.status === "stale" ? "SOW out of date" : "SOW source unknown" }
+            : undefined
+        }
       />
       </div>
       <div className="space-y-4 lg:sticky lg:top-6 lg:self-start">

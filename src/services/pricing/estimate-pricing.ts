@@ -1,6 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import type { Capability, EstimateUnit, RateType } from "@/generated/prisma/enums";
-import { capabilityLabel } from "@/lib/mapCapabilities";
+import { capabilityCode } from "@/lib/mapCapabilities";
 import { hoursPerUnit, toHours, type ConversionFactors } from "@/services/pricing/unit-conversion";
 
 /** Anything Prisma.Decimal's constructor accepts — avoids importing decimal.js directly just for its Value type. */
@@ -43,16 +43,6 @@ export function computeEstimateTotals(lines: { feeSubtotal: DecimalInput }[]): P
     (sum, line) => sum.plus(new Prisma.Decimal(line.feeSubtotal)),
     new Prisma.Decimal(0)
   );
-}
-
-/** "Client Engagement & Delivery" -> "CEAD" (an "&" spells out as "And"). */
-function capabilityCode(capability: Capability): string {
-  return capabilityLabel(capability)
-    .replace(/&/g, "And")
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((word) => word[0]!.toUpperCase())
-    .join("");
 }
 
 /**

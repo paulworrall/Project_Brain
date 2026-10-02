@@ -118,3 +118,13 @@ export function formatCapabilitiesReferenceForPrompt(): string {
     return `### ${c.label}\nDescription: ${c.description}\nLeads: ${leads}\nVideo summary: ${c.videoSummary || "Not specified"}`;
   }).join("\n\n");
 }
+
+/** "Client Engagement & Delivery" -> "CEAD" (an "&" spells out as "And"). */
+export function capabilityCode(capability: Capability): string {
+  return capabilityLabel(capability)
+    .replace(/&/g, "And")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word[0]!.toUpperCase())
+    .join("");
+}

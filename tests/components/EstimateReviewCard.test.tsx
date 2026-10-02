@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { EstimateDocumentContent } from "@/types/estimates";
 
+const saveEstimateVersionAction = vi.fn();
 vi.mock("@/app/(dashboard)/projects/[projectId]/estimates/actions", () => ({
-  saveEstimateVersionAction: vi.fn(),
+  saveEstimateVersionAction,
   updateRoleResolutionQuantityAction: vi.fn(),
 }));
 
@@ -70,5 +72,42 @@ describe("EstimateReviewCard", () => {
     const select = screen.getByLabelText("Unit for Account Director") as HTMLSelectElement;
     expect(select.value).toBe("DAYS");
     expect([...select.options].map((o) => o.value)).toEqual(["HOURS", "DAYS", "WEEKS"]);
+  });
+
+  describe("when a SOW is based on this estimate", () => {
+    const sowNotice = { sowVersionNumber: 2, estimateVersionNumber: 1, total: 50400, currency: "USD" };
+
+    it("warns before saving that a new version will put the SOW out of date — without blocking the save", () => {
+      render(<EstimateReviewCard projectId="p1" estimateId="e1" content={content} sowNotice={sowNotice} />);
+
+      expect(screen.getByRole("note")).toHaveTextContent(
+        "Your SOW is based on Estimate v1 (50,400 USD) — saving this version will put it out of date."
+      );
+      expect(screen.getByRole("button", { name: "Save as version" })).toBeEnabled();
+    });
+
+    it("after saving, announces a toast with an 'Update SOW' action", async () => {
+      saveEstimateVersionAction.mockResolvedValueOnce({ versionId: "ev_2" });
+      const user = userEvent.setup();
+      render(<EstimateReviewCard projectId="p1" estimateId="e1" content={content} sowNotice={sowNotice} />);
+
+      await user.click(screen.getByRole("button", { name: "Save as version" }));
+
+      const toast = await screen.findByRole("status", { name: "Notification" });
+      expect(toast).toHaveAttribute("aria-live", "polite");
+      expect(toast).toHaveTextContent("Estimate saved. Your SOW is now out of date.");
+      expect(screen.getByRole("link", { name: "Update SOW" })).toHaveAttribute("href", "/projects/p1#sow");
+    });
+
+    it("shows neither when no SOW is based on this estimate", async () => {
+      saveEstimateVersionAction.mockResolvedValueOnce({ versionId: "ev_2" });
+      const user = userEvent.setup();
+      render(<EstimateReviewCard projectId="p1" estimateId="e1" content={content} />);
+
+      expect(screen.queryByRole("note")).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Save as version" }));
+      await screen.findByText(/Saved\./);
+      expect(screen.queryByRole("status", { name: "Notification" })).not.toBeInTheDocument();
+    });
   });
 });

@@ -1,5 +1,8 @@
 "use client";
 
+import { SowSyncNotice, type EstimateVersionOption } from "./SowSyncNotice";
+import { SowDownloadLink } from "./SowDownloadLink";
+import { staleDownloadWarning, type ProjectSowSync } from "@/lib/sowSyncView";
 import { StaleOutputNotice } from "./StaleOutputNotice";
 import type { OutputFreshness } from "@/lib/freshness";
 import { useActionState, useEffect, useRef, useState, type FormEvent } from "react";
@@ -78,7 +81,12 @@ export function StartSowDevelopmentPanel({
   sowVersions,
   briefCompleteness,
   sowFreshness,
+  sowSync,
+  estimateVersionOptions = [],
 }: {
+  /** Whether each SOW version still matches its estimate (getSowSyncStatus) — the only source of SOW staleness. */
+  sowSync?: ProjectSowSync;
+  estimateVersionOptions?: EstimateVersionOption[];
   /** Flagged when the brief changed after the latest SOW; Regenerate makes a new version. */
   sowFreshness?: OutputFreshness;
   projectId: string;
@@ -177,9 +185,10 @@ export function StartSowDevelopmentPanel({
 
   const latestSowVersion = sowVersions[0];
   const olderSowVersions = sowVersions.slice(1);
+  const syncOf = (sowVersionId: string) => sowSync?.versions.find((v) => v.sowVersionId === sowVersionId);
 
   return (
-    <div className="space-y-4">
+    <div id="sow" className="scroll-mt-6 space-y-4">
       <form action={formAction} className="space-y-3">
         <div>
           <label
@@ -291,12 +300,23 @@ export function StartSowDevelopmentPanel({
             <p className="text-sm font-medium text-foreground">
               Version {latestSowVersion.versionNumber} — {formatDateTime(latestSowVersion.createdAt)}
             </p>
-            <a
+            {syncOf(latestSowVersion.id) && (
+              <p className="text-xs text-muted-foreground">{syncOf(latestSowVersion.id)!.label}</p>
+            )}
+            <SowSyncNotice
+              projectId={projectId}
+              sync={sowSync?.sow?.sowVersionId === latestSowVersion.id ? sowSync.sow : null}
+              estimateVersionOptions={estimateVersionOptions}
+            />
+            <SowDownloadLink
               href={`/api/projects/${projectId}/sow/${latestSowVersion.id}`}
-              className="inline-block text-xs font-medium text-primary hover:underline"
+              staleWarning={staleDownloadWarning(
+                syncOf(latestSowVersion.id)?.status,
+                syncOf(latestSowVersion.id)?.sourceVersionNumber
+              )}
             >
               Download .docx →
-            </a>
+            </SowDownloadLink>
             <StaleOutputNotice
               freshness={sowFreshness}
               regenerateAction={generateSowAction.bind(null, projectId)}
@@ -314,14 +334,19 @@ export function StartSowDevelopmentPanel({
                       className="flex flex-wrap items-center justify-between gap-2 text-xs text-foreground"
                     >
                       <span>
-                        v{version.versionNumber} — {formatDateTime(version.createdAt)}
+                        {syncOf(version.id)?.label ?? `v${version.versionNumber}`} ·{" "}
+                        {formatDateTime(version.createdAt)}
                       </span>
-                      <a
+                      <SowDownloadLink
                         href={`/api/projects/${projectId}/sow/${version.id}`}
+                        staleWarning={staleDownloadWarning(
+                          syncOf(version.id)?.status,
+                          syncOf(version.id)?.sourceVersionNumber
+                        )}
                         className="font-medium text-primary hover:underline"
                       >
                         Download →
-                      </a>
+                      </SowDownloadLink>
                     </li>
                   ))}
                 </ul>

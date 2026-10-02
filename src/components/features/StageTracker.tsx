@@ -82,6 +82,7 @@ export function StageTracker({
   phase1Status,
   phase1Content,
   headerExtraByPhaseKey,
+  attentionByPhaseKey,
 }: {
   steps: WorkflowStepData[];
   phase1Status: Phase1Status;
@@ -95,6 +96,12 @@ export function StageTracker({
    * buildStepReadinessStrip) so every phase still gets a uniform header.
    */
   headerExtraByPhaseKey?: Partial<Record<string, ReactNode>>;
+  /**
+   * Something in a phase needs the PM's attention (e.g. "SOW out of date"),
+   * keyed by `Phase.key` — shown in the header, in words, so it's visible
+   * while the card is collapsed.
+   */
+  attentionByPhaseKey?: Partial<Record<string, string>>;
 }) {
   const stepByNumber = new Map(steps.map((step) => [step.stageNumber, step]));
 
@@ -142,7 +149,14 @@ export function StageTracker({
                   </span>
                   <span className="text-sm font-medium text-foreground">{phase.name}</span>
                 </div>
-                <span className="shrink-0 text-xs text-muted-foreground">
+                <span className="flex shrink-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  {attentionByPhaseKey?.[phase.key] && (
+                    <span className="rounded-full border border-warning bg-warning-bg px-2 py-0.5 font-semibold text-warning">
+                      <span aria-hidden="true">⚠ </span>
+                      <span className="sr-only">Needs attention: </span>
+                      {attentionByPhaseKey[phase.key]}
+                    </span>
+                  )}
                   {isPhase1 ? PHASE1_STATUS_LABEL[phase1Status] : PHASE_STATUS_LABEL[status]}
                 </span>
               </div>

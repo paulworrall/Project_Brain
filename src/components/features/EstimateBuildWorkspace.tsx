@@ -8,7 +8,7 @@ import {
   type PendingRoleResolutionView,
   type RateCardLineOption,
 } from "./RoleResolutionReview";
-import { EstimateReviewCard } from "./EstimateReviewCard";
+import { EstimateReviewCard, type EstimateSowNotice } from "./EstimateReviewCard";
 import type { EstimateDocumentContent } from "@/types/estimates";
 
 /**
@@ -36,7 +36,10 @@ export function EstimateBuildWorkspace({
   reviewContent: initialReviewContent,
   latestVersion: initialLatestVersion,
   embedded = false,
+  sowNotice = null,
 }: {
+  /** Set when the project's SOW is based on this estimate (getSowSyncStatus). */
+  sowNotice?: EstimateSowNotice | null;
   projectId: string;
   estimateId: string;
   pendingResolutions: PendingRoleResolutionView[];
@@ -105,6 +108,7 @@ export function EstimateBuildWorkspace({
           content={reviewContent}
           onUpdated={handleViewUpdate}
           onSaved={handleViewUpdate}
+          sowNotice={sowNotice}
         />
       )}
     </div>
