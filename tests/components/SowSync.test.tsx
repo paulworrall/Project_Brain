@@ -4,9 +4,10 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { SowSyncStatus } from "@/lib/sowSyncView";
 
+const updateSowFromEstimateAction = vi.fn(async () => undefined);
 vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
   confirmSowEstimateSourceAction: vi.fn(),
-  updateSowFromEstimateAction: vi.fn(),
+  updateSowFromEstimateAction,
 }));
 
 const { SowSyncNotice } = await import("@/components/features/SowSyncNotice");
@@ -67,6 +68,16 @@ describe("SowSyncNotice", () => {
     );
   });
 
+  it("offers 'Update SOW to v3' as the primary action, making a new version from the current estimate", async () => {
+    const user = userEvent.setup();
+    render(<SowSyncNotice projectId="p1" sync={stale} estimateVersionOptions={options} />);
+
+    const update = screen.getByRole("button", { name: "Update SOW to v3" });
+    expect(screen.getByRole("status")).toHaveTextContent(/keeps the scope, assumptions and exclusions as they are/i);
+    await user.click(update);
+    expect(updateSowFromEstimateAction).toHaveBeenCalledWith("p1", "sow_2", undefined, expect.any(FormData));
+  });
+
   it("asks the PM to confirm which estimate version an unlinked SOW reflects", () => {
     render(<SowSyncNotice projectId="p1" sync={unlinked} estimateVersionOptions={options} />);
 
@@ -79,6 +90,7 @@ describe("SowSyncNotice", () => {
       "Main v3 — 93,000 USD",
     ]);
     expect(within(region).getByRole("button", { name: "Confirm" })).toBeInTheDocument();
+    expect(within(region).queryByRole("button", { name: /Update SOW/ })).not.toBeInTheDocument();
   });
 });
 

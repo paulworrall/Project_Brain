@@ -24,7 +24,7 @@ export interface SourceEstimateSnapshot {
   capabilities: Capability[];
 }
 
-function formatDate(date: Date): string {
+export function formatSowDate(date: Date): string {
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric" }).format(date);
 }
 
@@ -113,9 +113,9 @@ export async function assembleSowContext(projectId: string): Promise<SowContext>
     projectName: project.name,
     clientName: project.workstream.client.name,
     jobCode: project.jobCode,
-    preparedDate: formatDate(new Date()),
-    kickOffDate: project.kickOffDate ? formatDate(project.kickOffDate) : null,
-    targetCompletionDate: project.targetCompletionDate ? formatDate(project.targetCompletionDate) : null,
+    preparedDate: formatSowDate(new Date()),
+    kickOffDate: project.kickOffDate ? formatSowDate(project.kickOffDate) : null,
+    targetCompletionDate: project.targetCompletionDate ? formatSowDate(project.targetCompletionDate) : null,
     // Only ever the Client Contact key detail — never inferred from elsewhere.
     primaryClientContactName: currentText(briefCompleteness, CLIENT_CONTACT_FIELDS.attributeId, CLIENT_CONTACT_FIELDS.name),
     primaryClientContactEmail: currentText(briefCompleteness, CLIENT_CONTACT_FIELDS.attributeId, CLIENT_CONTACT_FIELDS.email),

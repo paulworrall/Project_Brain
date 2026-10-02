@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { sowSyncBannerText, type SowSyncStatus } from "@/lib/sowSyncView";
 import {
   confirmSowEstimateSourceAction,
+  updateSowFromEstimateAction,
   type ActionState,
 } from "@/app/(dashboard)/projects/[projectId]/actions";
 
@@ -19,19 +20,18 @@ export interface EstimateVersionOption {
  * Stale: a persistent "Out of date" badge and the diff, in words (never
  * colour alone). Unlinked: a softer prompt to confirm which estimate version
  * the SOW reflects, or to regenerate it. In sync: nothing. Lives in a polite
- * live region so a change is announced. `action` is the primary "Update
- * SOW" control, supplied by the panel.
+ * live region so a change is announced. The stale state's primary action,
+ * "Update SOW to vN", makes a new SOW version with the current estimate's
+ * fees (updateSowFromEstimateAction); nothing is ever overwritten.
  */
 export function SowSyncNotice({
   projectId,
   sync,
   estimateVersionOptions,
-  action,
 }: {
   projectId: string;
   sync: SowSyncStatus | null | undefined;
   estimateVersionOptions: EstimateVersionOption[];
-  action?: React.ReactNode;
 }) {
   if (!sync || sync.status === "in_sync") return null;
 
@@ -46,7 +46,7 @@ export function SowSyncNotice({
           Out of date
         </span>
         <p>{sowSyncBannerText(sync)}</p>
-        {action}
+        <UpdateSowForm projectId={projectId} sync={sync} />
       </div>
     );
   }
@@ -67,6 +67,30 @@ export function SowSyncNotice({
         options={estimateVersionOptions}
       />
     </div>
+  );
+}
+
+function UpdateSowForm({ projectId, sync }: { projectId: string; sync: SowSyncStatus }) {
+  const [state, formAction, pending] = useActionState<ActionState | undefined, FormData>(
+    updateSowFromEstimateAction.bind(null, projectId, sync.sowVersionId),
+    undefined
+  );
+  const target = sync.current?.versionNumber;
+  return (
+    <form action={formAction} className="space-y-1">
+      <Button type="submit" className="text-xs" disabled={pending}>
+        {pending ? "Updating…" : `Update SOW to v${target}`}
+      </Button>
+      <p className="text-muted-foreground">
+        Makes SOW v{sync.sowVersionNumber + 1} with the fees from Estimate v{target}. It keeps the scope,
+        assumptions and exclusions as they are; SOW v{sync.sowVersionNumber} is kept too.
+      </p>
+      {state?.message && (
+        <p className="text-danger" role="alert">
+          {state.message}
+        </p>
+      )}
+    </form>
   );
 }
 

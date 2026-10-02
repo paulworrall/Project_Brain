@@ -40,7 +40,8 @@ import {
 } from "@/types/capabilities";
 import { SowAgentError, generateSowContent } from "@/services/agents/sow-agent";
 import { renderSowDocx } from "@/services/documents/sow-docx";
-import { assembleSowContext } from "@/lib/sow-context";
+import { assembleSowContext, formatSowDate } from "@/lib/sow-context";
+import { getSowSyncStatus } from "@/lib/sowSync";
 import type { SOWContent, SOWDocumentContent } from "@/types/sow";
 import type { Capability, UpdateSource } from "@/generated/prisma/enums";
 import { Prisma } from "@/generated/prisma/client";
@@ -1258,5 +1259,105 @@ export async function confirmSowEstimateSourceAction(
       sourceEstimateCapabilities: estimateVersion.capabilitiesIncluded,
     },
   });
+  revalidatePath(`/projects/${projectId}`);
+}
+
+/**
+ * "Update SOW": a NEW SOW version from the current version of the estimate
+ * the SOW is pinned to — never an overwrite (a SOW is a commercial/legal
+ * document). Only the estimate-derived section is refreshed: the commercials
+ * (and the prepared date). The authored narrative — scope, deliverables,
+ * services, assumptions, exclusions, risks — is carried forward unchanged
+ * from the previous version, with no AI call, so nothing in it can shift.
+ * Only offered for the latest SOW version, and only when it's stale
+ * (getSowSyncStatus).
+ */
+export async function updateSowFromEstimateAction(
+  projectId: string,
+  sowVersionId: string,
+  _prevState: ActionState | undefined,
+  _formData: FormData
+): Promise<ActionState | undefined> {
+  const sync = await getSowSyncStatus(projectId);
+  if (!sync.sow) {
+    return { message: "There's no SOW to update yet." };
+  }
+  if (sync.sow.sowVersionId !== sowVersionId) {
+    return { message: "A newer SOW version exists — update from that one." };
+  }
+  if (sync.sow.status === "unlinked" || !sync.sow.current) {
+    return {
+      message: "We don't know which estimate this SOW came from — confirm it first, or regenerate the SOW.",
+    };
+  }
+  if (sync.sow.status === "in_sync") {
+    return { message: "This SOW is already up to date with its estimate." };
+  }
+
+  const [project, previous, estimateVersion] = await Promise.all([
+    prisma.project.findUniqueOrThrow({ where: { id: projectId }, select: { name: true } }),
+    prisma.sOWVersion.findUniqueOrThrow({
+      where: { id: sowVersionId },
+      select: { content: true, sowTemplateId: true, sowTemplateVersionId: true, builtFromVersion: true },
+    }),
+    prisma.estimateVersion.findFirstOrThrow({
+      where: { id: sync.sow.current.estimateVersionId, estimate: { projectId } },
+      select: {
+        id: true,
+        totalValue: true,
+        currency: true,
+        description: true,
+        needsRecalculation: true,
+        capabilitiesIncluded: true,
+      },
+    }),
+  ]);
+  const previousContent = previous.content as Partial<SOWContent> | null;
+  if (!previousContent?.body || !previousContent.coverDetails) {
+    return { message: "This SOW version can't be updated in place — regenerate the SOW instead." };
+  }
+
+  const content: SOWContent = {
+    body: previousContent.body,
+    coverDetails: {
+      ...previousContent.coverDetails,
+      preparedDate: formatSowDate(new Date()),
+      commercials: {
+        totalValue: Number(estimateVersion.totalValue),
+        currency: estimateVersion.currency,
+        description: estimateVersion.description,
+        needsRecalculation: estimateVersion.needsRecalculation,
+      },
+    },
+  };
+  const fileBytes = new Uint8Array(await renderSowDocx(content));
+  const session = await auth();
+
+  await prisma.$transaction(async (tx) => {
+    const sow = await tx.sOW.findUniqueOrThrow({
+      where: { projectId },
+      include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
+    });
+    const versionNumber = (sow.versions[0]?.versionNumber ?? 0) + 1;
+    await tx.sOWVersion.create({
+      data: {
+        sowId: sow.id,
+        versionNumber,
+        fileName: `SOW - ${project.name} - v${versionNumber}.docx`,
+        fileBytes,
+        content: content as unknown as Prisma.InputJsonValue,
+        sowTemplateId: previous.sowTemplateId,
+        sowTemplateVersionId: previous.sowTemplateVersionId,
+        // The narrative is unchanged, so it reflects the same brief version.
+        builtFromVersion: previous.builtFromVersion,
+        sourceEstimateVersionId: estimateVersion.id,
+        sourceEstimateTotal: estimateVersion.totalValue,
+        sourceEstimateCurrency: estimateVersion.currency,
+        sourceEstimateCapabilities: estimateVersion.capabilitiesIncluded,
+        createdById: session?.user?.id,
+      },
+    });
+  });
+
   revalidatePath(`/projects/${projectId}`);
 }
