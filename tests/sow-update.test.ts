@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
+import { seedSowItems } from "./helpers/sowItems";
 import { addEstimateVersion, createEstimate } from "./helpers/estimates";
 
 // SOW ↔ estimate sync, Phase 3: "Update SOW" makes a NEW SOW version from the
@@ -75,6 +76,12 @@ async function projectWithSow(name: string) {
   await startSowDevelopmentAction(project.id, undefined, form);
   const estimate = await createEstimate(prisma, { projectId: project.id, clientId, label: "Main" });
   const v1 = await addEstimateVersion(prisma, { ...estimate, versionNumber: 1, total: 50400 });
+  await seedSowItems(prisma, project.id, {
+    DELIVERABLES: ["A relaunched app"],
+    SERVICES: ["Build it"],
+    ASSUMPTIONS: ["AUTHORED_ASSUMPTION"],
+    OUT_OF_SCOPE: ["AUTHORED_EXCLUSION"],
+  });
   mockParse.mockResolvedValueOnce({ parsed_output: sowBody });
   expect((await generateSowAction(project.id, undefined, new FormData()))?.message).toBeUndefined();
   const sowV1 = await prisma.sOWVersion.findFirstOrThrow({ where: { sow: { projectId: project.id } } });
@@ -149,6 +156,11 @@ describe("updateSowFromEstimateAction", () => {
     const before = sowV1.content as { body: unknown; coverDetails: { commercials: { totalValue: number } } };
     const after = updated.content as typeof before;
     expect(after.body).toEqual(before.body);
+    // The validated item set the narrative was composed from travels with it.
+    expect(updated.itemsSnapshot).toEqual(sowV1.itemsSnapshot);
+    expect(updated.itemsSnapshot).toEqual(
+      expect.arrayContaining([{ section: "ASSUMPTIONS", text: "AUTHORED_ASSUMPTION", position: 0, source: "AGENT" }])
+    );
     expect(before.coverDetails.commercials.totalValue).toBe(50400);
     expect(after.coverDetails.commercials).toMatchObject({ totalValue: 93000, currency: "USD" });
 

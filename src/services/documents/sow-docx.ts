@@ -1,9 +1,21 @@
 import { Document, HeadingLevel, Packer, Paragraph, TextRun } from "docx";
 import { SERVICE_ROWS } from "@/types/deliverables-services";
-import type { SOWContent } from "@/types/sow";
+import type { LegacySowServices, SOWContent } from "@/types/sow";
 
 function bulletList(items: string[]): Paragraph[] {
   return items.map((item) => new Paragraph({ text: item, bullet: { level: 0 } }));
+}
+
+/** SOW versions made before services became a PM-validated list kept six fixed rows. */
+function legacyServiceParagraphs(services: LegacySowServices): Paragraph[] {
+  return [
+    ...SERVICE_ROWS.flatMap(({ key, label }) => [
+      new Paragraph({ text: label, heading: HeadingLevel.HEADING_2 }),
+      new Paragraph({ text: services[key].involvement }),
+    ]),
+    new Paragraph({ text: services.other.label, heading: HeadingLevel.HEADING_2 }),
+    new Paragraph({ text: services.other.involvement }),
+  ];
 }
 
 /**
@@ -14,6 +26,7 @@ function bulletList(items: string[]): Paragraph[] {
  * cover-details half).
  */
 export async function renderSowDocx({ coverDetails, body }: SOWContent): Promise<Buffer> {
+  const services = body.services;
   const children: Paragraph[] = [
     new Paragraph({ text: "Statement of Work", heading: HeadingLevel.TITLE }),
     new Paragraph({ text: coverDetails.projectName, heading: HeadingLevel.HEADING_2 }),
@@ -46,12 +59,7 @@ export async function renderSowDocx({ coverDetails, body }: SOWContent): Promise
     ...bulletList(body.deliverables),
 
     new Paragraph({ text: "Services", heading: HeadingLevel.HEADING_1 }),
-    ...SERVICE_ROWS.flatMap(({ key, label }) => [
-      new Paragraph({ text: label, heading: HeadingLevel.HEADING_2 }),
-      new Paragraph({ text: body.services[key].involvement }),
-    ]),
-    new Paragraph({ text: body.services.other.label, heading: HeadingLevel.HEADING_2 }),
-    new Paragraph({ text: body.services.other.involvement }),
+    ...(Array.isArray(services) ? bulletList(services) : legacyServiceParagraphs(services)),
 
     new Paragraph({ text: "Milestones", heading: HeadingLevel.HEADING_1 }),
     ...body.milestones.map(

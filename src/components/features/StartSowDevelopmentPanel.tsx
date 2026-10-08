@@ -5,12 +5,14 @@ import { SowDownloadLink } from "./SowDownloadLink";
 import { staleDownloadWarning, type ProjectSowSync } from "@/lib/sowSyncView";
 import { StaleOutputNotice } from "./StaleOutputNotice";
 import type { OutputFreshness } from "@/lib/freshness";
-import { useActionState, useEffect, useRef, useState, type FormEvent } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ProcessingOverlay, type ProcessingOverlayStatus } from "@/components/ui/ProcessingOverlay";
 import { useFallbackStageProgress } from "@/hooks/useFallbackStageProgress";
 import {
+  SOW_EXTRACTION_PROCESSING_STAGES,
+  SOW_EXTRACTION_STAGE_DURATIONS_MS,
   SOW_GENERATION_PROCESSING_STAGES,
   SOW_GENERATION_STAGE_DURATIONS_MS,
 } from "@/lib/sowGenerationProcessingStages";
@@ -18,8 +20,10 @@ import {
   startSowDevelopmentAction,
   generateSowAction,
   type ActionState,
-  type GenerateSowActionState,
 } from "@/app/(dashboard)/projects/[projectId]/actions";
+import { startSowReviewAction } from "@/app/(dashboard)/projects/[projectId]/sow-review-actions";
+import { SowReviewOverlay } from "./SowReviewOverlay";
+import type { SowItemDto } from "@/lib/sowReview";
 import type { BriefCompleteness } from "@/lib/briefCompleteness";
 import { BriefGateAlert } from "./BriefGateNotice";
 
@@ -121,65 +125,106 @@ export function StartSowDevelopmentPanel({
   }
 
   // --- Generate SOW ------------------------------------------------------
-  const generateSubmitRef = useRef<HTMLButtonElement>(null);
+  // Two steps, each behind ProcessingOverlay: (1) extraction proposes items
+  // (or resumes a saved review), the PM validates them in SowReviewOverlay,
+  // then (2) composition writes the SOW from only the validated items.
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [overlayStatus, setOverlayStatus] = useState<ProcessingOverlayStatus>("active");
+  const [processingKind, setProcessingKind] = useState<"extract" | "compose">("extract");
+  const [processingError, setProcessingError] = useState<string | undefined>();
+  const [review, setReview] = useState<{ items: SowItemDto[]; step: number } | null>(null);
   const [showBriefGate, setShowBriefGate] = useState(false);
   const outstanding = briefCompleteness.requiredOutstanding;
+  const busy = overlayOpen && overlayStatus === "active";
 
-  // Same reasoning as CapabilitiesAndEstimateBriefPanel's suggestAction:
-  // setState here, synchronously inside the action's own async function,
-  // not in a useEffect keyed off a pending->settled transition.
-  async function generateAction(
-    prevState: GenerateSowActionState | undefined,
-    formData: FormData
-  ): Promise<GenerateSowActionState | undefined> {
-    const result = await generateSowAction(projectId, prevState, formData);
-    if (result?.missingAttributes) {
-      // Refused by the server-side brief gate — explain it in the alert,
-      // not the processing overlay.
-      setOverlayOpen(false);
-      setShowBriefGate(true);
-      return result;
-    }
-    setOverlayStatus(result?.message ? "error" : "success");
-    return result;
+  function refuseForBriefGate() {
+    setOverlayOpen(false);
+    setReview(null);
+    setShowBriefGate(true);
   }
 
-  const [generateState, generateFormAction, generatePending] = useActionState<
-    GenerateSowActionState | undefined,
-    FormData
-  >(generateAction, undefined);
+  async function runExtraction() {
+    setProcessingKind("extract");
+    setProcessingError(undefined);
+    setOverlayStatus("active");
+    setOverlayOpen(true);
+    try {
+      const result = await startSowReviewAction(projectId);
+      if (result.missingAttributes) {
+        // Refused by the server-side brief gate — explain it in the alert,
+        // not the processing overlay.
+        refuseForBriefGate();
+        return;
+      }
+      if (!result.items) {
+        setProcessingError(result.message);
+        setOverlayStatus("error");
+        return;
+      }
+      // One batch: the processing overlay closes (restoring focus to the
+      // button) as the review overlay opens (capturing it as its return point).
+      setOverlayOpen(false);
+      setReview({ items: result.items, step: result.currentStep ?? 0 });
+    } catch {
+      setProcessingError("Something went wrong preparing the SOW review. Please try again.");
+      setOverlayStatus("error");
+    }
+  }
 
-  const fallbackActive = overlayOpen && overlayStatus === "active";
-  const { stageIndex, isFinalHold, elapsedInFinalHoldMs } = useFallbackStageProgress(
-    fallbackActive,
-    SOW_GENERATION_STAGE_DURATIONS_MS
-  );
+  async function runComposition() {
+    setProcessingKind("compose");
+    setProcessingError(undefined);
+    setOverlayStatus("active");
+    setOverlayOpen(true);
+    try {
+      const result = await generateSowAction(projectId, undefined, new FormData());
+      if (result?.missingAttributes) {
+        refuseForBriefGate();
+        return;
+      }
+      if (result?.message) {
+        setProcessingError(result.message);
+        setOverlayStatus("error");
+        return;
+      }
+      setOverlayStatus("success");
+    } catch {
+      setProcessingError("Something went wrong generating the SOW. Please try again.");
+      setOverlayStatus("error");
+    }
+  }
 
+  const stageDurations =
+    processingKind === "extract" ? SOW_EXTRACTION_STAGE_DURATIONS_MS : SOW_GENERATION_STAGE_DURATIONS_MS;
+  const { stageIndex, isFinalHold, elapsedInFinalHoldMs } = useFallbackStageProgress(busy, stageDurations);
+
+  // Composition succeeded: show the success state briefly, then dismiss both
+  // overlays into the generated SOW.
   useEffect(() => {
-    if (overlayOpen && overlayStatus === "success") {
-      const timeout = setTimeout(() => setOverlayOpen(false), 1200);
+    if (overlayOpen && overlayStatus === "success" && processingKind === "compose") {
+      const timeout = setTimeout(() => {
+        setOverlayOpen(false);
+        setReview(null);
+      }, 1200);
       return () => clearTimeout(timeout);
     }
-  }, [overlayOpen, overlayStatus]);
+  }, [overlayOpen, overlayStatus, processingKind]);
 
-  function handleGenerateSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleGenerateClick() {
     if (!briefCompleteness.canProceed) {
-      event.preventDefault();
       setShowBriefGate(true);
       return;
     }
     setShowBriefGate(false);
-    setOverlayOpen(true);
-    setOverlayStatus("active");
+    void runExtraction();
   }
 
-  function handleRetryGenerate() {
-    generateSubmitRef.current?.click();
+  function handleRetry() {
+    void (processingKind === "extract" ? runExtraction() : runComposition());
   }
 
-  function handleDismissGenerateError() {
+  function handleDismissError() {
+    // On a composition error the review overlay is still open beneath, so the PM lands back in it.
     setOverlayOpen(false);
   }
 
@@ -263,16 +308,15 @@ export function StartSowDevelopmentPanel({
       <div className="border-t border-border pt-3">
         <div className="flex items-center justify-between gap-2">
           <h4 className="text-sm font-semibold text-foreground">Statement of Work</h4>
-          <form action={generateFormAction} onSubmit={handleGenerateSubmit}>
-            <Button
-              ref={generateSubmitRef}
-              type="submit"
-              disabled={generatePending || !currentTemplate}
-              className="text-xs"
-            >
-              {generatePending ? "Generating…" : latestSowVersion ? "Regenerate SOW" : "Generate SOW"}
-            </Button>
-          </form>
+          <Button
+            type="button"
+            onClick={handleGenerateClick}
+            // Not disabled while the review is open: focus must be able to return here when it closes.
+            disabled={busy || !currentTemplate}
+            className="text-xs"
+          >
+            {busy ? "Working…" : latestSowVersion ? "Regenerate SOW" : "Generate SOW"}
+          </Button>
         </div>
         {!currentTemplate && (
           <p className="mt-1 text-xs text-muted-foreground">
@@ -319,7 +363,7 @@ export function StartSowDevelopmentPanel({
             </SowDownloadLink>
             <StaleOutputNotice
               freshness={sowFreshness}
-              regenerateAction={generateSowAction.bind(null, projectId)}
+              onRegenerate={handleGenerateClick}
             />
 
             {olderSowVersions.length > 0 && (
@@ -358,18 +402,31 @@ export function StartSowDevelopmentPanel({
         )}
       </div>
 
+      {review && (
+        <SowReviewOverlay
+          projectId={projectId}
+          initialItems={review.items}
+          initialStep={review.step}
+          generating={overlayOpen}
+          onClose={() => setReview(null)}
+          onGenerate={() => void runComposition()}
+        />
+      )}
+
       <ProcessingOverlay
         isOpen={overlayOpen}
-        title="Generating the Statement of Work"
-        stages={[...SOW_GENERATION_PROCESSING_STAGES]}
+        title={processingKind === "extract" ? "Preparing the SOW review" : "Generating the Statement of Work"}
+        stages={[
+          ...(processingKind === "extract" ? SOW_EXTRACTION_PROCESSING_STAGES : SOW_GENERATION_PROCESSING_STAGES),
+        ]}
         stageIndex={stageIndex}
         status={overlayStatus}
         isFinalHold={isFinalHold}
         elapsedInFinalHoldMs={elapsedInFinalHoldMs}
-        errorMessage={generateState?.message}
+        errorMessage={processingError}
         successMessage="SOW generated — download it below."
-        onRetry={handleRetryGenerate}
-        onDismissError={handleDismissGenerateError}
+        onRetry={handleRetry}
+        onDismissError={handleDismissError}
       />
     </div>
   );

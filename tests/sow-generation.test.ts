@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
+import { seedSowItems } from "./helpers/sowItems";
 import { addEstimateVersion, createEstimate } from "./helpers/estimates";
 
 // Integration test for "Generate SOW" — real Server Actions against the real
@@ -147,6 +148,7 @@ describe("generateSowAction", () => {
 
   it("generates v1, then regenerating appends v2 rather than overwriting, and each version keeps the template it was actually generated against", async () => {
     await startSowDevelopmentAction(projectId, undefined, selectTemplateFormData(templateAId, templateAVersionId));
+    await seedSowItems(prisma, projectId);
 
     mockParse.mockResolvedValueOnce({ parsed_output: sowContent });
     const firstResult = await generateSowAction(projectId, undefined, new FormData());

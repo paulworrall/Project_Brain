@@ -22,6 +22,17 @@ vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
   updatePmPerspectiveFieldAction: vi.fn(),
 }));
 
+vi.mock("@/app/(dashboard)/projects/[projectId]/sow-review-actions", () => ({
+  startSowReviewAction: vi.fn(),
+  saveSowReviewStepAction: vi.fn(),
+  saveSowItemAction: vi.fn(),
+  revertSowItemAction: vi.fn(),
+  acceptSowSuggestionAction: vi.fn(),
+  dismissSowSuggestionAction: vi.fn(),
+  addSowItemAction: vi.fn(),
+  deleteSowItemAction: vi.fn(),
+}));
+
 vi.mock("@/app/(dashboard)/projects/[projectId]/estimates/actions", () => ({
   createEstimateAction: vi.fn(),
   addOrReviseCapabilityInputAction: vi.fn(),

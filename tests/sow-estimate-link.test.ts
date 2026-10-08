@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
+import { seedSowItems } from "./helpers/sowItems";
 import { addEstimateVersion, createEstimate } from "./helpers/estimates";
 
 // SOW ↔ estimate sync, Phase 1: every new SOW version records the exact
@@ -147,6 +148,7 @@ describe("SOW generation records its source estimate version", () => {
       capabilities: ["TECH_AND_DATA", "EXPERIENCE_DESIGN"],
     });
 
+    await seedSowItems(prisma, projectId);
     mockParse.mockResolvedValueOnce({ parsed_output: sowBody });
     const result = await generateSowAction(projectId, undefined, new FormData());
     expect(result?.message).toBeUndefined();

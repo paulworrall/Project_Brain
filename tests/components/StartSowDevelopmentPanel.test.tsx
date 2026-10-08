@@ -1,11 +1,40 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ProjectSowSync } from "@/lib/sowSyncView";
 
 const startSowDevelopmentAction = vi.fn(async () => undefined);
 const generateSowAction = vi.fn(async () => undefined);
+
+const startSowReviewAction = vi.fn(async () => ({
+  items: [
+    {
+      id: "item_1",
+      section: "DELIVERABLES",
+      text: "A relaunched app",
+      agentOriginalText: "A relaunched app",
+      source: "AGENT",
+      included: true,
+      position: 0,
+      isNewSinceLastReview: false,
+      pendingAgentSuggestion: null,
+      version: 0,
+    },
+  ],
+  currentStep: 0,
+}));
+
+vi.mock("@/app/(dashboard)/projects/[projectId]/sow-review-actions", () => ({
+  startSowReviewAction,
+  saveSowReviewStepAction: vi.fn(async () => undefined),
+  saveSowItemAction: vi.fn(),
+  revertSowItemAction: vi.fn(),
+  acceptSowSuggestionAction: vi.fn(),
+  dismissSowSuggestionAction: vi.fn(),
+  addSowItemAction: vi.fn(),
+  deleteSowItemAction: vi.fn(),
+}));
 
 vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
   startSowDevelopmentAction,
@@ -61,7 +90,7 @@ describe("StartSowDevelopmentPanel", () => {
     expect(screen.getByText("Select a SOW Template above before generating.")).toBeInTheDocument();
   });
 
-  it("enables 'Generate SOW' once a template is selected, and calls generateSowAction on click", async () => {
+  it("enables 'Generate SOW' once a template is selected; clicking opens the review overlay rather than generating straight away", async () => {
     const user = userEvent.setup();
     render(
       <StartSowDevelopmentPanel
@@ -77,8 +106,45 @@ describe("StartSowDevelopmentPanel", () => {
     const generateButton = screen.getByRole("button", { name: "Generate SOW" });
     expect(generateButton).toBeEnabled();
 
+    generateSowAction.mockClear();
     await user.click(generateButton);
-    expect(generateSowAction).toHaveBeenCalled();
+    expect(startSowReviewAction).toHaveBeenCalledWith("proj_1");
+    expect(await screen.findByRole("dialog", { name: /review the deliverables/i })).toBeInTheDocument();
+    expect(screen.getByTestId("step-indicator")).toHaveTextContent("Step 1 of 6: Deliverables");
+    expect(generateSowAction).not.toHaveBeenCalled();
+  });
+
+  it("runs composition (generateSowAction) only from the review's final step, then returns focus to the trigger", async () => {
+    const user = userEvent.setup();
+    generateSowAction.mockClear();
+    render(
+      <StartSowDevelopmentPanel
+        briefCompleteness={COMPLETE}
+        projectId="proj_1"
+        currentTemplate={{ id: "sow_baseline", name: "Standard SOW Template" }}
+        currentTemplateVersion={{ id: "sow_baseline_v1" }}
+        templateOptions={templateOptions}
+        sowVersions={[]}
+      />
+    );
+    const trigger = screen.getByRole("button", { name: "Generate SOW" });
+    await user.click(trigger);
+    await screen.findByRole("dialog", { name: /review the deliverables/i });
+
+    // Step through every section to the end.
+    for (let i = 0; i < 5; i += 1) {
+      await user.click(screen.getByRole("button", { name: /^next/i }));
+      // Empty optional sections ask for confirmation.
+      const confirm = screen.queryByRole("button", { name: "Continue" });
+      if (confirm) await user.click(confirm);
+    }
+    expect(screen.getByTestId("step-indicator")).toHaveTextContent("Step 6 of 6: Review & generate");
+    await user.click(within(screen.getByTestId("sow-review-overlay")).getByRole("button", { name: "Generate SOW" }));
+
+    expect(generateSowAction).toHaveBeenCalledTimes(1);
+    // Success state shows briefly, then both overlays dismiss into the page.
+    await waitFor(() => expect(screen.queryByTestId("sow-review-overlay")).not.toBeInTheDocument(), { timeout: 3000 });
+    expect(screen.getByRole("button", { name: "Generate SOW" })).toHaveFocus();
   });
 
   it("shows the latest version + download link, and labels the button 'Regenerate SOW' once one exists", () => {
@@ -245,7 +311,7 @@ describe("StartSowDevelopmentPanel", () => {
 
     it("refuses on click when required key details are missing, listing exactly what's missing — without calling the action", async () => {
       const user = userEvent.setup();
-      generateSowAction.mockClear();
+      startSowReviewAction.mockClear();
       render(
         <StartSowDevelopmentPanel
           briefCompleteness={briefCompleteness([
@@ -272,7 +338,7 @@ describe("StartSowDevelopmentPanel", () => {
       expect(screen.getByRole("button", { name: "Add Client Contact" })).toBeInTheDocument();
       // The partial Objective can be updated right there too.
       expect(screen.getByRole("button", { name: "Update Objective" })).toBeInTheDocument();
-      expect(generateSowAction).not.toHaveBeenCalled();
+      expect(startSowReviewAction).not.toHaveBeenCalled();
     });
 
     it("lets the PM fill a missing detail in right from the alert", async () => {
@@ -300,7 +366,7 @@ describe("StartSowDevelopmentPanel", () => {
 
     it("generates normally once every required key detail is captured", async () => {
       const user = userEvent.setup();
-      generateSowAction.mockClear();
+      startSowReviewAction.mockClear();
       render(
         <StartSowDevelopmentPanel
           briefCompleteness={COMPLETE}
@@ -315,7 +381,7 @@ describe("StartSowDevelopmentPanel", () => {
       expect(screen.queryByText(/still need/)).not.toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: "Generate SOW" }));
 
-      expect(generateSowAction).toHaveBeenCalledTimes(1);
+      expect(startSowReviewAction).toHaveBeenCalledTimes(1);
       expect(screen.queryByText("We can't generate the SOW yet")).not.toBeInTheDocument();
     });
   });

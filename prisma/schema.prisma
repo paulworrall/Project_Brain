@@ -133,6 +133,8 @@ model Project {
   capabilities           ProjectCapability[]
   estimateBrief          EstimateBrief?
   estimates              Estimate[]
+  sowSectionItems        SowSectionItem[]
+  sowReviewState         SowReviewState?
   sow                    SOW?
   briefAttributeValues   BriefAttributeValue[]
   pmPerspectiveEntries   PmPerspectiveEntry[]
@@ -501,6 +503,11 @@ model SOWVersion {
   sourceEstimateTotal        Decimal?     @db.Decimal(14, 2)
   sourceEstimateCurrency     String?
   sourceEstimateCapabilities Capability[] @default([])
+  // Frozen copy of the PM-validated items (included only: section, text,
+  // position, source) this version's Deliverables/Services/Assumptions/Out of
+  // Scope/Risks were composed from — see SowSectionItem. Null on versions made
+  // before the PM review step existed.
+  itemsSnapshot        Json?
   createdAt            DateTime @default(now())
 
   sow                   SOW                 @relation(fields: [sowId], references: [id], onDelete: Cascade)
@@ -511,6 +518,76 @@ model SOWVersion {
 
   @@unique([sowId, versionNumber])
   @@index([sourceEstimateVersionId])
+}
+
+// ---------------------------------------------------------------------------
+// PM-validated SOW content. Before a SOW is composed, the PM reviews five
+// sections of candidate items (proposed by the sow-extraction agent from the
+// project's inputs). Items are project-scoped working state — mutable, and
+// respected by every regeneration (see src/lib/sowItemsMerge.ts for the merge
+// rules). The historical record is SOWVersion.itemsSnapshot, not these rows.
+// The section list is fixed for now but is read from SOW_REVIEW_SECTIONS
+// (src/lib/sowReview.ts) so it could later be driven by the SOW template.
+// ---------------------------------------------------------------------------
+
+enum SowSection {
+  DELIVERABLES
+  SERVICES
+  ASSUMPTIONS
+  OUT_OF_SCOPE
+  RISKS
+}
+
+enum SowItemSource {
+  AGENT
+  PM_EDITED
+  PM_ADDED
+}
+
+model SowSectionItem {
+  id        String     @id @default(cuid())
+  projectId String
+  section   SowSection
+  text      String
+  // The agent's last-proposed wording ("Revert to suggestion" restores it).
+  // Null for PM_ADDED items.
+  agentOriginalText    String?
+  source               SowItemSource @default(AGENT)
+  included             Boolean       @default(true)
+  position             Int
+  isNewSinceLastReview Boolean       @default(false)
+  // An agent-proposed change to a PM-authored item: shown, never auto-applied.
+  pendingAgentSuggestion String?
+  // Optimistic-concurrency counter: every write states the version it read and
+  // bumps it, so two people editing one item can't silently overwrite each other.
+  version     Int      @default(0)
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy User?   @relation("SowSectionItemCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy User?   @relation("SowSectionItemUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([projectId, section, position])
+}
+
+// One per project: where the PM got to in the review overlay, so "Save & exit"
+// resumes at the same step.
+model SowReviewState {
+  id        String @id @default(cuid())
+  projectId String @unique
+  // 0-4 = the five sections in order, 5 = Review & generate.
+  currentStep Int @default(0)
+  // True from when extraction has produced items for a review until a SOW is
+  // generated from them — so reopening resumes instead of re-extracting.
+  inProgress      Boolean   @default(false)
+  lastCompletedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
 // ---------------------------------------------------------------------------
@@ -914,6 +991,8 @@ model User {
   roleResolutionsResolved        RoleResolution[]
   estimateVersionsCreated        EstimateVersion[]
   sowVersionsCreated             SOWVersion[]
+  sowSectionItemsCreated         SowSectionItem[] @relation("SowSectionItemCreatedBy")
+  sowSectionItemsUpdated         SowSectionItem[] @relation("SowSectionItemUpdatedBy")
   briefAttributeValuesCreated    BriefAttributeValue[]
   pmPerspectiveEntriesEdited     PmPerspectiveEntry[]
 }

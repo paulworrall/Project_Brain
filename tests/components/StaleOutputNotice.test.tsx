@@ -32,6 +32,16 @@ describe("StaleOutputNotice", () => {
     expect(regenerate).toHaveBeenCalled();
   });
 
+  it("can hand Regenerate to a click handler instead of a form action (the SOW opens a review first)", async () => {
+    const onRegenerate = vi.fn();
+    const user = userEvent.setup();
+    render(<StaleOutputNotice freshness={stale} onRegenerate={onRegenerate} />);
+
+    await user.click(screen.getByRole("button", { name: "Regenerate" }));
+
+    expect(onRegenerate).toHaveBeenCalledTimes(1);
+  });
+
   it("only flags an output that isn't regenerated automatically, with no button", () => {
     render(
       <StaleOutputNotice

@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
+import { seedSowItems } from "./helpers/sowItems";
 import { addEstimateVersion, createEstimate } from "./helpers/estimates";
 
 // Real-DB integration test for the brief key attributes: AI extraction only
@@ -497,6 +498,9 @@ describe("Generate SOW gate", () => {
     // Every SOW records the estimate version it's built from.
     const estimate = await createEstimate(prisma, { projectId, clientId, label: "Gate estimate" });
     await addEstimateVersion(prisma, { ...estimate, versionNumber: 1, total: 50000 });
+
+    // ...and the PM has validated at least one deliverable.
+    await seedSowItems(prisma, projectId);
 
     mockParse.mockResolvedValueOnce({ parsed_output: sowContent });
     const result = await generateSowAction(projectId, undefined, new FormData());

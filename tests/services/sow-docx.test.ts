@@ -20,14 +20,7 @@ const content: SOWContent = {
       background: "The client wants to modernize their loyalty programme ahead of Q2 2026.",
     },
     deliverables: ["Points-based rewards system", "Referral programme"],
-    services: {
-      experienceCreative: { involvement: "Design the rewards UI" },
-      business: { involvement: "Not included in this engagement" },
-      architecture: { involvement: "Not included in this engagement" },
-      techAndData: { involvement: "Build the integration" },
-      orchestration: { involvement: "Coordinate the launch" },
-      other: { involvement: "Not included in this engagement", label: "Other" },
-    },
+    services: ["Experience/Creative — design the rewards UI", "Tech and Data — build the integration"],
     milestones: [{ name: "Kick-off", dueDate: null }],
     rolesAndResponsibilities: [{ name: "Jamie Chen", role: "Client contact", organization: "CLIENT" }],
     assumptions: ["UK market only"],
@@ -53,6 +46,26 @@ describe("renderSowDocx", () => {
     const longer = await renderSowDocx(content);
 
     expect(longer.length).toBeGreaterThan(shorter.length);
+  });
+
+  it("renders a SOW version made before services became a list (six fixed rows) without error", async () => {
+    const legacy = await renderSowDocx({
+      ...content,
+      body: {
+        ...content.body,
+        services: {
+          experienceCreative: { involvement: "Design the rewards UI" },
+          business: { involvement: "Not included in this engagement" },
+          architecture: { involvement: "Not included in this engagement" },
+          techAndData: { involvement: "Build the integration" },
+          orchestration: { involvement: "Coordinate the launch" },
+          other: { involvement: "Not included in this engagement", label: "Other" },
+        },
+      },
+    });
+
+    expect(legacy.subarray(0, 2).toString("utf-8")).toBe("PK");
+    expect(legacy.length).toBeGreaterThan(0);
   });
 
   it("omits the Commercials section when no estimate has been saved", async () => {

@@ -20,11 +20,14 @@ type RegenerateAction = (
 export function StaleOutputNotice({
   freshness,
   regenerateAction,
+  onRegenerate,
   flagOnlyHint,
 }: {
   freshness: OutputFreshness | undefined;
   /** Bound to the project; required when the output can be regenerated. */
   regenerateAction?: RegenerateAction;
+  /** Alternative to regenerateAction for outputs that open a review step first (the SOW): a plain click handler. */
+  onRegenerate?: () => void;
   flagOnlyHint?: string;
 }) {
   if (!freshness?.stale) return null;
@@ -40,7 +43,14 @@ export function StaleOutputNotice({
           <p className="mt-0.5 text-muted-foreground">{flagOnlyHint}</p>
         )}
       </div>
-      {freshness.canRegenerate && regenerateAction && <RegenerateButton action={regenerateAction} />}
+      {freshness.canRegenerate && onRegenerate && (
+        <Button type="button" variant="secondary" className="shrink-0 text-xs" onClick={onRegenerate}>
+          Regenerate
+        </Button>
+      )}
+      {freshness.canRegenerate && !onRegenerate && regenerateAction && (
+        <RegenerateButton action={regenerateAction} />
+      )}
     </div>
   );
 }

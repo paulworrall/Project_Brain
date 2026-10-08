@@ -42,6 +42,9 @@ import { SowAgentError, generateSowContent } from "@/services/agents/sow-agent";
 import { renderSowDocx } from "@/services/documents/sow-docx";
 import { assembleSowContext, formatSowDate } from "@/lib/sow-context";
 import { getSowSyncStatus } from "@/lib/sowSync";
+import { checkSowPreconditions } from "@/lib/sowPreconditions";
+import { completeSowReview, listSowItems, validatedListsFromItems } from "@/lib/sowItems";
+import { snapshotItems } from "@/lib/sowReview";
 import type { SOWContent, SOWDocumentContent } from "@/types/sow";
 import type { Capability, UpdateSource } from "@/generated/prisma/enums";
 import { Prisma } from "@/generated/prisma/client";
@@ -269,8 +272,9 @@ export async function startSowDevelopmentAction(
 }
 
 /**
- * "Generate SOW" — assembles everything already captured about the
- * project, drafts fresh SOW content guided by the selected template's
+ * "Generate SOW" — the composition step. Takes the items the PM validated in
+ * the review overlay (SowSectionItem) plus everything already captured about
+ * the project, and drafts the SOW narrative guided by the selected template's
  * structure (never a mail-merge — see sow-agent.ts), renders a real .docx,
  * and always adds a new SOWVersion (never overwrites), snapshotting which
  * template/version actually informed it. Kept separate from
@@ -298,40 +302,17 @@ export async function generateSowAction(
 ): Promise<GenerateSowActionState | undefined> {
   const session = await auth();
 
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: { name: true, sowTemplateId: true, sowTemplateVersionId: true },
-  });
-  if (!project) {
-    return { message: "Project not found." };
+  // Project exists, template selected, brief gate passed — enforced here,
+  // server-side; the panel's alert is just the explanation.
+  const preconditions = await checkSowPreconditions(projectId);
+  if (!preconditions.ok) {
+    return preconditions.failure;
   }
-  if (!project.sowTemplateVersionId) {
-    return { message: "Select a SOW Template before generating." };
-  }
-
-  const templateVersion = await prisma.sOWTemplateVersion.findUnique({
-    where: { id: project.sowTemplateVersionId },
-    select: { extractedText: true },
-  });
-  if (!templateVersion) {
-    return { message: "Selected SOW Template version no longer exists." };
-  }
-
-  // The brief gate: every required key attribute must be captured.
-  // Enforced here, server-side — the panel's alert is just the explanation.
-  const completeness = await getBriefCompleteness(projectId);
-  if (!completeness.canProceed) {
-    return {
-      message: "We can't generate the SOW yet — add these key details first.",
-      missingAttributes: completeness.requiredOutstanding.map((a) => ({
-        id: a.id,
-        label: a.label,
-        question: a.question,
-        status: a.status,
-        missingSubFields: a.missingSubFields,
-      })),
-    };
-  }
+  const project = {
+    name: preconditions.projectName,
+    sowTemplateId: preconditions.sowTemplateId,
+    sowTemplateVersionId: preconditions.sowTemplateVersionId,
+  };
 
   const { narrativeContext, coverDetails, builtFromVersion, sourceEstimate } =
     await assembleSowContext(projectId);
@@ -340,9 +321,18 @@ export async function generateSowAction(
     return { message: "Save an estimate version before generating the SOW — its fees come from the estimate." };
   }
 
+  // The SOW is composed ONLY from the items the PM validated (SowSectionItem):
+  // included, non-blank, in position order. Deliverables is required.
+  const items = await listSowItems(projectId);
+  const validated = validatedListsFromItems(items);
+  if (validated.deliverables.length === 0) {
+    return { message: "Review the SOW content first — include at least one deliverable before generating." };
+  }
+  const itemsSnapshot = snapshotItems(items);
+
   let body: SOWDocumentContent;
   try {
-    body = await generateSowContent(narrativeContext, templateVersion.extractedText);
+    body = await generateSowContent(narrativeContext, preconditions.templateText, validated);
   } catch (error) {
     if (error instanceof SowAgentError) {
       return { message: error.message };
@@ -373,17 +363,19 @@ export async function generateSowAction(
       sourceEstimateTotal: sourceEstimate.total,
       sourceEstimateCurrency: sourceEstimate.currency,
       sourceEstimateCapabilities: sourceEstimate.capabilities,
+      itemsSnapshot: itemsSnapshot as unknown as Prisma.InputJsonValue,
       createdById: session?.user?.id,
     };
 
     if (existing) {
       await tx.sOWVersion.create({ data: { sowId: existing.id, ...versionData } });
-      return;
+    } else {
+      await tx.sOW.create({
+        data: { projectId, versions: { create: versionData } },
+      });
     }
-
-    await tx.sOW.create({
-      data: { projectId, versions: { create: versionData } },
-    });
+    // The review is done: clear "new since last review" and reset its step.
+    await completeSowReview(tx, projectId);
   });
 
   revalidatePath(`/projects/${projectId}`);
@@ -1298,7 +1290,13 @@ export async function updateSowFromEstimateAction(
     prisma.project.findUniqueOrThrow({ where: { id: projectId }, select: { name: true } }),
     prisma.sOWVersion.findUniqueOrThrow({
       where: { id: sowVersionId },
-      select: { content: true, sowTemplateId: true, sowTemplateVersionId: true, builtFromVersion: true },
+      select: {
+        content: true,
+        sowTemplateId: true,
+        sowTemplateVersionId: true,
+        builtFromVersion: true,
+        itemsSnapshot: true,
+      },
     }),
     prisma.estimateVersion.findFirstOrThrow({
       where: { id: sync.sow.current.estimateVersionId, estimate: { projectId } },
@@ -1348,8 +1346,10 @@ export async function updateSowFromEstimateAction(
         content: content as unknown as Prisma.InputJsonValue,
         sowTemplateId: previous.sowTemplateId,
         sowTemplateVersionId: previous.sowTemplateVersionId,
-        // The narrative is unchanged, so it reflects the same brief version.
+        // The narrative is unchanged, so it reflects the same brief version
+        // and the same validated item set.
         builtFromVersion: previous.builtFromVersion,
+        itemsSnapshot: previous.itemsSnapshot ?? Prisma.JsonNull,
         sourceEstimateVersionId: estimateVersion.id,
         sourceEstimateTotal: estimateVersion.totalValue,
         sourceEstimateCurrency: estimateVersion.currency,

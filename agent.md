@@ -11,7 +11,7 @@ Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (P
 
 **Build The Estimate**: "+ New estimate" (a modal running the whole flow) or the estimate's own page. Adding a role is one step; extraction + rate-card matching run automatically. An unconfirmed rate-card line or a missing/ambiguous unit sits in `RoleResolutionReview` and blocks saving. Every quantity has an explicit `EstimateUnit` and is priced as hours × hourly-equivalent rate, with factors only from `getConversionFactors(project)` (7.5 hrs/day, 5 days/week, stored per version). Versions saved before that fix are flagged `needsRecalculation`, never altered.
 
-**Generate SOW**: pick a SOW Template, click "Generate SOW" (gated as above); the app assembles everything captured about the project into an AI-drafted `.docx` guided by the template. Regenerating appends a version.
+**Generate SOW**: pick a SOW Template, click "Generate SOW"/"Regenerate SOW" (gated as above). That first runs extraction (`sow-extraction-agent.ts`, behind ProcessingOverlay) and opens a full-screen stepped review (`SowReviewOverlay`: Deliverables, Services, Assumptions, Out of Scope, Risks, Review & generate) where the PM validates the items; items persist per project (`SowSectionItem`) and respect a pure merge on regeneration (`src/lib/sowItemsMerge.ts`). Generate then composes the `.docx` (`sow-agent.ts`) from only the included items, guided by the template, and snapshots them on the version (`SOWVersion.itemsSnapshot`). Regenerating appends a version.
 
 ## File Inventory
 
@@ -80,6 +80,7 @@ Removed in the key-attributes session: `src/lib/foundationDetails.ts`, `Foundati
 | `src/services/pricing/{unit-conversion,estimate-pricing}.ts`, `src/lib/{estimateUnits,estimateUnitsConfig,estimateContentDraft,estimateBuildViewData}.ts` | Unit conversion, hours-based pricing, the next-version draft and review data | Unit conversion |
 | `src/lib/estimateMatching.ts`, `src/services/agents/{rate-card-line-item-agent,estimate-role-extraction-agent,estimate-role-matching-agent}.ts` | Rate card parsing, role extraction/matching, conservative auto-resolve gate | Build The Estimate |
 | `src/types/sow.ts`, `src/lib/sow-context.ts`, `src/services/agents/sow-agent.ts`, `src/services/documents/sow-docx.ts` | SOW content, context assembly, drafting, rendering | Generate SOW |
+| `src/lib/{sowReview,sowItems,sowItemsMerge,sowPreconditions}.ts`, `src/services/agents/sow-extraction-agent.ts`, `src/hooks/useAutosaveQueue.ts`, `src/components/features/SowReviewOverlay.tsx`, `projects/[projectId]/sow-review-actions.ts` | PM-validated SOW items: section config, DB layer with versioned writes, pure regeneration merge, shared gate, extraction, autosave, review overlay, server actions | SOW review |
 
 ### Source Files — everything else
 Unchanged recently — see `progress.md`. Auth (`src/lib/{auth,permissions}.ts`, `src/proxy.ts`), taxonomy pages, MSA/Rate Card/SOW Template libraries + `VersionHistory.tsx`, `CapabilitiesAndEstimateBriefPanel.tsx`, and the Stage 1-5 agents in `src/services/agents/{intake-agent,clarification-extraction,specialist-review-extraction,chatbot}.ts (the triage agent / Draft Scope Document was removed 2026-09-30)`.
