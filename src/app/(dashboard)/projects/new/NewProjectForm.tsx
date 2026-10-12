@@ -77,12 +77,38 @@ export function NewProjectForm({
   const [filePreview, setFilePreview] = useState<Extract<BriefFilePreviewResult, { ok: true }> | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [isReadingFile, setIsReadingFile] = useState(false);
+  // React resets the form (including the native file input) after every
+  // action completes, success or failure. Keeping the File here lets a failed
+  // submission be retried from the overlay without re-choosing the file.
+  const briefFileRef = useRef<File | null>(null);
 
   function clearBriefFile() {
     if (fileInputRef.current) fileInputRef.current.value = "";
+    briefFileRef.current = null;
     setFilePreview(null);
     setFileError(null);
     setIsReadingFile(false);
+  }
+
+  function restoreBriefFileInput() {
+    const input = fileInputRef.current;
+    const file = briefFileRef.current;
+    if (!input || !file || input.files?.length) return;
+    try {
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+      input.files = transfer.files;
+    } catch {
+      // Older browsers: the file is still re-attached on submit by submitBrief.
+    }
+  }
+
+  function submitBrief(formData: FormData) {
+    const attached = formData.get("briefFile");
+    if (briefFileRef.current && !(attached instanceof File && attached.size > 0)) {
+      formData.set("briefFile", briefFileRef.current);
+    }
+    return formAction(formData);
   }
 
   function handleBriefModeChange(mode: BriefInputMode) {
@@ -111,6 +137,7 @@ export function NewProjectForm({
       const result = await previewBriefFileAction(body);
       if (fileInputRef.current?.files?.[0] !== file) return; // replaced or removed meanwhile
       if (result.ok) {
+        briefFileRef.current = file;
         setFilePreview(result);
       } else {
         if (fileInputRef.current) fileInputRef.current.value = "";
@@ -124,9 +151,8 @@ export function NewProjectForm({
     }
   }
 
-  // Processing overlay — scoped to the plain-text ("paste") brief path only;
-  // file upload is broken separately (FB-002) and out of scope here. The
-  // Intake Agent call is a single blocking Server Action with no real
+  // Processing overlay — shown for both pasted and uploaded briefs (both
+  // run the same Intake Agent call via createProjectAction). The Intake Agent call is a single blocking Server Action with no real
   // per-stage progress signal (see intake-agent.ts), so stageIndex below
   // comes from a time-based fallback (useFallbackStageProgress) rather than
   // real events — swapping in real events later only means changing what
@@ -153,12 +179,12 @@ export function NewProjectForm({
     // per-field `state.errors` are.
     if (wasPendingRef.current && !pending && overlayOpen && overlayStatus === "active") {
       setOverlayStatus("error");
+      restoreBriefFileInput();
     }
     wasPendingRef.current = pending;
   }, [pending, overlayOpen, overlayStatus]);
 
   function handleFormSubmit() {
-    if (briefMode !== "paste") return;
     // Set synchronously in the submit handler (not a useEffect reacting to
     // `pending`) so the overlay appears the same frame as the click, before
     // the Server Action round-trip even starts.
@@ -210,7 +236,7 @@ export function NewProjectForm({
   const canSubmit = !pending && !isCheckingClient && msaOption != null;
 
   return (
-    <form ref={formRef} action={formAction} onSubmit={handleFormSubmit} className="space-y-5">
+    <form ref={formRef} action={submitBrief} onSubmit={handleFormSubmit} className="space-y-5">
       <div>
         <Label htmlFor="workstreamId">Workstream</Label>
         <select
@@ -433,7 +459,7 @@ export function NewProjectForm({
         status={overlayStatus}
         isFinalHold={isFinalHold}
         elapsedInFinalHoldMs={elapsedInFinalHoldMs}
-        errorMessage={state?.message}
+        errorMessage={state?.message ?? state?.errors?.briefFile?.[0]}
         onRetry={handleRetry}
         onDismissError={handleDismissError}
       />
