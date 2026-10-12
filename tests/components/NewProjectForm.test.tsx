@@ -243,23 +243,58 @@ describe("NewProjectForm — processing overlay", () => {
     await waitFor(() => expect(within(dialog).getByRole("alert")).toBeInTheDocument());
   });
 
-  it("does not open the processing overlay when submitting via file upload (handled separately)", async () => {
+  async function submitUploadedBrief(user: ReturnType<typeof userEvent.setup>) {
+    previewBriefFileAction.mockResolvedValue({ ok: true, fileName: "brief.docx", charCount: 10, preview: "Brief" });
+    await user.selectOptions(screen.getByLabelText("Workstream"), "ws_1");
+    await waitFor(() => expect(screen.getByLabelText("Master Service Agreement")).toBeEnabled());
+    await user.type(screen.getByLabelText("Project name"), "Test Project");
+    await user.click(screen.getByLabelText("Upload file"));
+    await user.upload(screen.getByLabelText("Brief"), new File(["x"], "brief.docx", { type: "" }));
+    await screen.findByTestId("brief-file-preview");
+    await user.click(screen.getByRole("button", { name: "Create project" }));
+  }
+
+  it("opens the processing overlay when submitting via file upload, same as pasted text", async () => {
     const deferred = createDeferred<{ message?: string } | undefined>();
     createProjectAction.mockReturnValueOnce(deferred.promise);
     const user = userEvent.setup();
     render(<NewProjectForm workstreamOptions={workstreamOptions} />);
 
-    await user.selectOptions(screen.getByLabelText("Workstream"), "ws_1");
-    await waitFor(() => expect(screen.getByLabelText("Master Service Agreement")).toBeEnabled());
-    await user.type(screen.getByLabelText("Project name"), "Test Project");
-    await user.click(screen.getByLabelText("Upload file"));
+    await submitUploadedBrief(user);
 
-    await user.click(screen.getByRole("button", { name: "Create project" }));
-
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Setting up your project")).toBeInTheDocument();
+    await waitFor(() => expect(createProjectAction).toHaveBeenCalledTimes(1));
+    expect((createProjectAction.mock.calls[0][1] as FormData).get("briefFile")).toBeInstanceOf(File);
 
     deferred.resolve(undefined);
-    await waitFor(() => expect(createProjectAction).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toBeInTheDocument());
+  });
+
+  it("shows a file error in the overlay and re-sends the same file on retry", async () => {
+    createProjectAction.mockResolvedValueOnce({
+      errors: { briefFile: ["We couldn't read any text from this file."] },
+    });
+    const user = userEvent.setup();
+    render(<NewProjectForm workstreamOptions={workstreamOptions} />);
+    await submitUploadedBrief(user);
+
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() =>
+      expect(within(dialog).getByText("We couldn't read any text from this file.")).toBeInTheDocument()
+    );
+
+    const retryDeferred = createDeferred<{ message?: string } | undefined>();
+    createProjectAction.mockReturnValueOnce(retryDeferred.promise);
+    await user.click(within(dialog).getByRole("button", { name: "Retry" }));
+
+    await waitFor(() => expect(createProjectAction).toHaveBeenCalledTimes(2));
+    const retryFile = (createProjectAction.mock.calls[1][1] as FormData).get("briefFile");
+    expect(retryFile).toBeInstanceOf(File);
+    expect((retryFile as File).name).toBe("brief.docx");
+
+    retryDeferred.resolve(undefined);
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toBeInTheDocument());
   });
 
   it("shows the failure reason with a retry action when the intake agent call fails, and resubmits on retry", async () => {
