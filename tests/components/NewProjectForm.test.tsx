@@ -6,9 +6,11 @@ import userEvent from "@testing-library/user-event";
 const getRateCardsForWorkstreamAction = vi.fn();
 const getMasterServiceAgreementForWorkstreamAction = vi.fn();
 const createProjectAction = vi.fn();
+const previewBriefFileAction = vi.fn();
 
 vi.mock("@/app/(dashboard)/projects/new/actions", () => ({
   createProjectAction,
+  previewBriefFileAction,
   getRateCardsForWorkstreamAction,
   getMasterServiceAgreementForWorkstreamAction,
 }));
@@ -353,4 +355,71 @@ describe("NewProjectForm — PM perspective", () => {
     expect(formData.get("briefText")).toBe("Some client brief text.");
   });
 });
+});
+
+describe("NewProjectForm — Brief file upload (FB-002)", () => {
+  beforeEach(() => previewBriefFileAction.mockReset());
+
+  async function openUpload(user: ReturnType<typeof userEvent.setup>) {
+    render(<NewProjectForm workstreamOptions={workstreamOptions} />);
+    await user.click(screen.getByLabelText("Upload file"));
+    return screen.getByLabelText("Brief") as HTMLInputElement;
+  }
+
+  it("shows the file name, character count and a Remove control after a successful read", async () => {
+    previewBriefFileAction.mockResolvedValueOnce({
+      ok: true,
+      fileName: "brief.docx",
+      charCount: 1234,
+      preview: "Fizzy Coffee Campaign Brief",
+    });
+    const user = userEvent.setup();
+    const input = await openUpload(user);
+
+    await user.upload(input, new File(["x"], "brief.docx", { type: "" }));
+
+    const preview = await screen.findByTestId("brief-file-preview");
+    expect(preview).toHaveTextContent("brief.docx");
+    expect(preview).toHaveTextContent("1,234 characters read");
+    expect(preview).toHaveTextContent("Fizzy Coffee Campaign Brief");
+
+    await user.click(within(preview).getByRole("button", { name: "Remove" }));
+    expect(screen.queryByTestId("brief-file-preview")).not.toBeInTheDocument();
+    expect(input.files).toHaveLength(0);
+  });
+
+  it("shows a specific inline message and clears the input when the server can't read the file", async () => {
+    previewBriefFileAction.mockResolvedValueOnce({ ok: false, error: "We couldn't read any text from this file." });
+    const user = userEvent.setup();
+    const input = await openUpload(user);
+
+    await user.upload(input, new File(["x"], "scan.pdf", { type: "application/pdf" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't read any text from this file.");
+    expect(input.files).toHaveLength(0);
+  });
+
+  it("rejects legacy .doc client-side without calling the server", async () => {
+    const user = userEvent.setup({ applyAccept: false });
+    const input = await openUpload(user);
+
+    await user.upload(input, new File(["x"], "old.doc", { type: "application/msword" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/save as.*\.docx/i);
+    expect(previewBriefFileAction).not.toHaveBeenCalled();
+  });
+
+  it("drops the chosen file when switching back to pasted text, so both can never be submitted", async () => {
+    previewBriefFileAction.mockResolvedValueOnce({ ok: true, fileName: "b.txt", charCount: 3, preview: "abc" });
+    const user = userEvent.setup();
+    const input = await openUpload(user);
+    await user.upload(input, new File(["abc"], "b.txt", { type: "text/plain" }));
+    await screen.findByTestId("brief-file-preview");
+
+    await user.click(screen.getByLabelText("Paste text"));
+    await user.click(screen.getByLabelText("Upload file"));
+
+    expect(screen.queryByTestId("brief-file-preview")).not.toBeInTheDocument();
+    expect((screen.getByLabelText("Brief") as HTMLInputElement).files).toHaveLength(0);
+  });
 });

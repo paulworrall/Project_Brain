@@ -9,11 +9,14 @@ import { ProcessingOverlay, type ProcessingOverlayStatus } from "@/components/ui
 import { useFallbackStageProgress } from "@/hooks/useFallbackStageProgress";
 import { INTAKE_PROCESSING_STAGES, INTAKE_STAGE_DURATIONS_MS } from "@/lib/intakeProcessingStages";
 import { formatRateCardLabel } from "@/lib/formatRateCardLabel";
+import { BRIEF_ACCEPT_ATTRIBUTE, validateBriefFileMeta } from "@/lib/briefFileRules";
 import { PmPerspectiveFields } from "@/components/features/PmPerspectiveFields";
 import {
   createProjectAction,
   getRateCardsForWorkstreamAction,
   getMasterServiceAgreementForWorkstreamAction,
+  previewBriefFileAction,
+  type BriefFilePreviewResult,
   type RateCardOption,
   type MasterServiceAgreementOption,
 } from "./actions";
@@ -64,6 +67,62 @@ export function NewProjectForm({
   );
 
   const [isCheckingClient, startClientCheck] = useTransition();
+
+  // Brief file: the native <input type="file"> stays the source of truth for
+  // what's submitted (it's in the form's FormData); this state only mirrors
+  // it for validation feedback and the extracted-text preview. Pasting and
+  // uploading are mutually exclusive — only the active mode's field is
+  // rendered, so only one can ever be submitted.
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [filePreview, setFilePreview] = useState<Extract<BriefFilePreviewResult, { ok: true }> | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [isReadingFile, setIsReadingFile] = useState(false);
+
+  function clearBriefFile() {
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    setFilePreview(null);
+    setFileError(null);
+    setIsReadingFile(false);
+  }
+
+  function handleBriefModeChange(mode: BriefInputMode) {
+    if (mode === briefMode) return;
+    clearBriefFile();
+    setBriefMode(mode);
+  }
+
+  async function handleBriefFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    setFilePreview(null);
+    setFileError(null);
+    if (!file) return;
+
+    const metaError = validateBriefFileMeta({ name: file.name, size: file.size, type: file.type });
+    if (metaError) {
+      e.target.value = "";
+      setFileError(metaError);
+      return;
+    }
+
+    setIsReadingFile(true);
+    try {
+      const body = new FormData();
+      body.set("briefFile", file);
+      const result = await previewBriefFileAction(body);
+      if (fileInputRef.current?.files?.[0] !== file) return; // replaced or removed meanwhile
+      if (result.ok) {
+        setFilePreview(result);
+      } else {
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        setFileError(result.error);
+      }
+    } catch {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      setFileError("We couldn't check this file. Try again, or paste the brief text instead.");
+    } finally {
+      setIsReadingFile(false);
+    }
+  }
 
   // Processing overlay — scoped to the plain-text ("paste") brief path only;
   // file upload is broken separately (FB-002) and out of scope here. The
@@ -277,7 +336,7 @@ export function NewProjectForm({
               type="radio"
               name="briefMode"
               checked={briefMode === "paste"}
-              onChange={() => setBriefMode("paste")}
+              onChange={() => handleBriefModeChange("paste")}
             />
             Paste text
           </label>
@@ -286,7 +345,7 @@ export function NewProjectForm({
               type="radio"
               name="briefMode"
               checked={briefMode === "upload"}
-              onChange={() => setBriefMode("upload")}
+              onChange={() => handleBriefModeChange("upload")}
             />
             Upload file
           </label>
@@ -303,13 +362,50 @@ export function NewProjectForm({
             className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
           />
         ) : (
-          <input
-            id="brief"
-            name="briefFile"
-            type="file"
-            accept=".docx,.pdf,.pptx,.txt"
-            className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground"
-          />
+          <div>
+            <input
+              ref={fileInputRef}
+              id="brief"
+              name="briefFile"
+              type="file"
+              accept={BRIEF_ACCEPT_ATTRIBUTE}
+              onChange={handleBriefFileChange}
+              aria-describedby="brief-file-help"
+              className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground"
+            />
+            <p id="brief-file-help" className="mt-1 text-xs text-muted-foreground">
+              Word (.docx), PDF, or text file, up to 8 MB. Uploading replaces pasted text.
+            </p>
+            {isReadingFile && (
+              <p className="mt-1.5 text-sm text-muted-foreground" role="status">
+                Reading file…
+              </p>
+            )}
+            {filePreview && (
+              <div className="mt-2 rounded-md border border-border bg-surface p-3 text-sm" data-testid="brief-file-preview">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-medium text-foreground">
+                    {filePreview.fileName}{" "}
+                    <span className="font-normal text-muted-foreground">
+                      — {filePreview.charCount.toLocaleString("en-GB")} characters read
+                    </span>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={clearBriefFile}
+                    className="text-sm text-muted-foreground underline hover:text-foreground"
+                  >
+                    Remove
+                  </button>
+                </div>
+                <p className="mt-1.5 whitespace-pre-wrap text-xs text-muted-foreground">
+                  {filePreview.preview}
+                  {filePreview.charCount > filePreview.preview.length ? "…" : ""}
+                </p>
+              </div>
+            )}
+            <FormError>{fileError ?? state?.errors?.briefFile}</FormError>
+          </div>
         )}
         <FormError>{state?.errors?.briefText}</FormError>
       </div>

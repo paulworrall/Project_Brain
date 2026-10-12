@@ -4,7 +4,7 @@ import { INITIAL_BRIEF_VERSION } from "@/lib/updateVersions";
 import * as z from "zod";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { parseDocumentToText, UnsupportedBriefFormatError } from "@/services/parsing";
+import { extractBriefText } from "@/services/parsing/brief";
 import {
   IntakeAgentError,
   generateSetupChecklist,
@@ -20,7 +20,10 @@ import { savePmPerspective } from "@/lib/pmPerspectiveStore";
 const CreateProjectSchema = z.object({
   workstreamId: z.string().min(1, { error: "Select a workstream." }),
   name: z.string().trim().min(2, { error: "Project name must be at least 2 characters." }),
-  briefText: z.string().trim().optional(),
+  // .nullish(), not .optional() — in upload mode the textarea isn't rendered,
+  // so formData.get("briefText") is null, and .optional() rejects null with
+  // zod's raw "Invalid input: expected string, received null" (FB-002).
+  briefText: z.string().trim().nullish(),
   // .nullish(), not .optional() — a disabled <select> (no Rate Card options
   // yet) is omitted from FormData entirely on submit, so formData.get()
   // returns null here, not undefined.
@@ -167,11 +170,42 @@ export type CreateProjectState =
         workstreamId?: string[];
         name?: string[];
         briefText?: string[];
+        briefFile?: string[];
         masterServiceAgreementId?: string[];
       };
       message?: string;
     }
   | undefined;
+
+export type BriefFilePreviewResult =
+  | { ok: true; fileName: string; charCount: number; preview: string }
+  | { ok: false; error: string };
+
+/**
+ * Reads an uploaded Brief file exactly as createProjectAction will, so the
+ * form can show errors and a text preview at selection time. Saves nothing.
+ */
+export async function previewBriefFileAction(formData: FormData): Promise<BriefFilePreviewResult> {
+  const session = await auth();
+  if (!session?.user) {
+    return { ok: false, error: "Your session has expired. Sign in again." };
+  }
+  const file = formData.get("briefFile");
+  if (!(file instanceof File)) {
+    return { ok: false, error: "Choose a file to upload." };
+  }
+  const extracted = await extractBriefText(
+    { name: file.name, size: file.size, type: file.type },
+    Buffer.from(await file.arrayBuffer())
+  );
+  if (!extracted.ok) return { ok: false, error: extracted.error };
+  return {
+    ok: true,
+    fileName: file.name,
+    charCount: extracted.text.length,
+    preview: extracted.text.slice(0, 280),
+  };
+}
 
 export async function createProjectAction(
   _prevState: CreateProjectState,
@@ -273,15 +307,14 @@ export async function createProjectAction(
   if (hasFile && briefFile instanceof File) {
     briefFileName = briefFile.name;
     briefFileType = briefFile.type || null;
-    try {
-      const buffer = Buffer.from(await briefFile.arrayBuffer());
-      briefRawText = await parseDocumentToText(buffer, briefFile.name);
-    } catch (error) {
-      if (error instanceof UnsupportedBriefFormatError) {
-        return { message: error.message };
-      }
-      return { message: "Couldn't read that file. Try pasting the brief text instead." };
+    const extracted = await extractBriefText(
+      { name: briefFile.name, size: briefFile.size, type: briefFile.type },
+      Buffer.from(await briefFile.arrayBuffer())
+    );
+    if (!extracted.ok) {
+      return { errors: { briefFile: [extracted.error] } };
     }
+    briefRawText = extracted.text;
   } else {
     briefRawText = parsed.data.briefText!;
   }
