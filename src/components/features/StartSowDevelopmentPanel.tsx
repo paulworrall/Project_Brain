@@ -3,8 +3,6 @@
 import { SowSyncNotice, type EstimateVersionOption } from "./SowSyncNotice";
 import { SowDownloadLink } from "./SowDownloadLink";
 import { staleDownloadWarning, type ProjectSowSync } from "@/lib/sowSyncView";
-import { StaleOutputNotice } from "./StaleOutputNotice";
-import type { OutputFreshness } from "@/lib/freshness";
 import { useActionState, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -84,15 +82,12 @@ export function StartSowDevelopmentPanel({
   templateOptions,
   sowVersions,
   briefCompleteness,
-  sowFreshness,
   sowSync,
   estimateVersionOptions = [],
 }: {
   /** Whether each SOW version still matches its estimate (getSowSyncStatus) — the only source of SOW staleness. */
   sowSync?: ProjectSowSync;
   estimateVersionOptions?: EstimateVersionOption[];
-  /** Flagged when the brief changed after the latest SOW; Regenerate makes a new version. */
-  sowFreshness?: OutputFreshness;
   projectId: string;
   currentTemplate: { id: string; name: string } | null;
   currentTemplateVersion: { id: string } | null;
@@ -361,10 +356,6 @@ export function StartSowDevelopmentPanel({
             >
               Download .docx →
             </SowDownloadLink>
-            <StaleOutputNotice
-              freshness={sowFreshness}
-              onRegenerate={handleGenerateClick}
-            />
 
             {olderSowVersions.length > 0 && (
               <details className="mt-2 border-t border-border pt-2">

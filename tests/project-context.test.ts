@@ -30,8 +30,8 @@ const {
   uploadKnowledgeItemAction,
   suggestCapabilitiesAction,
   submitSpecialistFeedbackAction,
-  regenerateClarificationEmailAction,
 } = await import("@/app/(dashboard)/projects/[projectId]/actions");
+const { redraftClarificationEmail } = await import("@/lib/outputRegeneration");
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
@@ -263,7 +263,7 @@ describe("every agent builds its context from getProjectContext", () => {
       parsed_output: { subject: "Quick questions", bodyText: "Hi," },
     });
 
-    await regenerateClarificationEmailAction(projectId, undefined, new FormData());
+    await redraftClarificationEmail(projectId, null);
 
     expect(promptOf(0)).toContain("LATEST_UPDATE_Email");
   });

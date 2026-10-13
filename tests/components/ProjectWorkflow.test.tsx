@@ -4,8 +4,6 @@ import { render, screen, within } from "@testing-library/react";
 import type { Capability } from "@/generated/prisma/enums";
 
 vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
-  regeneratePositionDocumentAction: vi.fn(),
-  regenerateClarificationEmailAction: vi.fn(),
   updateChecklistItemDetailAction: vi.fn(),
   submitSpecialistFeedbackAction: vi.fn(),
   updateOtherServiceLabelAction: vi.fn(),

@@ -1,5 +1,4 @@
 import { getVersionHistory } from "@/lib/updateVersions";
-import { getOutputFreshness } from "@/lib/outputFreshness";
 import { getEstimateVersionOptions, getSowSyncStatus } from "@/lib/sowSync";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -150,11 +149,10 @@ export default async function ProjectDetailPage({
     ? "COMPLETE"
     : "ACTIVE";
 
-  const [briefCompleteness, pmPerspective, versionHistory, outputFreshness] = await Promise.all([
+  const [briefCompleteness, pmPerspective, versionHistory] = await Promise.all([
     getBriefCompleteness(project.id),
     getPmPerspective(project.id),
     getVersionHistory(project.id),
-    getOutputFreshness(project.id),
   ]);
   const [sowSync, estimateVersionOptions] = await Promise.all([
     getSowSyncStatus(project.id),
@@ -248,7 +246,6 @@ export default async function ProjectDetailPage({
           deliverablesServicesDocument.success ? deliverablesServicesDocument.data : null
         }
         versions={versionHistory.map(({ content: _content, ...version }) => version)}
-        outputFreshness={outputFreshness}
         sowSync={sowSync}
         estimateVersionOptions={estimateVersionOptions}
         clarificationEmailDraft={

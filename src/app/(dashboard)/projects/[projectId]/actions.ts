@@ -1161,46 +1161,6 @@ export async function updatePmPerspectiveFieldAction(
 }
 
 // ---------------------------------------------------------------------------
-// Regenerating stale outputs (each a new version; earlier versions untouched)
-// ---------------------------------------------------------------------------
-
-/** A new draft of the client clarification email from the latest context. Never sent. */
-export async function regenerateClarificationEmailAction(
-  projectId: string,
-  _prevState: ActionState | undefined,
-  _formData: FormData
-): Promise<ActionState | undefined> {
-  const session = await auth();
-  try {
-    await redraftClarificationEmail(projectId, session?.user?.id ?? null);
-  } catch (error) {
-    if (error instanceof IntakeAgentError) {
-      return { message: error.message };
-    }
-    throw error;
-  }
-  revalidatePath(`/projects/${projectId}`);
-}
-
-/** Rebuilds the Position Document from the brief and every update. */
-export async function regeneratePositionDocumentAction(
-  projectId: string,
-  _prevState: ActionState | undefined,
-  _formData: FormData
-): Promise<ActionState | undefined> {
-  const session = await auth();
-  try {
-    await rebuildPositionDocumentVersion(projectId, session?.user?.id ?? null);
-  } catch (error) {
-    if (error instanceof ClarificationExtractionError) {
-      return { message: error.message };
-    }
-    throw error;
-  }
-  revalidatePath(`/projects/${projectId}`);
-}
-
-// ---------------------------------------------------------------------------
 // SOW ↔ estimate sync
 // ---------------------------------------------------------------------------
 
