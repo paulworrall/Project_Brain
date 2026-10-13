@@ -14,12 +14,8 @@ import type { BriefCompleteness } from "@/lib/briefCompleteness";
 import type { PmPerspectiveFieldView } from "@/lib/pmPerspectiveStore";
 import type { ClientUpdateLogEntry } from "./Phase1Workspace";
 import { ChatPanel } from "./ChatPanel";
-import { StaleOutputNotice } from "./StaleOutputNotice";
-import type { EstimateVersionOption } from "./SowSyncNotice";
-import type { ProjectSowSync } from "@/lib/sowSyncView";
+import { SOW_PHASE_INDICATOR_TEXT, type SowChangeStatus } from "@/lib/sowChangeView";
 import type { ClarificationEmailDraftMeta } from "./ClarificationEmailCard";
-import type { OutputFreshness } from "@/lib/freshness";
-import type { ProjectOutputFreshness } from "@/lib/outputFreshness";
 import { KnowledgeUpload, type VersionView } from "./KnowledgeUpload";
 import type { ChecklistItemView } from "./ChecklistView";
 import { EditableChecklist } from "./EditableChecklist";
@@ -64,9 +60,7 @@ function SpecialistReviewStepContent({
   projectId,
   specialistFeedback,
   deliverablesServicesDocument,
-  freshness,
 }: {
-  freshness?: OutputFreshness;
   projectId: string;
   specialistFeedback: SpecialistFeedbackView | null;
   deliverablesServicesDocument: DeliverablesServicesDocument | null;
@@ -98,12 +92,6 @@ function SpecialistReviewStepContent({
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Output — Deliverables + Services Document
         </h3>
-        <div className="mb-2">
-          <StaleOutputNotice
-            freshness={freshness}
-            flagOnlyHint="This comes from the specialists' feedback, so it isn't regenerated automatically — check whether their input still holds."
-          />
-        </div>
         {deliverablesServicesDocument ? (
           <DeliverablesServicesDocumentView
             projectId={projectId}
@@ -118,11 +106,8 @@ function SpecialistReviewStepContent({
 }
 
 interface ProjectWorkflowProps {
-  /** Which generated outputs no longer reflect the project (see getOutputFreshness). */
-  outputFreshness?: ProjectOutputFreshness;
-  /** Whether the SOW still matches its estimate (getSowSyncStatus). */
-  sowSync?: ProjectSowSync;
-  estimateVersionOptions?: EstimateVersionOption[];
+  /** What's changed since the latest SOW was generated (getSowChangeStatus). */
+  sowChange?: SowChangeStatus;
   clarificationEmailDraft?: ClarificationEmailDraftMeta | null;
   projectId: string;
   projectName: string;
@@ -187,10 +172,8 @@ export function ProjectWorkflow({
   estimateBriefVersion,
   estimates,
   rateCardOptions,
-  outputFreshness = { estimates: {} },
   clarificationEmailDraft = null,
-  sowSync,
-  estimateVersionOptions = [],
+  sowChange,
 }: ProjectWorkflowProps) {
   const contentByStage: Record<number, ReactNode> = {
     5: (
@@ -198,7 +181,6 @@ export function ProjectWorkflow({
         projectId={projectId}
         specialistFeedback={specialistFeedback}
         deliverablesServicesDocument={deliverablesServicesDocument}
-        freshness={outputFreshness.deliverablesServices}
       />
     ),
     6: (
@@ -206,15 +188,12 @@ export function ProjectWorkflow({
         projectId={projectId}
         estimates={estimates}
         rateCardOptions={rateCardOptions}
-        freshnessByEstimate={outputFreshness.estimates}
       />
     ),
     8: (
       <StartSowDevelopmentPanel
         projectId={projectId}
-        sowFreshness={outputFreshness.sow}
-        sowSync={sowSync}
-        estimateVersionOptions={estimateVersionOptions}
+        sowChange={sowChange}
         currentTemplate={currentSowTemplate}
         currentTemplateVersion={currentSowTemplateVersion}
         templateOptions={sowTemplateOptions}
@@ -234,7 +213,6 @@ export function ProjectWorkflow({
   const phase1Content = (
     <Phase1Workspace
       projectId={projectId}
-      outputFreshness={outputFreshness}
       clarificationEmailDraft={clarificationEmailDraft}
       positionDocument={positionDocument}
       clientUpdates={clientUpdates}
@@ -266,9 +244,7 @@ export function ProjectWorkflow({
         phase1Content={phase1Content}
         headerExtraByPhaseKey={headerExtraByPhaseKey}
         attentionByPhaseKey={
-          sowSync?.needsAttention
-            ? { sow: sowSync.sow?.status === "stale" ? "SOW out of date" : "SOW source unknown" }
-            : undefined
+          sowChange?.status === "changed_since_generation" ? { sow: SOW_PHASE_INDICATOR_TEXT } : undefined
         }
       />
       </div>

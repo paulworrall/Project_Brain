@@ -325,13 +325,13 @@ describe("StageTracker", () => {
           steps={steps}
           phase1Status="IN_PROGRESS"
           phase1Content={<p>Phase 1</p>}
-          attentionByPhaseKey={{ sow: "SOW out of date" }}
+          attentionByPhaseKey={{ sow: "Updated since SOW" }}
         />
       );
 
       const sow = getPhaseDetails("Statement of work and delivery setup");
       expect(sow.open).toBe(false);
-      expect(sow.querySelector("summary")).toHaveTextContent("Needs attention: SOW out of date");
+      expect(sow.querySelector("summary")).toHaveTextContent("Needs attention: Updated since SOW");
 
       rerender(<StageTracker steps={steps} phase1Status="IN_PROGRESS" phase1Content={<p>Phase 1</p>} />);
       expect(getPhaseDetails("Statement of work and delivery setup").querySelector("summary")).not.toHaveTextContent(

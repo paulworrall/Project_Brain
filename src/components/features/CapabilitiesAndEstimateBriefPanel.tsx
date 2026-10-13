@@ -1,7 +1,5 @@
 "use client";
 
-import { StaleOutputNotice } from "./StaleOutputNotice";
-import type { OutputFreshness } from "@/lib/freshness";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -57,13 +55,10 @@ export function CapabilitiesAndEstimateBriefPanel({
   projectId,
   confirmedCapabilities,
   estimateBriefVersion,
-  estimateBriefFreshness,
 }: {
   projectId: string;
   confirmedCapabilities: Capability[];
   estimateBriefVersion: EstimateBriefVersionMeta | null;
-  /** Flagged when the brief changed after the latest Estimate Brief; Regenerate makes a new version. */
-  estimateBriefFreshness?: OutputFreshness;
 }) {
   const [checked, setChecked] = useState<Set<Capability>>(new Set(confirmedCapabilities));
   const [rationaleByCapability, setRationaleByCapability] = useState<
@@ -185,10 +180,6 @@ export function CapabilitiesAndEstimateBriefPanel({
     ActionState | undefined,
     FormData
   >(generateAction, undefined);
-
-  const isStale =
-    estimateBriefVersion !== null &&
-    !sameCapabilitySet(estimateBriefVersion.capabilities, confirmedCapabilities);
 
   const checkedWithRationale = MAP_CAPABILITIES.filter(
     (c) => checked.has(c.id) && rationaleByCapability[c.id]
@@ -371,18 +362,6 @@ export function CapabilitiesAndEstimateBriefPanel({
             >
               Download .docx →
             </a>
-            {isStale && (
-              <p
-                className="mt-2 rounded-md bg-warning-bg px-3 py-2 text-xs text-warning"
-                role="status"
-              >
-                Capabilities have changed since this was generated — regenerate to bring it up to
-                date.
-              </p>
-            )}
-            <div className="mt-2 empty:hidden">
-              <StaleOutputNotice freshness={estimateBriefFreshness} regenerateAction={generateAction} />
-            </div>
           </Card>
         ) : (
           <p className="mt-3 text-sm text-muted-foreground">No estimate brief generated yet.</p>

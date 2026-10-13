@@ -2,8 +2,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
 
-// Phase 3: outputs record the brief version they were built from, and are
-// flagged stale — never silently regenerated — when the project changes.
+// Outputs record the brief version they were built from (kept for audit),
+// and are never silently regenerated when the project changes. Staleness is no
+// longer computed for any output; the SOW's change notice is tested in
+// sow-change-status.test.ts.
 
 vi.mock("@anthropic-ai/sdk", () => {
   class RateLimitError extends Error {}
@@ -21,12 +23,10 @@ vi.mock("@/lib/auth", () => ({ auth: vi.fn().mockResolvedValue(null) }));
 const { anthropic } = await import("@/lib/anthropic");
 const mockParse = anthropic.messages.parse as ReturnType<typeof vi.fn>;
 const { keyAttributeFacts } = await import("./fixtures/keyAttributeFacts");
-const { getOutputFreshness } = await import("@/lib/outputFreshness");
+const { redraftClarificationEmail, rebuildPositionDocumentVersion } = await import("@/lib/outputRegeneration");
 const {
   uploadKnowledgeItemAction,
   generateEstimateBriefAction,
-  regenerateClarificationEmailAction,
-  regeneratePositionDocumentAction,
   updatePmPerspectiveFieldAction,
   saveBriefAttributeAction,
 } = await import("@/app/(dashboard)/projects/[projectId]/actions");
@@ -163,9 +163,9 @@ describe("outputs record the brief version they were built from", () => {
     await addUpdate(projectId, "Budget is now £120k.");
 
     mockParse.mockResolvedValueOnce({ parsed_output: positionFields }); // rebuild
-    await regeneratePositionDocumentAction(projectId, undefined, new FormData());
+    await rebuildPositionDocumentVersion(projectId, null);
     mockParse.mockResolvedValueOnce({ parsed_output: { subject: "Redraft", bodyText: "New body" } });
-    await regenerateClarificationEmailAction(projectId, undefined, new FormData());
+    await redraftClarificationEmail(projectId, null);
 
     const versions = await prisma.documentVersion.findMany({
       where: { document: { projectId } },
@@ -187,112 +187,7 @@ describe("outputs record the brief version they were built from", () => {
   });
 });
 
-describe("stale outputs", () => {
-  it("a new update marks the Estimate Brief stale, and regenerating clears it", async () => {
-    const projectId = await newProject("Stale After Update", false);
-    await prepareEstimateBrief(projectId);
-    expect((await getOutputFreshness(projectId)).estimateBrief?.stale).toBe(false);
-
-    await addUpdate(projectId, "The client added a new market.");
-
-    const stale = (await getOutputFreshness(projectId)).estimateBrief!;
-    expect(stale).toMatchObject({ stale: true, builtFromVersion: 1, latestVersion: 2, canRegenerate: true });
-    expect(stale.reasons).toEqual(["New update: v2"]);
-
-    await prepareEstimateBrief(projectId);
-    expect((await getOutputFreshness(projectId)).estimateBrief?.stale).toBe(false);
-  });
-
-  it("a PM perspective edit marks outputs stale", async () => {
-    const projectId = await newProject("Stale After PM Edit");
-    await prepareEstimateBrief(projectId);
-    const form = new FormData();
-    form.set("content", "We know this client well.");
-    await updatePmPerspectiveFieldAction(projectId, "initialThoughts", undefined, form);
-
-    const freshness = await getOutputFreshness(projectId);
-    expect(freshness.estimateBrief?.reasons).toEqual(["PM perspective edited"]);
-    expect(freshness.positionDocument?.stale).toBe(true);
-  });
-
-  it("a key detail change marks outputs stale", async () => {
-    const projectId = await newProject("Stale After Key Detail");
-    await prepareEstimateBrief(projectId);
-    const form = new FormData();
-    form.set("amount", "£150k");
-    await saveBriefAttributeAction(projectId, "budget", undefined, form);
-
-    expect((await getOutputFreshness(projectId)).estimateBrief?.reasons).toEqual(["Key details changed"]);
-  });
-
-  it("a Position Document isn't stale from the key details its own update brought", async () => {
-    const projectId = await newProject("Own Key Details");
-    mockParse.mockResolvedValueOnce({ parsed_output: positionFields });
-    mockParse.mockResolvedValueOnce({
-      parsed_output: keyAttributeFacts({ budget: { amount: "£95k", evidence: "Budget £95k." } }),
-    });
-    mockParse.mockResolvedValueOnce({ parsed_output: { coveredIndexes: [] } });
-    await uploadKnowledgeItemAction(projectId, undefined, updateForm("Budget £95k."));
-
-    expect((await getOutputFreshness(projectId)).positionDocument?.stale).toBe(false);
-  });
-});
-
-describe("estimates and specialist review are flagged, never regenerated", () => {
-  it("flags an estimate and the Deliverables + Services document after an update, and changes neither", async () => {
-    const projectId = await newProject("Flag Only");
-    const rateCard = await prisma.rateCard.create({ data: { clientId, name: "Flag Only Rates" } });
-    const rateCardVersion = await prisma.rateCardVersion.create({
-      data: {
-        rateCardId: rateCard.id,
-        versionNumber: 1,
-        fileName: "rates.xlsx",
-        fileBytes: Buffer.from("dummy"),
-        extractedText: "irrelevant",
-        effectiveFrom: new Date("2026-01-01"),
-      },
-    });
-    const estimate = await prisma.estimate.create({
-      data: { projectId, label: "Main estimate", rateCardVersionId: rateCardVersion.id },
-    });
-    await prisma.estimateVersion.create({
-      data: {
-        estimateId: estimate.id,
-        versionNumber: 1,
-        rateCardVersionId: rateCardVersion.id,
-        capabilitiesIncluded: ["TECH_AND_DATA"],
-        totalValue: 5700,
-        currency: "GBP",
-        description: "1 capability",
-        fileName: "estimate.docx",
-        fileBytes: Buffer.from("dummy"),
-        content: {},
-      },
-    });
-    await prisma.document.create({
-      data: {
-        projectId,
-        type: "DELIVERABLES_SERVICES_DOCUMENT",
-        versions: { create: { versionNumber: 1, stageNumber: 5, content: { deliverables: [] } } },
-      },
-    });
-
-    await addUpdate(projectId, "Scope reduced to one market.");
-
-    const freshness = await getOutputFreshness(projectId);
-    expect(freshness.estimates[estimate.id]).toMatchObject({ stale: true, canRegenerate: false });
-    expect(freshness.deliverablesServices).toMatchObject({ stale: true, canRegenerate: false });
-    // Only the update's own steps ran (Position Document refresh, key-detail
-    // read) — nothing was regenerated.
-    expect(mockParse).toHaveBeenCalledTimes(2);
-    expect(await prisma.estimateVersion.count({ where: { estimateId: estimate.id } })).toBe(1);
-    expect(
-      await prisma.documentVersion.count({
-        where: { document: { projectId, type: "DELIVERABLES_SERVICES_DOCUMENT" } },
-      })
-    ).toBe(1);
-  });
-
+describe("outputs are never regenerated on their own", () => {
   it("never regenerates the Estimate Brief or SOW on its own when an update arrives", async () => {
     const projectId = await newProject("No Auto Regenerate", false);
     await prepareEstimateBrief(projectId);

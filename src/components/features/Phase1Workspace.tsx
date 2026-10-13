@@ -1,7 +1,4 @@
 import type { ClarificationEmail, PositionDocumentFields } from "@/types/intake";
-import { StaleOutputNotice } from "./StaleOutputNotice";
-import type { ProjectOutputFreshness } from "@/lib/outputFreshness";
-import { regeneratePositionDocumentAction } from "@/app/(dashboard)/projects/[projectId]/actions";
 import type { Capability } from "@/generated/prisma/enums";
 import { PositionDocumentView } from "./PositionDocumentView";
 import { ClarificationEmailCard, type ClarificationEmailDraftMeta } from "./ClarificationEmailCard";
@@ -49,8 +46,6 @@ export interface Phase1WorkspaceProps {
   pmPerspective: PmPerspectiveFieldView[];
   confirmedCapabilities: Capability[];
   estimateBriefVersion: EstimateBriefVersionMeta | null;
-  /** Which of Phase 1's outputs no longer reflect the project. */
-  outputFreshness?: ProjectOutputFreshness;
   clarificationEmailDraft?: ClarificationEmailDraftMeta | null;
 }
 
@@ -64,7 +59,6 @@ export function Phase1Workspace({
   pmPerspective,
   confirmedCapabilities,
   estimateBriefVersion,
-  outputFreshness,
   clarificationEmailDraft,
 }: Phase1WorkspaceProps) {
   const otherDetailsCount = positionDocument?.whatWeKnow.length ?? 0;
@@ -96,12 +90,6 @@ export function Phase1Workspace({
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Current position — from the client
         </h3>
-        <div className="mb-2 empty:hidden">
-          <StaleOutputNotice
-            freshness={outputFreshness?.positionDocument}
-            regenerateAction={regeneratePositionDocumentAction.bind(null, projectId)}
-          />
-        </div>
         {positionDocument ? (
           <PositionDocumentView fields={positionDocument} />
         ) : (
@@ -112,7 +100,6 @@ export function Phase1Workspace({
       <ClarificationEmailCard
         projectId={projectId}
         email={clarificationEmail}
-        freshness={outputFreshness?.clarificationEmail}
         draft={clarificationEmailDraft}
       />
 
@@ -120,7 +107,6 @@ export function Phase1Workspace({
         projectId={projectId}
         confirmedCapabilities={confirmedCapabilities}
         estimateBriefVersion={estimateBriefVersion}
-        estimateBriefFreshness={outputFreshness?.estimateBrief}
       />
     </div>
   );

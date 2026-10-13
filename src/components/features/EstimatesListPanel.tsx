@@ -11,8 +11,6 @@ import {
 } from "@/app/(dashboard)/projects/[projectId]/estimates/actions";
 import type { RateCardOption } from "@/app/(dashboard)/projects/new/actions";
 import { EstimateBuildWorkspace } from "./EstimateBuildWorkspace";
-import { StaleOutputNotice } from "./StaleOutputNotice";
-import type { OutputFreshness } from "@/lib/freshness";
 
 export interface EstimateVersionListItem {
   id: string;
@@ -210,11 +208,9 @@ function NewEstimateForm({
 function EstimateTrackCard({
   projectId,
   estimate,
-  freshness,
 }: {
   projectId: string;
   estimate: EstimateListItem;
-  freshness?: OutputFreshness;
 }) {
   const latest = estimate.versions[0] as EstimateVersionListItem | undefined;
 
@@ -237,13 +233,6 @@ function EstimateTrackCard({
         <a href={`/projects/${projectId}/estimates/${estimate.id}`} className={OPEN_LINK_CLASS}>
           Open →
         </a>
-      </div>
-
-      <div className="mt-2 empty:hidden">
-        <StaleOutputNotice
-          freshness={freshness}
-          flagOnlyHint="Estimates come from your team's input, so they're never recalculated automatically — open it and save a new version if the change affects it."
-        />
       </div>
 
       {estimate.versions.length > 0 && (
@@ -293,13 +282,10 @@ export function EstimatesListPanel({
   projectId,
   estimates,
   rateCardOptions,
-  freshnessByEstimate,
 }: {
   projectId: string;
   estimates: EstimateListItem[];
   rateCardOptions: RateCardOption[];
-  /** Per estimate id: flagged when the brief changed after its latest version (never recalculated automatically). */
-  freshnessByEstimate?: Record<string, OutputFreshness>;
 }) {
   const [showAllOpen, setShowAllOpen] = useState(false);
   const visibleEstimates = estimates.slice(0, MAX_VISIBLE_ESTIMATES);
@@ -318,7 +304,6 @@ export function EstimatesListPanel({
               key={estimate.id}
               projectId={projectId}
               estimate={estimate}
-              freshness={freshnessByEstimate?.[estimate.id]}
             />
           ))}
         </div>
@@ -342,7 +327,6 @@ export function EstimatesListPanel({
               key={estimate.id}
               projectId={projectId}
               estimate={estimate}
-              freshness={freshnessByEstimate?.[estimate.id]}
             />
           ))}
         </div>

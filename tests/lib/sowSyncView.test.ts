@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   evaluateSowSync,
   formatMoney,
-  sowSyncBannerText,
   sowVersionSourceLabel,
   type EstimateVersionRef,
 } from "@/lib/sowSyncView";
@@ -70,13 +69,6 @@ describe("wording", () => {
   it("formats money as the estimate does, e.g. 50,400 USD", () => {
     expect(formatMoney(50400, "USD")).toBe("50,400 USD");
     expect(formatMoney(1234.5, "GBP")).toBe("1,234.50 GBP");
-  });
-
-  it("spells out the drift in one banner line", () => {
-    const status = evaluateSowSync({ sowVersionId: "s2", sowVersionNumber: 2, source: v1, current: v3 });
-    expect(sowSyncBannerText(status)).toBe(
-      "SOW v2 is based on Estimate v1 — 50,400 USD. Latest estimate is v3 — 93,000 USD (+42,600 USD). Capabilities added: ED, MO."
-    );
   });
 
   it("labels each SOW version with its source, or 'source unknown'", () => {

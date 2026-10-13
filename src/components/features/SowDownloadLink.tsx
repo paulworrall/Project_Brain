@@ -8,8 +8,8 @@ const LINK_CLASS = "inline-block text-xs font-medium text-primary hover:underlin
 
 /**
  * A SOW download link with a guard: when the version is out of date
- * (`staleWarning`, from getSowSyncStatus via staleDownloadWarning), clicking
- * asks first — "Update it first, or download anyway?" — in a dialog that
+ * (`staleWarning`, from getSowChangeStatus via changedDownloadWarning), clicking
+ * asks first — "Review it first, or download anyway?" — in a dialog that
  * traps focus and returns it to the link on close. Otherwise a plain link.
  */
 export function SowDownloadLink({
@@ -38,11 +38,11 @@ export function SowDownloadLink({
       <button type="button" className={`${className} text-left`} onClick={() => setOpen(true)}>
         {children}
       </button>
-      <Modal isOpen={open} title="This SOW is out of date" onClose={() => setOpen(false)}>
-        <p className="text-sm text-foreground">{staleWarning} Update it first, or download anyway?</p>
+      <Modal isOpen={open} title="This SOW doesn't include the latest updates" onClose={() => setOpen(false)}>
+        <p className="text-sm text-foreground">{staleWarning} Review it first, or download anyway?</p>
         <div className="mt-4 flex flex-wrap justify-end gap-2">
           <Button type="button" onClick={() => setOpen(false)}>
-            Update it first
+            Review it first
           </Button>
           <a
             href={href}
