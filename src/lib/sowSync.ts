@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import {
   evaluateSowSync,
-  formatMoney,
   sowVersionSourceLabel,
   type EstimateVersionRef,
   type ProjectSowSync,
@@ -10,10 +9,10 @@ import {
 export type { ProjectSowSync, SowSyncStatus } from "@/lib/sowSyncView";
 
 /**
- * The single source of truth for whether a project's SOW still matches its
- * estimate. Every surface — the SOW card, the Phase 3 header, the estimate
- * save notice, the download guard, the version history labels — reads this;
- * none works out staleness itself. Staleness is derived here, at read time,
+ * The estimate half of the SOW change status: whether a project's SOW still
+ * matches the estimate it's pinned to. Not read by any surface directly —
+ * getSowChangeStatus (src/lib/sowChangeStatus.ts) builds on it, so there's one
+ * answer everywhere. Staleness is derived here, at read time,
  * by comparing the SOW version's pinned estimate version id with that
  * estimate's latest version id; nothing is stored.
  *
@@ -62,6 +61,7 @@ export async function getSowSyncStatus(projectId: string): Promise<ProjectSowSyn
       totalValue: true,
       currency: true,
       capabilitiesIncluded: true,
+      createdAt: true,
       estimate: { select: { id: true, label: true } },
     },
   });
@@ -76,6 +76,7 @@ export async function getSowSyncStatus(projectId: string): Promise<ProjectSowSyn
         total: Number(v.totalValue),
         currency: v.currency,
         capabilities: v.capabilitiesIncluded,
+        savedAt: v.createdAt,
       },
     ])
   );
@@ -115,25 +116,4 @@ export async function getSowSyncStatus(projectId: string): Promise<ProjectSowSyn
     })),
     needsAttention: latest.status !== "in_sync",
   };
-}
-
-/** Every estimate version on the project, newest first, for confirming an unlinked SOW's source. */
-export async function getEstimateVersionOptions(
-  projectId: string
-): Promise<{ estimateVersionId: string; label: string }[]> {
-  const versions = await prisma.estimateVersion.findMany({
-    where: { estimate: { projectId } },
-    orderBy: [{ createdAt: "desc" }],
-    select: {
-      id: true,
-      versionNumber: true,
-      totalValue: true,
-      currency: true,
-      estimate: { select: { label: true } },
-    },
-  });
-  return versions.map((v) => ({
-    estimateVersionId: v.id,
-    label: `${v.estimate.label} v${v.versionNumber} — ${formatMoney(Number(v.totalValue), v.currency)}`,
-  }));
 }

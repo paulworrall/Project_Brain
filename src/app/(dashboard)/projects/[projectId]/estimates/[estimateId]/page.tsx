@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { EstimateBuildWorkspace } from "@/components/features/EstimateBuildWorkspace";
 import { getEstimateBuildViewData } from "@/lib/estimateBuildViewData";
-import { getSowSyncStatus } from "@/lib/sowSync";
+import { getSowChangeStatus } from "@/lib/sowChangeStatus";
 
 export default async function EstimateDetailPage({
   params,
@@ -31,15 +31,15 @@ export default async function EstimateDetailPage({
   const { client } = workstream;
   const { hub } = client;
 
-  const [view, sowSync] = await Promise.all([
+  const [view, sowChange] = await Promise.all([
     getEstimateBuildViewData(estimateId),
-    getSowSyncStatus(projectId),
+    getSowChangeStatus(projectId),
   ]);
   if (!view) {
     notFound();
   }
   // The project's SOW, if it's based on this estimate — saving a new version will put it out of date.
-  const pinnedSow = sowSync.sow?.source?.estimateId === estimate.id ? sowSync.sow : null;
+  const pinnedSow = sowChange.estimateSync?.source?.estimateId === estimate.id ? sowChange.estimateSync : null;
 
   return (
     <div className="space-y-6">

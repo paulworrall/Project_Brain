@@ -508,6 +508,12 @@ model SOWVersion {
   // Scope/Risks were composed from — see SowSectionItem. Null on versions made
   // before the PM review step existed.
   itemsSnapshot        Json?
+  // The SOW-material key details (see src/lib/sowMaterial.ts) and confirmed
+  // capabilities as they stood when this version was generated — what the
+  // "Updates since this SOW was generated" notice compares against. Null on
+  // versions made before this existed: those get no notice for key-detail
+  // changes (never a false one); the estimate comparison still applies.
+  keyAttributesSnapshot Json?
   createdAt            DateTime @default(now())
 
   sow                   SOW                 @relation(fields: [sowId], references: [id], onDelete: Cascade)

@@ -14,8 +14,7 @@ import type { BriefCompleteness } from "@/lib/briefCompleteness";
 import type { PmPerspectiveFieldView } from "@/lib/pmPerspectiveStore";
 import type { ClientUpdateLogEntry } from "./Phase1Workspace";
 import { ChatPanel } from "./ChatPanel";
-import type { EstimateVersionOption } from "./SowSyncNotice";
-import type { ProjectSowSync } from "@/lib/sowSyncView";
+import { SOW_PHASE_INDICATOR_TEXT, type SowChangeStatus } from "@/lib/sowChangeView";
 import type { ClarificationEmailDraftMeta } from "./ClarificationEmailCard";
 import { KnowledgeUpload, type VersionView } from "./KnowledgeUpload";
 import type { ChecklistItemView } from "./ChecklistView";
@@ -107,9 +106,8 @@ function SpecialistReviewStepContent({
 }
 
 interface ProjectWorkflowProps {
-  /** Whether the SOW still matches its estimate (getSowSyncStatus). */
-  sowSync?: ProjectSowSync;
-  estimateVersionOptions?: EstimateVersionOption[];
+  /** What's changed since the latest SOW was generated (getSowChangeStatus). */
+  sowChange?: SowChangeStatus;
   clarificationEmailDraft?: ClarificationEmailDraftMeta | null;
   projectId: string;
   projectName: string;
@@ -175,8 +173,7 @@ export function ProjectWorkflow({
   estimates,
   rateCardOptions,
   clarificationEmailDraft = null,
-  sowSync,
-  estimateVersionOptions = [],
+  sowChange,
 }: ProjectWorkflowProps) {
   const contentByStage: Record<number, ReactNode> = {
     5: (
@@ -196,8 +193,7 @@ export function ProjectWorkflow({
     8: (
       <StartSowDevelopmentPanel
         projectId={projectId}
-        sowSync={sowSync}
-        estimateVersionOptions={estimateVersionOptions}
+        sowChange={sowChange}
         currentTemplate={currentSowTemplate}
         currentTemplateVersion={currentSowTemplateVersion}
         templateOptions={sowTemplateOptions}
@@ -248,9 +244,7 @@ export function ProjectWorkflow({
         phase1Content={phase1Content}
         headerExtraByPhaseKey={headerExtraByPhaseKey}
         attentionByPhaseKey={
-          sowSync?.needsAttention
-            ? { sow: sowSync.sow?.status === "stale" ? "SOW out of date" : "SOW source unknown" }
-            : undefined
+          sowChange?.status === "changed_since_generation" ? { sow: SOW_PHASE_INDICATOR_TEXT } : undefined
         }
       />
       </div>
