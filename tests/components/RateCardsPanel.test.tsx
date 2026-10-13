@@ -8,6 +8,7 @@ const unarchiveRateCardAction = vi.fn();
 
 vi.mock("@/app/(dashboard)/clients/[clientId]/actions", () => ({
   uploadRateCardVersionAction: vi.fn(),
+  previewRateCardUploadAction: vi.fn(),
   revertRateCardVersionAction: vi.fn(),
   createRateCardAction,
   archiveRateCardAction,
@@ -33,6 +34,7 @@ function makeRateCard(overrides: Partial<Parameters<typeof RateCardsPanel>[0]["r
         uploadedAt: new Date("2025-01-01"),
         effectiveFrom: new Date("2025-01-01"),
         effectiveTo: new Date("2025-12-31"),
+        currencies: ["GBP"],
       },
     ],
     ...overrides,
@@ -55,6 +57,7 @@ const rateCards = [
         uploadedAt: new Date("2025-11-01"),
         effectiveFrom: new Date("2025-11-01"),
         effectiveTo: null,
+        currencies: ["EUR", "GBP"],
       },
       {
         id: "rc2v2",
@@ -65,6 +68,7 @@ const rateCards = [
         uploadedAt: new Date("2026-01-01"),
         effectiveFrom: new Date("2026-01-01"),
         effectiveTo: null,
+        currencies: ["EUR", "GBP"],
       },
     ],
   }),
@@ -134,15 +138,26 @@ describe("RateCardsPanel", () => {
     expect(screen.getAllByRole("button", { name: "Upload new version" })).toHaveLength(2);
   });
 
-  it("reveals the version-upload form (file + effective dates) when a managing user clicks Upload", async () => {
+  it("reveals the Excel upload flow (template link + .xlsx file input, no effective-date fields) when a managing user clicks Upload", async () => {
     const { default: userEvent } = await import("@testing-library/user-event");
     const user = userEvent.setup();
     render(<RateCardsPanel clientId="client_1" rateCards={rateCards} canManage={true} />);
 
     await user.click(screen.getAllByRole("button", { name: "Upload new version" })[0]);
 
-    expect(screen.getByLabelText("Rate card file")).toBeInTheDocument();
-    expect(screen.getByLabelText("Effective from")).toBeInTheDocument();
+    expect(screen.getByLabelText("Rate card file (.xlsx)")).toHaveAttribute("accept", ".xlsx");
+    expect(screen.getByRole("link", { name: "Download template" })).toHaveAttribute(
+      "href",
+      "/api/rate-card-template"
+    );
+    expect(screen.queryByLabelText("Effective from")).not.toBeInTheDocument();
+  });
+
+  it("shows which currencies each version contains", () => {
+    render(<RateCardsPanel clientId="client_1" rateCards={rateCards} canManage={true} />);
+
+    expect(screen.getByText(/1 Jan 2025 – 31 Dec 2025 · GBP/)).toBeInTheDocument();
+    expect(screen.getAllByText(/EUR, GBP/).length).toBeGreaterThan(0);
   });
 
   describe("archive toggle", () => {

@@ -52,6 +52,9 @@ export interface RateCardVersionOption {
   // form pre-selects whichever version has this, but every version stays
   // pickable regardless.
   status: "ENABLED" | "DISABLED";
+  // Distinct currencies of this version's rate lines, sorted (e.g. ["EUR", "GBP"]);
+  // empty for older versions that have no recorded lines.
+  currencies: string[];
 }
 
 export interface RateCardOption {
@@ -93,7 +96,7 @@ export async function getRateCardsForWorkstreamAction(
     return [];
   }
 
-  return prisma.rateCard.findMany({
+  const rateCards = await prisma.rateCard.findMany({
     where: { clientId: workstream.clientId, archivedAt: null, versions: { some: {} } },
     orderBy: { name: "asc" },
     select: {
@@ -109,10 +112,19 @@ export async function getRateCardsForWorkstreamAction(
           effectiveFrom: true,
           effectiveTo: true,
           status: true,
+          lineItems: { select: { currency: true }, distinct: ["currency"] },
         },
       },
     },
   });
+
+  return rateCards.map((rateCard) => ({
+    ...rateCard,
+    versions: rateCard.versions.map(({ lineItems, ...version }) => ({
+      ...version,
+      currencies: lineItems.map((line) => line.currency).sort(),
+    })),
+  }));
 }
 
 export interface MasterServiceAgreementOption {

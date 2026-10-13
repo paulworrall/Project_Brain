@@ -111,6 +111,7 @@ export function VersionHistory({
   fileLabel = "File",
   fileAccept = ".docx,.pdf,.pptx,.txt",
   emptyMessage = "No versions on file yet.",
+  renderUploadForm,
   children,
 }: {
   title: string;
@@ -121,6 +122,11 @@ export function VersionHistory({
   fileLabel?: string;
   fileAccept?: string;
   emptyMessage?: string;
+  /**
+   * Replaces the built-in single-step upload form entirely (Rate Cards use a
+   * multi-step check/preview/confirm flow). `close` hides the form again.
+   */
+  renderUploadForm?: (close: () => void) => ReactNode;
   /** Extra upload-form fields specific to this document type (e.g. effective dates) — rendered between the file input and the submit button. */
   children?: ReactNode;
 }) {
@@ -198,7 +204,11 @@ export function VersionHistory({
         </details>
       )}
 
-      {canManage && isUploading && (
+      {canManage && isUploading && renderUploadForm && (
+        <div className="mt-4 border-t border-border pt-4">{renderUploadForm(() => setIsUploading(false))}</div>
+      )}
+
+      {canManage && isUploading && !renderUploadForm && (
         <form action={formAction} className="mt-4 space-y-3 border-t border-border pt-4">
           <div>
             <Label htmlFor={fileInputId}>{fileLabel}</Label>

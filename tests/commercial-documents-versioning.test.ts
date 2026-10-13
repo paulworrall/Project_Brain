@@ -1,8 +1,7 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
+import { rateCardXlsxFile, validRow } from "./helpers/rateCardWorkbook";
 
 // Real-DB integration tests for the generalized commercial-document
 // versioning pattern shared by MSA/Rate Card/SOW Template: uploading a new
@@ -59,16 +58,15 @@ function fakeFile(name: string, text = "dummy file contents"): File {
   return new File([Buffer.from(text)], name, { type: "text/plain" });
 }
 
-// A real, valid .xlsx workbook (Role/Currency/Day Rate columns) — generated
-// once via SheetJS and committed as a binary fixture. A fake/dummy buffer
-// with a ".xlsx" name would not exercise the real bug: officeparser detects
-// file type from content (magic bytes), not the extension, so only genuine
-// OOXML bytes actually exercise its xlsx-parsing path.
-function realXlsxFile(name = "rate-card.xlsx"): File {
-  const buffer = readFileSync(join(__dirname, "fixtures", "sample-rate-card.xlsx"));
-  return new File([buffer], name, {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  });
+// Rate cards are Excel-only (FB-001): the form carries just a name (new
+// cards) and a template-format .xlsx; versions' dates come from its rows.
+async function rateCardFormData(extra: Record<string, string> = {}, fileName = "rates.xlsx"): Promise<FormData> {
+  const formData = new FormData();
+  for (const [key, value] of Object.entries(extra)) {
+    formData.set(key, value);
+  }
+  formData.set("file", await rateCardXlsxFile([validRow()], fileName));
+  return formData;
 }
 
 // Always sets effectiveTo (even if blank) — a real <input type="date"> left
@@ -205,9 +203,6 @@ describe("createRateCardAction — creation always includes a first version (fea
 
     const formData = new FormData();
     formData.set("name", "No File Rates");
-    formData.set("currency", "GBP");
-    formData.set("effectiveFrom", "2026-01-01");
-    formData.set("effectiveTo", "");
     // Deliberately no "file" entry set.
 
     const result = await createRateCardAction(clientAId, undefined, formData);
@@ -219,90 +214,115 @@ describe("createRateCardAction — creation always includes a first version (fea
     expect(found).toBeNull();
   });
 
-  it("creates a rate card with no currency — saves successfully, and the row has currency = null", async () => {
-    const formData = new FormData();
-    formData.set("name", "No Currency Rates");
-    formData.set("effectiveFrom", "2026-01-01");
-    formData.set("effectiveTo", "");
-    // Deliberately no "currency" entry set — matches a real <input> left
-    // blank, which still submits "" for its key, not an absent key.
-    formData.set("currency", "");
-    formData.set("file", fakeFile("no-currency-rates.txt"));
-
-    const result = await createRateCardAction(clientAId, undefined, formData);
+  it("creates the rate card with currency = null at card level — currencies now live on each rate line", async () => {
+    const result = await createRateCardAction(
+      clientAId,
+      undefined,
+      await rateCardFormData({ name: "No Currency Rates" }, "no-currency-rates.xlsx")
+    );
 
     expect(result?.message).toBeUndefined();
     const rateCard = await prisma.rateCard.findFirstOrThrow({
       where: { clientId: clientAId, name: "No Currency Rates" },
+      include: { versions: { include: { lineItems: true } } },
     });
     expect(rateCard.currency).toBeNull();
+    expect(rateCard.versions[0].lineItems.map((l) => l.currency)).toEqual(["GBP"]);
   });
 
-  it("still uppercases and stores a currency when one IS provided — existing rate cards with a currency are unaffected", async () => {
-    const formData = new FormData();
-    formData.set("name", "With Currency Rates");
-    formData.set("currency", "gbp");
-    formData.set("effectiveFrom", "2026-01-01");
-    formData.set("effectiveTo", "");
-    formData.set("file", fakeFile("with-currency-rates.txt"));
-
-    const result = await createRateCardAction(clientAId, undefined, formData);
+  it("ignores any legacy card-level currency field — it is never stored on the card", async () => {
+    const result = await createRateCardAction(
+      clientAId,
+      undefined,
+      await rateCardFormData({ name: "With Currency Rates", currency: "gbp" }, "with-currency-rates.xlsx")
+    );
 
     expect(result?.message).toBeUndefined();
     const rateCard = await prisma.rateCard.findFirstOrThrow({
       where: { clientId: clientAId, name: "With Currency Rates" },
     });
-    expect(rateCard.currency).toBe("GBP");
+    expect(rateCard.currency).toBeNull();
   });
 });
 
-describe("RateCard .xlsx support (feature: rate-card-page-creation-and-toggle fix)", () => {
-  it("accepts a real .xlsx file on creation — extracts structured, CSV-shaped text, not rejected as an unsupported format", async () => {
+describe("RateCard .xlsx is the only accepted format (FB-001)", () => {
+  it("rejects a .txt rate card on creation with the template message, creating nothing", async () => {
     const formData = new FormData();
-    formData.set("name", "Xlsx Rates");
-    formData.set("effectiveFrom", "2026-01-01");
-    formData.set("effectiveTo", "");
-    formData.set("file", realXlsxFile());
+    formData.set("name", "Txt Rates");
+    formData.set("file", fakeFile("rates.txt"));
 
     const result = await createRateCardAction(clientAId, undefined, formData);
 
-    expect(result?.message).toBeUndefined();
-    const rateCard = await prisma.rateCard.findFirstOrThrow({
-      where: { clientId: clientAId, name: "Xlsx Rates" },
-      include: { versions: true },
-    });
-    expect(rateCard.versions).toHaveLength(1);
-    // Real row data from the fixture, and comma-separated (csv), not a flat
-    // prose dump or tab-separated 'text' output.
-    expect(rateCard.versions[0].extractedText).toContain("Senior Developer");
-    expect(rateCard.versions[0].extractedText).toContain("Role,Currency,Day Rate");
+    expect(result?.message).toBe(
+      "Rate cards must be uploaded as Excel (.xlsx). Download the template to get started."
+    );
+    expect(await prisma.rateCard.findFirst({ where: { clientId: clientAId, name: "Txt Rates" } })).toBeNull();
   });
 
-  it("accepts a real .xlsx file via uploadRateCardVersionAction ('Upload new version') too", async () => {
-    await createRateCardAction(
-      clientAId,
-      undefined,
-      fileFormData({ name: "Xlsx Upload Target", effectiveFrom: "2026-01-01" }, "rates-v1.txt")
-    );
+  it("rejects a .txt file via uploadRateCardVersionAction too, adding no version", async () => {
+    await createRateCardAction(clientAId, undefined, await rateCardFormData({ name: "Xlsx Upload Target" }, "rates-v1.xlsx"));
     const rateCard = await prisma.rateCard.findFirstOrThrow({
       where: { clientId: clientAId, name: "Xlsx Upload Target" },
     });
 
     const formData = new FormData();
-    formData.set("effectiveFrom", "2026-06-01");
-    formData.set("effectiveTo", "");
-    formData.set("file", realXlsxFile("rate-card-v2.xlsx"));
-
+    formData.set("file", fakeFile("rates-v2.txt"));
     const result = await uploadRateCardVersionAction(clientAId, rateCard.id, undefined, formData);
 
-    expect(result?.message).toBeUndefined();
-    const versions = await prisma.rateCardVersion.findMany({
-      where: { rateCardId: rateCard.id },
-      orderBy: { versionNumber: "asc" },
+    expect(result?.message).toMatch(/must be uploaded as Excel/);
+    expect(await prisma.rateCardVersion.count({ where: { rateCardId: rateCard.id } })).toBe(1);
+  });
+
+  it("tells the user to re-save a legacy .xls as .xlsx", async () => {
+    const formData = new FormData();
+    formData.set("name", "Xls Rates");
+    formData.set("file", new File([Buffer.from("x")], "rates.xls", { type: "application/vnd.ms-excel" }));
+
+    const result = await createRateCardAction(clientAId, undefined, formData);
+
+    expect(result?.message).toMatch(/\.xls.*\.xlsx/);
+  });
+
+  it("stores the parsed lines and keeps the original workbook bytes on the version", async () => {
+    const formData = new FormData();
+    formData.set("name", "Stored Lines");
+    const file = await rateCardXlsxFile(
+      [validRow({ Rate: 62.125, Currency: "EUR" }), validRow({ Role: "Developer", Rate: 19.99, Unit: "Hour" })],
+      "stored-lines.xlsx"
+    );
+    formData.set("file", file);
+
+    expect((await createRateCardAction(clientAId, undefined, formData))?.message).toBeUndefined();
+
+    const version = await prisma.rateCardVersion.findFirstOrThrow({
+      where: { rateCard: { clientId: clientAId, name: "Stored Lines" } },
+      include: { lineItems: { orderBy: { sourceRow: "asc" } } },
     });
-    expect(versions).toHaveLength(2);
-    expect(versions[1].fileName).toBe("rate-card-v2.xlsx");
-    expect(versions[1].extractedText).toContain("Project Manager");
+    expect(version.fileName).toBe("stored-lines.xlsx");
+    expect(Buffer.from(version.fileBytes).equals(Buffer.from(await file.arrayBuffer()))).toBe(true);
+    expect(version.lineItems.map((l) => [l.role, l.currency, l.rate.toString(), l.rateType, l.sourceRow])).toEqual([
+      ["Senior Designer", "EUR", "62.125", "DAILY", 2],
+      ["Developer", "GBP", "19.99", "HOURLY", 3],
+    ]);
+    expect(version.effectiveFrom.toISOString().slice(0, 10)).toBe("2026-01-01");
+  });
+
+  it("saves nothing when any row is invalid, and reports every error with its row number", async () => {
+    const before = await prisma.rateCard.count({ where: { clientId: clientAId } });
+    const formData = new FormData();
+    formData.set("name", "Bad Rows");
+    formData.set(
+      "file",
+      await rateCardXlsxFile([validRow(), validRow({ Currency: "EURO" }), validRow({ Rate: -5 })], "bad.xlsx")
+    );
+
+    const result = await createRateCardAction(clientAId, undefined, formData);
+
+    expect(result?.errors).toEqual([
+      "Row 3: 'EURO' isn't a valid currency code, use EUR.",
+      "Row 4: '-5' isn't a valid rate, use a positive number such as 125.50.",
+    ]);
+    expect(await prisma.rateCard.count({ where: { clientId: clientAId } })).toBe(before);
   });
 });
 
@@ -314,10 +334,7 @@ describe("RateCard versioning (phase 2: versions no longer supersede — Rule 3 
       await createRateCardAction(
         clientAId,
         undefined,
-        fileFormData(
-          { name: "Versioning Spec Rates", currency: "GBP", effectiveFrom: "2026-01-01" },
-          "rates-v1.txt"
-        )
+        await rateCardFormData({ name: "Versioning Spec Rates" }, "rates-v1.xlsx")
       );
       const rateCard = await prisma.rateCard.findFirstOrThrow({
         where: { clientId: clientAId, name: "Versioning Spec Rates" },
@@ -331,7 +348,7 @@ describe("RateCard versioning (phase 2: versions no longer supersede — Rule 3 
       clientAId,
       rateCardId,
       undefined,
-      fileFormData({ effectiveFrom: "2026-06-01" }, "rates-v2.txt")
+      await rateCardFormData({}, "rates-v2.xlsx")
     );
 
     const versions = await prisma.rateCardVersion.findMany({
@@ -350,7 +367,7 @@ describe("RateCard versioning (phase 2: versions no longer supersede — Rule 3 
       clientAId,
       rateCardId,
       undefined,
-      fileFormData({ effectiveFrom: "2026-09-01" }, "rates-v3.txt")
+      await rateCardFormData({}, "rates-v3.xlsx")
     );
 
     const options = await getRateCardsForWorkstreamAction(workstreamAId);
@@ -358,9 +375,9 @@ describe("RateCard versioning (phase 2: versions no longer supersede — Rule 3 
     expect(rateCard).toBeDefined();
     // v1, v2 (from the previous test), v3 — all present, newest first.
     expect(rateCard!.versions.map((v) => v.fileName)).toEqual([
-      "rates-v3.txt",
-      "rates-v2.txt",
-      "rates-v1.txt",
+      "rates-v3.xlsx",
+      "rates-v2.xlsx",
+      "rates-v1.xlsx",
     ]);
   });
 
@@ -394,10 +411,7 @@ describe("RateCard archiving (phase 2: a distinct lever from version status — 
     await createRateCardAction(
       clientAId,
       undefined,
-      fileFormData(
-        { name: "Archivable Rates", currency: "GBP", effectiveFrom: "2026-01-01" },
-        "archivable-v1.txt"
-      )
+      await rateCardFormData({ name: "Archivable Rates" }, "archivable-v1.xlsx")
     );
     const rateCard = await prisma.rateCard.findFirstOrThrow({
       where: { clientId: clientAId, name: "Archivable Rates" },

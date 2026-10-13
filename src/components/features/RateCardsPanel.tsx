@@ -1,10 +1,10 @@
 "use client";
 
 import { useActionState, type MouseEvent } from "react";
-import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
 import { VersionHistory, type VersionHistoryItem } from "./VersionHistory";
 import { CreateRateCardForm } from "./CreateRateCardForm";
+import { RateCardUploadFlow } from "./RateCardUploadFlow";
 import { formatRateCardLabel } from "@/lib/formatRateCardLabel";
 import {
   uploadRateCardVersionAction,
@@ -17,6 +17,8 @@ import {
 export interface RateCardVersionView extends VersionHistoryItem {
   effectiveFrom: Date;
   effectiveTo: Date | null;
+  /** Distinct currencies of this version's rate lines, sorted; empty for older versions with no recorded lines. */
+  currencies: string[];
 }
 
 export interface RateCardDocumentView {
@@ -102,33 +104,6 @@ function formatDate(date: Date | null): string {
   );
 }
 
-/** Exported so ClientRateCardsSummary's "Add rate card" quick-create form can reuse the same fields. */
-export function EffectiveDateFields() {
-  return (
-    <div className="flex flex-wrap gap-3">
-      <div>
-        <Label htmlFor="rcEffectiveFrom">Effective from</Label>
-        <input
-          id="rcEffectiveFrom"
-          name="effectiveFrom"
-          type="date"
-          required
-          className="rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground"
-        />
-      </div>
-      <div>
-        <Label htmlFor="rcEffectiveTo">Effective to (optional)</Label>
-        <input
-          id="rcEffectiveTo"
-          name="effectiveTo"
-          type="date"
-          className="rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground"
-        />
-      </div>
-    </div>
-  );
-}
-
 /**
  * Full version-history management (upload new version, revert) for every
  * named Rate Card belonging to one Client — used on the Rate Cards library
@@ -175,18 +150,22 @@ export function RateCardsPanel({
               title={formatRateCardLabel(rateCard.name, rateCard.currency)}
               versions={rateCard.versions.map((v) => ({
                 ...v,
-                detail: `${formatDate(v.effectiveFrom)} – ${formatDate(v.effectiveTo)}`,
+                detail: [
+                  `${formatDate(v.effectiveFrom)} – ${formatDate(v.effectiveTo)}`,
+                  v.currencies.length > 0 ? v.currencies.join(", ") : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · "),
               }))}
               canManage={canManage}
-              fileLabel="Rate card file"
-              fileAccept=".docx,.pdf,.pptx,.txt,.xlsx"
               onUpload={uploadRateCardVersionAction.bind(null, clientId, rateCard.id)}
+              renderUploadForm={(close) => (
+                <RateCardUploadFlow clientId={clientId} rateCardId={rateCard.id} onDone={close} />
+              )}
               makeRevertAction={(versionId) =>
                 revertRateCardVersionAction.bind(null, clientId, rateCard.id, versionId)
               }
-            >
-              <EffectiveDateFields />
-            </VersionHistory>
+            />
           </div>
         ))
       )}
