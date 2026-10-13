@@ -8,17 +8,11 @@ import {
   type ActionState,
 } from "@/app/(dashboard)/projects/[projectId]/actions";
 import { formatUkDateTime } from "@/lib/updateLabel";
-import type { VersionEntry } from "@/lib/updateVersions";
+import { VersionHistoryDrawer, type VersionView } from "./VersionHistoryDrawer";
 
-/** One version of the brief (v1 the brief, then each update), as getVersionHistory returns it. */
-export type VersionView = Omit<VersionEntry, "content">;
+export type { VersionView };
 
 type InputMode = "paste" | "upload";
-
-const SOURCE_LABEL: Record<VersionView["source"], string> = {
-  CLIENT: "Client",
-  INTERNAL_TEAM: "Internal team",
-};
 
 export function KnowledgeUpload({
   projectId,
@@ -34,6 +28,8 @@ export function KnowledgeUpload({
     undefined
   );
   const [mode, setMode] = useState<InputMode>("paste");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const latest = versions.at(-1);
 
   return (
     <Card variant="feature" className="p-5">
@@ -134,33 +130,24 @@ export function KnowledgeUpload({
         </Button>
       </form>
 
-      {versions.length > 0 && (
-        <ul
-          aria-label="Version history"
-          className="mt-4 space-y-2.5 border-t border-border pt-3"
-        >
-          {[...versions].reverse().map((version) => (
-            <li key={version.id} className="text-xs text-foreground">
-              <p>
-                <span className="font-semibold text-primary">
-                  {version.versionNumber ? `v${version.versionNumber}` : "—"}
-                </span>{" "}
-                {version.label}
-              </p>
-              <p className="text-muted-foreground">
-                {SOURCE_LABEL[version.source]}
-                {/* An untitled update's label already carries its date. */}
-                {!version.label.startsWith("Update — ") && ` · ${formatUkDateTime(version.createdAt)}`}
-                {version.detail && ` · ${version.detail}`}
-              </p>
-              {version.summary && <p className="mt-0.5 text-foreground/80">{version.summary}</p>}
-              {version.changeSummary && (
-                <p className="mt-0.5 text-muted-foreground">Changed: {version.changeSummary}</p>
-              )}
-            </li>
-          ))}
-        </ul>
+      {latest && (
+        <p className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">
+          Latest:{" "}
+          <span className="font-semibold text-foreground">
+            {latest.versionNumber ? `v${latest.versionNumber}` : "—"}
+          </span>{" "}
+          · {formatUkDateTime(latest.createdAt)} ·{" "}
+          <button
+            type="button"
+            className="font-medium text-primary hover:underline"
+            aria-haspopup="dialog"
+            onClick={() => setHistoryOpen(true)}
+          >
+            View history ({versions.length})
+          </button>
+        </p>
       )}
+      <VersionHistoryDrawer versions={versions} isOpen={historyOpen} onClose={() => setHistoryOpen(false)} />
     </Card>
   );
 }
