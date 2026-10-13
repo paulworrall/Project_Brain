@@ -20,7 +20,13 @@ export default async function RateCardsLibraryPage() {
         rateCards: {
           orderBy: { name: "asc" },
           include: {
-            versions: { include: { uploadedBy: true }, orderBy: { versionNumber: "desc" } },
+            versions: {
+              include: {
+                uploadedBy: true,
+                lineItems: { select: { currency: true }, distinct: ["currency"] },
+              },
+              orderBy: { versionNumber: "desc" },
+            },
             _count: { select: { projects: true } },
           },
         },
@@ -76,6 +82,7 @@ export default async function RateCardsLibraryPage() {
                       uploadedAt: v.uploadedAt,
                       effectiveFrom: v.effectiveFrom,
                       effectiveTo: v.effectiveTo,
+                      currencies: v.lineItems.map((l) => l.currency).sort(),
                     })),
                   }))}
                   canManage={canManage}

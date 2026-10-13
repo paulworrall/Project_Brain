@@ -149,6 +149,7 @@ describe("NewProjectForm — Rate Card select", () => {
             effectiveFrom: new Date("2026-06-01"),
             effectiveTo: null,
             status: "DISABLED",
+            currencies: ["GBP"],
           },
           {
             id: "rcv_1",
@@ -157,6 +158,7 @@ describe("NewProjectForm — Rate Card select", () => {
             effectiveFrom: new Date("2026-01-01"),
             effectiveTo: null,
             status: "ENABLED",
+            currencies: ["GBP"],
           },
         ],
       },
@@ -173,9 +175,9 @@ describe("NewProjectForm — Rate Card select", () => {
     const versionSelect = await screen.findByLabelText("Rate card version");
     expect(versionSelect).toHaveValue("rcv_1");
     expect(
-      screen.getByRole("option", { name: "Version 1 — rates-v1.pdf (current)" })
+      screen.getByRole("option", { name: "Version 1 — rates-v1.pdf [GBP] (current)" })
     ).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Version 2 — rates-v2.pdf" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Version 2 — rates-v2.pdf [GBP]" })).toBeInTheDocument();
   });
 });
 

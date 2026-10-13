@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
+import { rateCardXlsxFile, validRow } from "./helpers/rateCardWorkbook";
 
 // First real role-enforcement in the app (CLAUDE.md: both roles previously
 // saw identical views). Calls the REAL Server Actions against the real dev
@@ -107,13 +108,10 @@ function msaFormData(overrides: Partial<Record<string, string>> = {}): FormData 
   return formData;
 }
 
-function rateCardFormData(overrides: Partial<Record<string, string>> = {}): FormData {
+async function rateCardFormData(overrides: Partial<Record<string, string>> = {}): Promise<FormData> {
   const formData = new FormData();
   formData.set("name", overrides.name ?? "2026 Standard Rates");
-  formData.set("currency", overrides.currency ?? "GBP");
-  formData.set("effectiveFrom", overrides.effectiveFrom ?? "2026-01-01");
-  formData.set("effectiveTo", overrides.effectiveTo ?? "");
-  formData.set("file", fakeFile("rates.txt"));
+  formData.set("file", await rateCardXlsxFile([validRow()], "rates.xlsx"));
   return formData;
 }
 
@@ -200,12 +198,12 @@ describe("Rate Card permissions", () => {
   it("lets a ClientEngagement user create a Rate Card", async () => {
     asClientEngagement();
 
-    const result = await createRateCardAction(clientId, undefined, rateCardFormData());
+    const result = await createRateCardAction(clientId, undefined, await rateCardFormData());
     expect(result?.message).toBeUndefined();
 
     const rateCards = await prisma.rateCard.findMany({ where: { clientId }, include: { versions: true } });
     expect(rateCards).toHaveLength(1);
-    expect(rateCards[0].currency).toBe("GBP");
+    expect(rateCards[0].currency).toBeNull();
     expect(rateCards[0].versions).toHaveLength(1);
     expect(rateCards[0].versions[0].status).toBe("ENABLED");
   });
@@ -214,7 +212,7 @@ describe("Rate Card permissions", () => {
     asDelivery();
 
     const before = await prisma.rateCard.count({ where: { clientId } });
-    const result = await createRateCardAction(clientId, undefined, rateCardFormData({ name: "Sneaky Rates" }));
+    const result = await createRateCardAction(clientId, undefined, await rateCardFormData({ name: "Sneaky Rates" }));
     const after = await prisma.rateCard.count({ where: { clientId } });
 
     expect(result?.message).toMatch(/Client Engagement/i);
@@ -226,7 +224,7 @@ describe("Rate Card permissions", () => {
     const before = await prisma.rateCardVersion.count({ where: { rateCardId: rateCard.id } });
 
     asDelivery();
-    const result = await uploadRateCardVersionAction(clientId, rateCard.id, undefined, rateCardFormData());
+    const result = await uploadRateCardVersionAction(clientId, rateCard.id, undefined, await rateCardFormData());
     const after = await prisma.rateCardVersion.count({ where: { rateCardId: rateCard.id } });
 
     expect(result?.message).toMatch(/Client Engagement/i);

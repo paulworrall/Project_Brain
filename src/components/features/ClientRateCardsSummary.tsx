@@ -11,6 +11,8 @@ export interface RateCardSummaryView {
   // currencies (one per role) within one file, so it's not always set.
   currency: string | null;
   currentVersionFileName: string | null;
+  /** Distinct currencies in the current version's rate lines; empty when none are recorded. */
+  currentVersionCurrencies: string[];
 }
 
 /**
@@ -32,7 +34,7 @@ export function ClientRateCardsSummary({
   const items: LibrarySummaryItem[] = rateCards.map((rc) => ({
     id: rc.id,
     name: formatRateCardLabel(rc.name, rc.currency),
-    tag: "current",
+    tag: rc.currentVersionCurrencies.length > 0 ? `current · ${rc.currentVersionCurrencies.join(", ")}` : "current",
     fileName: rc.currentVersionFileName,
   }));
 

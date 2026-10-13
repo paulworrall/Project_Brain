@@ -347,6 +347,7 @@ export function NewProjectForm({
             {selectedRateCard.versions.map((v) => (
               <option key={v.id} value={v.id}>
                 Version {v.versionNumber} — {v.fileName}
+                {v.currencies.length > 0 ? ` [${v.currencies.join(", ")}]` : ""}
                 {v.status === "ENABLED" ? " (current)" : ""}
               </option>
             ))}

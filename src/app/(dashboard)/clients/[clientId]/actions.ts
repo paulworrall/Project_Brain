@@ -6,9 +6,14 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { isClientEngagement, CLIENT_ENGAGEMENT_ONLY_MESSAGE } from "@/lib/permissions";
 import { extractTextFromBuffer } from "@/lib/extractTextFromBuffer";
+import { parseRateCardWorkbook, type ParsedRateCard, type RateCardLine } from "@/services/parsing/rate-card-xlsx";
+import { RATE_CARD_ERRORS, distinctCurrencies, formatCurrencySummary } from "@/lib/rateCardTemplate";
+import type { Prisma } from "@/generated/prisma/client";
 
 export interface ActionState {
   message?: string;
+  /** Row-level validation errors, e.g. "Row 12: 'EURO' isn't a valid currency code, use EUR." */
+  errors?: string[];
 }
 
 function toDateOrNull(value: string | undefined): Date | null {
@@ -138,19 +143,86 @@ export async function revertMasterServiceAgreementVersionAction(
 
 const CreateRateCardSchema = z.object({
   name: z.string().trim().min(1, { error: "Give this rate card a name." }),
-  // Optional — a rate card can carry several currencies (one per role)
-  // within a single file, so it's not always meaningful to record one at
-  // upload time. `.nullish()`, not `.optional()`: a real <input> left blank
-  // still submits "" for its key (`.optional()` alone wouldn't reject that,
-  // since it's a valid string), but formData.get() returns null rather than
-  // undefined for a key that's altogether absent — `.nullish()` accepts
-  // both, and either way an empty/absent value is normalized to null below.
-  currency: z.string().trim().nullish(),
-  effectiveFrom: z.string().trim().min(1, { error: "Effective from date is required." }),
-  effectiveTo: z.string().trim().optional(),
 });
 
-/** Creates a brand-new named Rate Card document plus its first (current) version. */
+type RateCardFileRead =
+  | { ok: true; file: File; buffer: Buffer<ArrayBuffer>; parsed: ParsedRateCard }
+  | { ok: false; errors: string[] };
+
+/** Reads and validates the uploaded rate card .xlsx — the one parse path shared by preview and save. */
+async function readRateCardFile(formData: FormData): Promise<RateCardFileRead> {
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, errors: [RATE_CARD_ERRORS.noFile] };
+  }
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const result = await parseRateCardWorkbook({ name: file.name, size: file.size, type: file.type }, buffer);
+  if (!result.ok) return { ok: false, errors: result.errors };
+  return { ok: true, file, buffer, parsed: result };
+}
+
+function dateOnly(value: string): Date {
+  return new Date(`${value}T00:00:00Z`);
+}
+
+function rateLineCreateData(lines: RateCardLine[]): Prisma.RateCardLineItemCreateWithoutRateCardVersionInput[] {
+  return lines.map((line) => ({
+    role: line.role,
+    level: line.grade,
+    rateType: line.unit === "Hour" ? "HOURLY" : "DAILY",
+    // A decimal string, never a float: the digits are stored exactly as written.
+    rate: line.rate,
+    currency: line.currency,
+    capability: line.capability,
+    effectiveFrom: dateOnly(line.effectiveFrom),
+    effectiveTo: line.effectiveTo ? dateOnly(line.effectiveTo) : null,
+    notes: line.notes,
+    sourceRow: line.sourceRow,
+  }));
+}
+
+function failure(errors: string[]): ActionState {
+  return { message: errors[0], errors };
+}
+
+export type RateCardPreviewResult =
+  | {
+      ok: true;
+      fileName: string;
+      lines: RateCardLine[];
+      currencies: string[];
+      summary: string;
+      effectiveFrom: string;
+      effectiveTo: string | null;
+    }
+  | { ok: false; errors: string[] };
+
+/**
+ * Step 1 of the rate card upload flow: parses and validates the .xlsx and
+ * returns the lines for the admin to review. Saves nothing — the version is
+ * only created by createRateCardAction / uploadRateCardVersionAction once the
+ * admin confirms (which re-parse the same file, so a preview can't be forged).
+ */
+export async function previewRateCardUploadAction(formData: FormData): Promise<RateCardPreviewResult> {
+  const session = await auth();
+  if (!isClientEngagement(session)) {
+    return { ok: false, errors: [CLIENT_ENGAGEMENT_ONLY_MESSAGE] };
+  }
+  const read = await readRateCardFile(formData);
+  if (!read.ok) return read;
+  const { parsed, file } = read;
+  return {
+    ok: true,
+    fileName: file.name,
+    lines: parsed.lines,
+    currencies: distinctCurrencies(parsed.lines),
+    summary: formatCurrencySummary(parsed.lines),
+    effectiveFrom: parsed.effectiveFrom,
+    effectiveTo: parsed.effectiveTo,
+  };
+}
+
+/** Step 2 (confirm): creates a brand-new named Rate Card plus its first version and rate lines. */
 export async function createRateCardAction(
   clientId: string,
   _prevState: ActionState | undefined,
@@ -161,59 +233,46 @@ export async function createRateCardAction(
     return { message: CLIENT_ENGAGEMENT_ONLY_MESSAGE };
   }
 
-  const parsed = CreateRateCardSchema.safeParse({
-    name: formData.get("name"),
-    currency: formData.get("currency"),
-    effectiveFrom: formData.get("effectiveFrom"),
-    effectiveTo: formData.get("effectiveTo"),
-  });
-  if (!parsed.success) {
-    const errors = z.flattenError(parsed.error).fieldErrors;
-    return {
-      message: errors.name?.[0] ?? errors.effectiveFrom?.[0] ?? "Invalid rate card details.",
-    };
+  const parsedName = CreateRateCardSchema.safeParse({ name: formData.get("name") });
+  if (!parsedName.success) {
+    return { message: z.flattenError(parsedName.error).fieldErrors.name?.[0] ?? "Invalid rate card details." };
   }
 
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return { message: "Upload the rate card file." };
-  }
-
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const extracted = await extractTextFromBuffer(buffer, file.name);
-  if ("message" in extracted) {
-    return extracted;
-  }
+  const read = await readRateCardFile(formData);
+  if (!read.ok) return failure(read.errors);
 
   await prisma.rateCard.create({
     data: {
       clientId,
-      name: parsed.data.name,
-      currency: parsed.data.currency ? parsed.data.currency.toUpperCase() : null,
+      name: parsedName.data.name,
+      // Currencies live on the individual rate lines now, never on the card.
+      currency: null,
       versions: {
         create: {
           versionNumber: 1,
-          fileName: file.name,
-          fileBytes: buffer,
-          extractedText: extracted.extractedText,
-          effectiveFrom: new Date(parsed.data.effectiveFrom),
-          effectiveTo: toDateOrNull(parsed.data.effectiveTo),
+          fileName: read.file.name,
+          fileBytes: read.buffer,
+          extractedText: read.parsed.extractedText,
+          effectiveFrom: dateOnly(read.parsed.effectiveFrom),
+          effectiveTo: read.parsed.effectiveTo ? dateOnly(read.parsed.effectiveTo) : null,
           status: "ENABLED",
           uploadedById: session!.user!.id,
+          lineItems: { create: rateLineCreateData(read.parsed.lines) },
         },
       },
     },
   });
 
   revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/rate-cards");
 }
 
 /**
- * Uploads a new version to an existing named Rate Card. Rule 3 (audit gap):
- * unlike MSA/SOW Templates, Rate Card versions must never supersede one
- * another — every version stays independently selectable forever, so this
- * does NOT disable the previous version. See the `status` comment on the
- * create call below for what the field means for this table now.
+ * Step 2 (confirm): uploads a new version to an existing named Rate Card.
+ * Rule 3 (audit gap): unlike MSA/SOW Templates, Rate Card versions must never
+ * supersede one another — every version stays independently selectable
+ * forever, so this does NOT disable the previous version. See the `status`
+ * comment on the create call below for what the field means for this table now.
  */
 export async function uploadRateCardVersionAction(
   clientId: string,
@@ -233,27 +292,8 @@ export async function uploadRateCardVersionAction(
     return { message: "Rate card not found." };
   }
 
-  const parsed = EffectiveDatesSchema.safeParse({
-    effectiveFrom: formData.get("effectiveFrom"),
-    effectiveTo: formData.get("effectiveTo"),
-  });
-  if (!parsed.success) {
-    return {
-      message:
-        z.flattenError(parsed.error).fieldErrors.effectiveFrom?.[0] ?? "Invalid rate card details.",
-    };
-  }
-
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return { message: "Upload the rate card file." };
-  }
-
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const extracted = await extractTextFromBuffer(buffer, file.name);
-  if ("message" in extracted) {
-    return extracted;
-  }
+  const read = await readRateCardFile(formData);
+  if (!read.ok) return failure(read.errors);
 
   const latest = await prisma.rateCardVersion.findFirst({
     where: { rateCardId },
@@ -264,11 +304,11 @@ export async function uploadRateCardVersionAction(
     data: {
       rateCardId,
       versionNumber: (latest?.versionNumber ?? 0) + 1,
-      fileName: file.name,
-      fileBytes: buffer,
-      extractedText: extracted.extractedText,
-      effectiveFrom: new Date(parsed.data.effectiveFrom),
-      effectiveTo: toDateOrNull(parsed.data.effectiveTo),
+      fileName: read.file.name,
+      fileBytes: read.buffer,
+      extractedText: read.parsed.extractedText,
+      effectiveFrom: dateOnly(read.parsed.effectiveFrom),
+      effectiveTo: read.parsed.effectiveTo ? dateOnly(read.parsed.effectiveTo) : null,
       // For RateCardVersion specifically, `status` no longer gates
       // selectability (all versions are always selectable — see
       // getRateCardsForWorkstreamAction) and is repurposed as "flagged as
@@ -283,10 +323,12 @@ export async function uploadRateCardVersionAction(
       // simultaneous ENABLED row would violate that constraint).
       status: "DISABLED",
       uploadedById: session!.user!.id,
+      lineItems: { create: rateLineCreateData(read.parsed.lines) },
     },
   });
 
   revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/rate-cards");
 }
 
 /**

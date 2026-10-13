@@ -32,7 +32,13 @@ export default async function ClientDetailPage({
         rateCards: {
           orderBy: { name: "asc" },
           include: {
-            versions: { include: { uploadedBy: true }, orderBy: { versionNumber: "desc" } },
+            versions: {
+              include: {
+                uploadedBy: true,
+                lineItems: { select: { currency: true }, distinct: ["currency"] },
+              },
+              orderBy: { versionNumber: "desc" },
+            },
           },
         },
         sowTemplates: {
@@ -110,6 +116,11 @@ export default async function ClientDetailPage({
               name: rc.name,
               currency: rc.currency,
               currentVersionFileName: rc.versions.find((v) => v.status === "ENABLED")?.fileName ?? null,
+              currentVersionCurrencies:
+                rc.versions
+                  .find((v) => v.status === "ENABLED")
+                  ?.lineItems.map((l) => l.currency)
+                  .sort() ?? [],
             }))}
             canManage={canManageCommercialDocuments}
           />

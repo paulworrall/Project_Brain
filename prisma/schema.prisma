@@ -639,8 +639,19 @@ model RateCardLineItem {
   role              String
   level             String?
   rateType          RateType
-  rate              Decimal  @db.Decimal(12, 2)
+  // 4 decimal places so a rate like 62.125 is never silently rounded; always
+  // a decimal type, never a float. No currency conversion exists anywhere —
+  // every line simply carries its own ISO 4217 currency, so consumers can
+  // filter by currency (see the index below).
+  rate              Decimal  @db.Decimal(14, 4)
   currency          String
+  // Written when the line comes from a template-format .xlsx upload (FB-001);
+  // all null for older lines that were extracted by the AI agent.
+  capability        Capability?
+  effectiveFrom     DateTime? @db.Date
+  effectiveTo       DateTime? @db.Date
+  notes             String?
+  sourceRow         Int?
   createdAt         DateTime @default(now())
 
   rateCardVersion   RateCardVersion    @relation(fields: [rateCardVersionId], references: [id], onDelete: Cascade)
@@ -649,6 +660,7 @@ model RateCardLineItem {
   estimateLineItems EstimateLineItem[]
 
   @@index([rateCardVersionId])
+  @@index([rateCardVersionId, currency])
 }
 
 model Estimate {

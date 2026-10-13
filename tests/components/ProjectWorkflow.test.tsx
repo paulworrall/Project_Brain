@@ -169,6 +169,7 @@ function baseProps() {
         effectiveFrom: Date;
         effectiveTo: Date | null;
         status: "ENABLED" | "DISABLED";
+        currencies: string[];
       }[];
     }[],
   };
