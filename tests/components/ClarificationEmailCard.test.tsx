@@ -4,11 +4,26 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ClarificationEmailCard } from "@/components/features/ClarificationEmailCard";
 
-vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
-  regenerateClarificationEmailAction: vi.fn(),
-}));
-
 describe("ClarificationEmailCard", () => {
+  it("never shows a staleness banner or a Regenerate button, with or without a newer update draft", () => {
+    const { rerender } = render(
+      <ClarificationEmailCard projectId="proj_1" email={{ subject: "Quick questions", bodyText: "Hi." }} />
+    );
+    expect(screen.queryByText(/Built from v/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/key details have changed/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /regenerate/i })).not.toBeInTheDocument();
+
+    rerender(
+      <ClarificationEmailCard
+        projectId="proj_1"
+        email={{ subject: "Updated", bodyText: "Hi." }}
+        draft={{ versionNumber: 3, triggeredByUpdateVersion: 4, createdAt: new Date("2026-09-30T13:25:00Z") }}
+      />
+    );
+    expect(screen.queryByRole("button", { name: /regenerate/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "New draft" })).toHaveTextContent("New draft ready (v3) — from update v4");
+  });
+
   it("shows a 'not yet generated' placeholder, no download button, and no view-full link when there's no email", () => {
     render(<ClarificationEmailCard projectId="proj_1" email={null} />);
 

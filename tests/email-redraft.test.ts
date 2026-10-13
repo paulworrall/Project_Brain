@@ -24,10 +24,8 @@ vi.mock("@/lib/auth", () => ({ auth: vi.fn().mockResolvedValue(null) }));
 const { anthropic } = await import("@/lib/anthropic");
 const mockParse = anthropic.messages.parse as ReturnType<typeof vi.fn>;
 const { keyAttributeFacts } = await import("./fixtures/keyAttributeFacts");
-const { uploadKnowledgeItemAction, regenerateClarificationEmailAction } = await import(
-  "@/app/(dashboard)/projects/[projectId]/actions"
-);
-const { getOutputFreshness } = await import("@/lib/outputFreshness");
+const { uploadKnowledgeItemAction } = await import("@/app/(dashboard)/projects/[projectId]/actions");
+const { redraftClarificationEmail } = await import("@/lib/outputRegeneration");
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
@@ -133,7 +131,6 @@ describe("a new client email draft on each update", () => {
     expect(versions[1].content).toEqual({ subject: "Updated questions", bodyText: "Hi, thanks for the update." });
     const draftPrompt = JSON.stringify(mockParse.mock.calls.at(-1)![0].messages);
     expect(draftPrompt).toContain("UPDATE_MARKER");
-    expect((await getOutputFreshness(projectId)).clarificationEmail?.stale).toBe(false);
   });
 
   it("drafts after an internal-team update too, one new version per update", async () => {
@@ -152,10 +149,8 @@ describe("a new client email draft on each update", () => {
   it("never changes a previous version — including one a PM regenerated themselves", async () => {
     const projectId = await newProject("Keeps Previous");
     // A PM's own redraft (v2).
-    const { auth } = await import("@/lib/auth");
-    (auth as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ user: { id: pmUserId } });
     mockParse.mockResolvedValueOnce({ parsed_output: { subject: "PM's draft", bodyText: "PM body" } });
-    await regenerateClarificationEmailAction(projectId, undefined, new FormData());
+    await redraftClarificationEmail(projectId, pmUserId);
     const before = await emailVersions(projectId);
     expect(before[1]).toMatchObject({ versionNumber: 2, createdById: pmUserId });
 
@@ -167,14 +162,12 @@ describe("a new client email draft on each update", () => {
     expect(after[2]).toMatchObject({ versionNumber: 3, triggeredByUpdateVersion: 2, createdById: null });
   });
 
-  it("keeps the update when drafting fails, and leaves the email flagged so the PM can regenerate", async () => {
+  it("keeps the update when drafting fails, leaving the existing email untouched", async () => {
     const projectId = await newProject("Draft Fails");
     await addUpdateAndFinish(projectId, "An update.", new Error("drafting failed"));
 
     expect(await prisma.knowledgeItem.count({ where: { projectId } })).toBe(1);
     expect(await emailVersions(projectId)).toHaveLength(1);
-    const email = (await getOutputFreshness(projectId)).clarificationEmail!;
-    expect(email).toMatchObject({ stale: true, canRegenerate: true });
   });
 
   it("still redrafts when summarising fails", async () => {

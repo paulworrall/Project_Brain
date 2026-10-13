@@ -1,10 +1,8 @@
 "use client";
 
-import { SowSyncNotice, type EstimateVersionOption } from "./SowSyncNotice";
+import { SowChangeNotice } from "./SowChangeNotice";
 import { SowDownloadLink } from "./SowDownloadLink";
-import { staleDownloadWarning, type ProjectSowSync } from "@/lib/sowSyncView";
-import { StaleOutputNotice } from "./StaleOutputNotice";
-import type { OutputFreshness } from "@/lib/freshness";
+import { changedDownloadWarning, type SowChangeStatus } from "@/lib/sowChangeView";
 import { useActionState, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -84,15 +82,10 @@ export function StartSowDevelopmentPanel({
   templateOptions,
   sowVersions,
   briefCompleteness,
-  sowFreshness,
-  sowSync,
-  estimateVersionOptions = [],
+  sowChange,
 }: {
-  /** Whether each SOW version still matches its estimate (getSowSyncStatus) — the only source of SOW staleness. */
-  sowSync?: ProjectSowSync;
-  estimateVersionOptions?: EstimateVersionOption[];
-  /** Flagged when the brief changed after the latest SOW; Regenerate makes a new version. */
-  sowFreshness?: OutputFreshness;
+  /** What's changed since the latest SOW was generated (getSowChangeStatus) — the only source of SOW change notices. */
+  sowChange?: SowChangeStatus;
   projectId: string;
   currentTemplate: { id: string; name: string } | null;
   currentTemplateVersion: { id: string } | null;
@@ -230,7 +223,7 @@ export function StartSowDevelopmentPanel({
 
   const latestSowVersion = sowVersions[0];
   const olderSowVersions = sowVersions.slice(1);
-  const syncOf = (sowVersionId: string) => sowSync?.versions.find((v) => v.sowVersionId === sowVersionId);
+  const labelOf = (sowVersionId: string) => sowChange?.versions.find((v) => v.sowVersionId === sowVersionId)?.label;
 
   return (
     <div id="sow" className="scroll-mt-6 space-y-4">
@@ -341,30 +334,25 @@ export function StartSowDevelopmentPanel({
 
         {latestSowVersion ? (
           <Card className="mt-3 space-y-1 p-4">
+            {sowChange?.sowVersionId === latestSowVersion.id && (
+              <div className="mb-2 empty:hidden">
+                <SowChangeNotice changes={sowChange.changes} onReview={handleGenerateClick} />
+              </div>
+            )}
             <p className="text-sm font-medium text-foreground">
               Version {latestSowVersion.versionNumber} — {formatDateTime(latestSowVersion.createdAt)}
             </p>
-            {syncOf(latestSowVersion.id) && (
-              <p className="text-xs text-muted-foreground">{syncOf(latestSowVersion.id)!.label}</p>
+            {labelOf(latestSowVersion.id) && (
+              <p className="text-xs text-muted-foreground">{labelOf(latestSowVersion.id)}</p>
             )}
-            <SowSyncNotice
-              projectId={projectId}
-              sync={sowSync?.sow?.sowVersionId === latestSowVersion.id ? sowSync.sow : null}
-              estimateVersionOptions={estimateVersionOptions}
-            />
             <SowDownloadLink
               href={`/api/projects/${projectId}/sow/${latestSowVersion.id}`}
-              staleWarning={staleDownloadWarning(
-                syncOf(latestSowVersion.id)?.status,
-                syncOf(latestSowVersion.id)?.sourceVersionNumber
+              staleWarning={changedDownloadWarning(
+                sowChange?.sowVersionId === latestSowVersion.id ? sowChange.status : "no_sow"
               )}
             >
               Download .docx →
             </SowDownloadLink>
-            <StaleOutputNotice
-              freshness={sowFreshness}
-              onRegenerate={handleGenerateClick}
-            />
 
             {olderSowVersions.length > 0 && (
               <details className="mt-2 border-t border-border pt-2">
@@ -378,15 +366,12 @@ export function StartSowDevelopmentPanel({
                       className="flex flex-wrap items-center justify-between gap-2 text-xs text-foreground"
                     >
                       <span>
-                        {syncOf(version.id)?.label ?? `v${version.versionNumber}`} ·{" "}
+                        {labelOf(version.id) ?? `v${version.versionNumber}`} ·{" "}
                         {formatDateTime(version.createdAt)}
                       </span>
                       <SowDownloadLink
                         href={`/api/projects/${projectId}/sow/${version.id}`}
-                        staleWarning={staleDownloadWarning(
-                          syncOf(version.id)?.status,
-                          syncOf(version.id)?.sourceVersionNumber
-                        )}
+                        staleWarning={null}
                         className="font-medium text-primary hover:underline"
                       >
                         Download →

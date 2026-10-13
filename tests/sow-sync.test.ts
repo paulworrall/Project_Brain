@@ -10,7 +10,6 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ auth: vi.fn().mockResolvedValue(null) }));
 
 const { getSowSyncStatus } = await import("@/lib/sowSync");
-const { confirmSowEstimateSourceAction } = await import("@/app/(dashboard)/projects/[projectId]/actions");
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
@@ -141,48 +140,5 @@ describe("getSowSyncStatus", () => {
       [2, "SOW v2 — source unknown", "unlinked"],
       [1, "SOW v1 — from Estimate v1 — 50,400 USD", "in_sync"],
     ]);
-  });
-});
-
-describe("confirmSowEstimateSourceAction", () => {
-  it("lets the PM say which estimate version an unlinked SOW reflects", async () => {
-    const projectId = await newProject("Confirm Source");
-    const est = await createEstimate(prisma, { projectId, clientId, label: "Main" });
-    const v1 = await addEstimateVersion(prisma, { ...est, versionNumber: 1, total: 50400 });
-    const sowVersionId = await addSowVersion(projectId, 1, null);
-    const form = new FormData();
-    form.set("estimateVersionId", v1);
-
-    const result = await confirmSowEstimateSourceAction(projectId, sowVersionId, undefined, form);
-
-    expect(result?.message).toBeUndefined();
-    expect((await getSowSyncStatus(projectId)).sow).toMatchObject({ status: "in_sync", source: { estimateVersionId: v1 } });
-    const saved = await prisma.sOWVersion.findUniqueOrThrow({ where: { id: sowVersionId } });
-    expect(Number(saved.sourceEstimateTotal)).toBe(50400);
-  });
-
-  it("never re-points a SOW that already has a source, or accepts another project's estimate", async () => {
-    const projectId = await newProject("Confirm Refused");
-    const other = await newProject("Someone Else's");
-    const est = await createEstimate(prisma, { projectId, clientId, label: "Main" });
-    const otherEst = await createEstimate(prisma, { projectId: other, clientId, label: "Other" });
-    const v1 = await addEstimateVersion(prisma, { ...est, versionNumber: 1, total: 100 });
-    const v2 = await addEstimateVersion(prisma, { ...est, versionNumber: 2, total: 200 });
-    const foreign = await addEstimateVersion(prisma, { ...otherEst, versionNumber: 1, total: 999 });
-    const linked = await addSowVersion(projectId, 1, { id: v1, total: 100 });
-    const unlinked = await addSowVersion(projectId, 2, null);
-
-    const repoint = new FormData();
-    repoint.set("estimateVersionId", v2);
-    expect((await confirmSowEstimateSourceAction(projectId, linked, undefined, repoint))?.message).toMatch(/already/i);
-
-    const crossProject = new FormData();
-    crossProject.set("estimateVersionId", foreign);
-    expect((await confirmSowEstimateSourceAction(projectId, unlinked, undefined, crossProject))?.message).toMatch(
-      /not found/i
-    );
-
-    const rows = await prisma.sOWVersion.findMany({ where: { id: { in: [linked, unlinked] } }, orderBy: { versionNumber: "asc" } });
-    expect(rows.map((r) => r.sourceEstimateVersionId)).toEqual([v1, null]);
   });
 });

@@ -185,7 +185,7 @@ describe("CapabilitiesAndEstimateBriefPanel", () => {
     expect(screen.getByRole("button", { name: "Regenerate" })).toBeInTheDocument();
   });
 
-  it("flags a stale brief once the confirmed capabilities differ from the version's snapshot", () => {
+  it("shows no staleness notice or extra Regenerate prompt when the confirmed capabilities differ from the version's snapshot", () => {
     render(
       <CapabilitiesAndEstimateBriefPanel
         projectId="proj_1"
@@ -199,7 +199,8 @@ describe("CapabilitiesAndEstimateBriefPanel", () => {
       />
     );
 
-    expect(screen.getByText(/Capabilities have changed since this was generated/)).toBeInTheDocument();
+    expect(screen.queryByText(/Capabilities have changed since this was generated/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Built from v/)).not.toBeInTheDocument();
   });
 
   it("does not flag staleness when the confirmed set matches the version's snapshot, regardless of order", () => {

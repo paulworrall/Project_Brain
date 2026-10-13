@@ -358,7 +358,7 @@ model DocumentVersion {
   stageNumber   Int
   // The brief version (1 = the brief, then each update's) this was built
   // from; null on outputs made before this was recorded (worked out from
-  // createdAt instead). Drives the "Built from v2 — v4 is available" flag.
+  // createdAt instead). Provenance only: kept for audit; no longer drives any staleness flag.
   builtFromVersion Int?
   // Set when this version was drafted automatically because an update was
   // saved (the clarification email): that update's version number.
@@ -441,7 +441,7 @@ model EstimateBriefVersion {
   createdById     String?
   // The brief version (1 = the brief, then each update's) this was built
   // from; null on outputs made before this was recorded (worked out from
-  // createdAt instead). Drives the "Built from v2 — v4 is available" flag.
+  // createdAt instead). Provenance only: kept for audit; no longer drives any staleness flag.
   builtFromVersion Int?
   createdAt       DateTime     @default(now())
 
@@ -490,7 +490,7 @@ model SOWVersion {
   createdById          String?
   // The brief version (1 = the brief, then each update's) this was built
   // from; null on outputs made before this was recorded (worked out from
-  // createdAt instead). Drives the "Built from v2 — v4 is available" flag.
+  // createdAt instead). Provenance only: kept for audit; no longer drives any staleness flag.
   builtFromVersion Int?
   // The exact estimate version this SOW's commercials came from, plus a
   // snapshot of it taken at generation time (so the SOW still says what it
@@ -508,6 +508,12 @@ model SOWVersion {
   // Scope/Risks were composed from — see SowSectionItem. Null on versions made
   // before the PM review step existed.
   itemsSnapshot        Json?
+  // The SOW-material key details (see src/lib/sowMaterial.ts) and confirmed
+  // capabilities as they stood when this version was generated — what the
+  // "Updates since this SOW was generated" notice compares against. Null on
+  // versions made before this existed: those get no notice for key-detail
+  // changes (never a false one); the estimate comparison still applies.
+  keyAttributesSnapshot Json?
   createdAt            DateTime @default(now())
 
   sow                   SOW                 @relation(fields: [sowId], references: [id], onDelete: Cascade)

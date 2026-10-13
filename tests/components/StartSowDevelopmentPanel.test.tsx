@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ProjectSowSync } from "@/lib/sowSyncView";
+import type { SowChange, SowChangeStatus } from "@/lib/sowChangeView";
 
 const startSowDevelopmentAction = vi.fn(async () => undefined);
 const generateSowAction = vi.fn(async () => undefined);
@@ -386,38 +386,34 @@ describe("StartSowDevelopmentPanel", () => {
     });
   });
 
-  describe("estimate sync", () => {
+  describe("changes since the SOW was generated", () => {
     const sowVersions = [
       { id: "sowv_2", versionNumber: 2, createdAt: new Date("2026-09-20T10:00:00Z") },
       { id: "sowv_1", versionNumber: 1, createdAt: new Date("2026-09-10T10:00:00Z") },
     ];
-    const source = {
-      estimateVersionId: "ev_1",
-      estimateId: "est_1",
-      estimateLabel: "Main",
-      versionNumber: 1,
-      total: 50400,
-      currency: "USD",
-      capabilities: ["TECH_AND_DATA" as const],
+    const change = (n: number, extra: Partial<SowChange> = {}): SowChange => ({
+      versionLabel: `v${n}`,
+      date: new Date("2026-10-13T10:00:00Z"),
+      source: "Client",
+      fields: ["Budget"],
+      summary: `Budget restated (${n})`,
+      ...extra,
+    });
+    const versions = [
+      { sowVersionId: "sowv_2", sowVersionNumber: 2, label: "SOW v2 — from Estimate v1 — 50,400 USD", status: "in_sync" as const },
+      { sowVersionId: "sowv_1", sowVersionNumber: 1, label: "SOW v1 — source unknown", status: "unlinked" as const },
+    ];
+    const upToDate: SowChangeStatus = {
+      status: "up_to_date",
+      changes: [],
+      sowVersionId: "sowv_2",
+      sowVersionNumber: 2,
+      estimateSync: null,
+      versions,
     };
-    const current = { ...source, estimateVersionId: "ev_3", versionNumber: 3, total: 93000 };
-    const staleSync: ProjectSowSync = {
-      sow: {
-        sowVersionId: "sowv_2",
-        sowVersionNumber: 2,
-        status: "stale",
-        source,
-        current,
-        diff: { totalDelta: 42600, currencyChange: null, capabilitiesAdded: [], capabilitiesRemoved: [] },
-      },
-      versions: [
-        { sowVersionId: "sowv_2", sowVersionNumber: 2, label: "SOW v2 — from Estimate v1 — 50,400 USD", status: "stale" },
-        { sowVersionId: "sowv_1", sowVersionNumber: 1, label: "SOW v1 — source unknown", status: "unlinked" },
-      ],
-      needsAttention: true,
-    };
+    const changed = (changes: SowChange[]): SowChangeStatus => ({ ...upToDate, status: "changed_since_generation", changes });
 
-    function renderPanel(sowSync: ProjectSowSync) {
+    function renderPanel(sowChange: SowChangeStatus) {
       render(
         <StartSowDevelopmentPanel
           briefCompleteness={COMPLETE}
@@ -426,34 +422,51 @@ describe("StartSowDevelopmentPanel", () => {
           currentTemplateVersion={{ id: "sow_baseline_v1" }}
           templateOptions={templateOptions}
           sowVersions={sowVersions}
-          sowSync={sowSync}
-          estimateVersionOptions={[]}
+          sowChange={sowChange}
         />
       );
     }
 
     it("labels each version with the estimate version it came from", () => {
-      renderPanel(staleSync);
+      renderPanel(upToDate);
       expect(screen.getByText(/SOW v2 — from Estimate v1 — 50,400 USD/)).toBeInTheDocument();
       expect(screen.getByText(/SOW v1 — source unknown/)).toBeInTheDocument();
     });
 
-    it("shows the out-of-date banner and guards the stale download", () => {
-      renderPanel(staleSync);
-      expect(screen.getByText("Out of date")).toBeInTheDocument();
-      // The latest (stale) version's download is guarded; the unlinked older one isn't.
+    it("shows one notice above the SOW content, lists the changes, and guards the latest download", () => {
+      renderPanel(changed([change(3)]));
+
+      const notice = screen.getByRole("status");
+      expect(notice).toHaveTextContent("Updates since this SOW was generated");
+      expect(notice).toHaveTextContent("v3 · 13 Oct 2026 · Client — Budget restated (3)");
+      expect(screen.getAllByRole("status")).toHaveLength(1);
+      // Notice sits before the version line.
+      const version = screen.getByText(/Version 2 —/);
+      expect(notice.compareDocumentPosition(version) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      // The latest download is guarded; the older version's isn't.
       expect(screen.getByRole("button", { name: "Download .docx →" })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: "Download →" })).toHaveAttribute("href", "/api/projects/proj_1/sow/sowv_1");
     });
 
-    it("shows no banner and a plain download when the SOW is in sync", () => {
-      renderPanel({
-        sow: { ...staleSync.sow!, status: "in_sync", current: source, diff: null },
-        versions: staleSync.versions.map((v) => ({ ...v, status: "in_sync" })),
-        needsAttention: false,
-      });
-      expect(screen.queryByText("Out of date")).not.toBeInTheDocument();
+    it("shows no notice and a plain download when nothing material changed", () => {
+      renderPanel(upToDate);
+      expect(screen.queryByText("Updates since this SOW was generated")).not.toBeInTheDocument();
       expect(screen.getByRole("link", { name: "Download .docx →" })).toBeInTheDocument();
+    });
+
+    it("never offers a one-click Update SOW or any Regenerate button in the notice — only a link into the review step", async () => {
+      const user = userEvent.setup();
+      renderPanel(changed([change(3)]));
+
+      expect(screen.queryByRole("button", { name: /^update sow/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Regenerate" })).not.toBeInTheDocument();
+      const callsBefore = generateSowAction.mock.calls.length;
+      startSowReviewAction.mockClear();
+
+      await user.click(screen.getByRole("button", { name: "Review and update the SOW" }));
+
+      expect(startSowReviewAction).toHaveBeenCalledTimes(1);
+      expect(generateSowAction.mock.calls.length).toBe(callsBefore);
     });
   });
 });

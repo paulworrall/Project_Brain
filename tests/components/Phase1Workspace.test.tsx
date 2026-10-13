@@ -3,8 +3,6 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
-  regeneratePositionDocumentAction: vi.fn(),
-  regenerateClarificationEmailAction: vi.fn(),
   updateChecklistItemDetailAction: vi.fn(),
   toggleChecklistItemAction: vi.fn(),
   suggestCapabilitiesAction: vi.fn(),
@@ -46,6 +44,16 @@ function baseProps() {
 }
 
 describe("Phase1Workspace", () => {
+  it("shows no staleness banner or banner Regenerate button on Current Position or the email", () => {
+    render(<Phase1Workspace {...baseProps()} />);
+
+    expect(screen.queryByText(/Built from v/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/key details have changed/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Key details changed/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/vd+ is available/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^regenerate$/i })).not.toBeInTheDocument();
+  });
+
   it("shows the What We Need to Find Out checklist and the other brief details", () => {
     render(<Phase1Workspace {...baseProps()} />);
 

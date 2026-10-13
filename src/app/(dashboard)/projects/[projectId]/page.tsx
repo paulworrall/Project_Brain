@@ -1,6 +1,5 @@
 import { getVersionHistory } from "@/lib/updateVersions";
-import { getOutputFreshness } from "@/lib/outputFreshness";
-import { getEstimateVersionOptions, getSowSyncStatus } from "@/lib/sowSync";
+import { getSowChangeStatus } from "@/lib/sowChangeStatus";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -150,16 +149,12 @@ export default async function ProjectDetailPage({
     ? "COMPLETE"
     : "ACTIVE";
 
-  const [briefCompleteness, pmPerspective, versionHistory, outputFreshness] = await Promise.all([
+  const [briefCompleteness, pmPerspective, versionHistory] = await Promise.all([
     getBriefCompleteness(project.id),
     getPmPerspective(project.id),
     getVersionHistory(project.id),
-    getOutputFreshness(project.id),
   ]);
-  const [sowSync, estimateVersionOptions] = await Promise.all([
-    getSowSyncStatus(project.id),
-    getEstimateVersionOptions(project.id),
-  ]);
+  const sowChange = await getSowChangeStatus(project.id);
   // Every update since the brief (v2 onwards), for Phase 1's progress count.
   const clientUpdates = versionHistory.slice(1).map((v) => ({
     id: v.id,
@@ -248,9 +243,7 @@ export default async function ProjectDetailPage({
           deliverablesServicesDocument.success ? deliverablesServicesDocument.data : null
         }
         versions={versionHistory.map(({ content: _content, ...version }) => version)}
-        outputFreshness={outputFreshness}
-        sowSync={sowSync}
-        estimateVersionOptions={estimateVersionOptions}
+        sowChange={sowChange}
         clarificationEmailDraft={
           clarificationEmailVersion
             ? {

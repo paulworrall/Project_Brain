@@ -4,8 +4,6 @@ import { render, screen, within } from "@testing-library/react";
 import type { Capability } from "@/generated/prisma/enums";
 
 vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
-  regeneratePositionDocumentAction: vi.fn(),
-  regenerateClarificationEmailAction: vi.fn(),
   updateChecklistItemDetailAction: vi.fn(),
   submitSpecialistFeedbackAction: vi.fn(),
   updateOtherServiceLabelAction: vi.fn(),
@@ -337,5 +335,34 @@ describe("ProjectWorkflow", () => {
     // Only one occurrence: the header-row version. The expanded "Current
     // position" body no longer renders its own copy.
     expect(screen.getAllByText(/Brief Readiness — \d of 4 captured/)).toHaveLength(1);
+  });
+
+  describe("SOW phase header indicator", () => {
+    const base = {
+      status: "up_to_date" as const,
+      changes: [],
+      sowVersionId: "sowv_1",
+      sowVersionNumber: 1,
+      estimateSync: null,
+      versions: [],
+    };
+    const phaseSummary = () =>
+      screen.getByText("Statement of work and delivery setup").closest("summary") as HTMLElement;
+
+    it("shows 'Updated since SOW' in the phase header, even collapsed, only when the SOW has material changes", () => {
+      const changes = [
+        { versionLabel: "v3", date: new Date("2026-10-13T10:00:00Z"), source: "Client", fields: ["Budget"], summary: "Budget up" },
+      ];
+      const { rerender } = render(
+        <ProjectWorkflow {...baseProps()} sowChange={{ ...base, status: "changed_since_generation", changes }} />
+      );
+      expect(phaseSummary()).toHaveTextContent("Needs attention: Updated since SOW");
+
+      rerender(<ProjectWorkflow {...baseProps()} sowChange={base} />);
+      expect(phaseSummary()).not.toHaveTextContent("Updated since SOW");
+
+      rerender(<ProjectWorkflow {...baseProps()} />);
+      expect(phaseSummary()).not.toHaveTextContent("Updated since SOW");
+    });
   });
 });

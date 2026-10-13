@@ -167,6 +167,13 @@ describe("generateSowAction", () => {
     expect(Buffer.from(sow.versions[0].fileBytes).subarray(0, 2).toString("utf-8")).toBe("PK");
     // Records the brief version it was built from (no updates yet: the brief, v1).
     expect(sow.versions[0].builtFromVersion).toBe(1);
+    // And the material key details + confirmed capabilities it was built from,
+    // which the "Updates since this SOW was generated" notice compares against.
+    expect(sow.versions[0].keyAttributesSnapshot).toMatchObject({
+      takenAt: expect.any(String),
+      attributes: expect.any(Object),
+      capabilities: expect.any(Array),
+    });
     const v1Id = sow.versions[0].id;
 
     // Change the live template selection before regenerating.

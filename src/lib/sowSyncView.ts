@@ -1,5 +1,4 @@
 import type { Capability } from "@/generated/prisma/enums";
-import { capabilityCode } from "@/lib/mapCapabilities";
 
 /**
  * SOW ↔ estimate sync — the pure half (no database), safe for client
@@ -23,6 +22,8 @@ export interface EstimateVersionRef {
   total: number;
   currency: string;
   capabilities: Capability[];
+  /** When this estimate version was saved; only set on the "current" side. */
+  savedAt?: Date;
 }
 
 export interface SowSyncDiff {
@@ -104,30 +105,6 @@ export function formatMoney(amount: number, currency: string): string {
   return `${(Number.isInteger(amount) ? WHOLE : PENCE).format(amount)} ${currency}`;
 }
 
-function signedMoney(amount: number, currency: string): string {
-  return `${amount >= 0 ? "+" : "-"}${formatMoney(Math.abs(amount), currency)}`;
-}
-
-/** e.g. "SOW v2 is based on Estimate v1 — 50,400 USD. Latest estimate is v3 — 93,000 USD (+42,600 USD). Capabilities added: TSC, AIAE." */
-export function sowSyncBannerText(sync: SowSyncStatus): string {
-  if (sync.status !== "stale" || !sync.source || !sync.current || !sync.diff) return "";
-  const { source, current, diff } = sync;
-  const change = diff.currencyChange
-    ? ` (currency changed from ${diff.currencyChange.from} to ${diff.currencyChange.to})`
-    : ` (${signedMoney(diff.totalDelta ?? 0, current.currency)})`;
-  const parts = [
-    `SOW v${sync.sowVersionNumber} is based on Estimate v${source.versionNumber} — ${formatMoney(source.total, source.currency)}.`,
-    `Latest estimate is v${current.versionNumber} — ${formatMoney(current.total, current.currency)}${change}.`,
-  ];
-  if (diff.capabilitiesAdded.length > 0) {
-    parts.push(`Capabilities added: ${diff.capabilitiesAdded.map(capabilityCode).join(", ")}.`);
-  }
-  if (diff.capabilitiesRemoved.length > 0) {
-    parts.push(`Capabilities removed: ${diff.capabilitiesRemoved.map(capabilityCode).join(", ")}.`);
-  }
-  return parts.join(" ");
-}
-
 /** "SOW v2 — from Estimate v1 — 50,400 USD", or "SOW v1 — source unknown". */
 export function sowVersionSourceLabel({
   sowVersionNumber,
@@ -139,15 +116,4 @@ export function sowVersionSourceLabel({
   return source
     ? `SOW v${sowVersionNumber} — from Estimate v${source.versionNumber} — ${formatMoney(source.total, source.currency)}`
     : `SOW v${sowVersionNumber} — source unknown`;
-}
-
-/** The download guard's question for a stale SOW version, or null if no guard is needed. */
-export function staleDownloadWarning(
-  status: SowSyncState | undefined,
-  sourceVersionNumber: number | null | undefined
-): string | null {
-  if (status !== "stale") return null;
-  return sourceVersionNumber != null
-    ? `This SOW reflects an older estimate (v${sourceVersionNumber}).`
-    : "This SOW reflects an older estimate.";
 }
