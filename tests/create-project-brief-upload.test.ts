@@ -5,6 +5,8 @@ import path from "node:path";
 // FB-002: an uploaded brief must follow exactly the same path as pasted text.
 // Prisma and the Intake Agent are mocked; the parser is real.
 
+vi.setConfig({ testTimeout: 30000 }); // the first real PDF parse can be slow when the whole suite runs in parallel
+
 const { runIntakeAgent } = vi.hoisted(() => ({ runIntakeAgent: vi.fn() }));
 vi.mock("@/services/agents/intake-agent", () => ({
   IntakeAgentError: class IntakeAgentError extends Error {},
