@@ -3,6 +3,8 @@
 ## Architecture Overview
 Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (Postgres/Neon, driver-adapter-based), and NextAuth v5 (beta) for email/password auth. All Level 1 MVP scope (Stages 1-5, Knowledge Upload, Chatbot, polish/QA/deploy) is complete, plus post-MVP additions: a Phase-grouped Stage Tracker (`src/lib/phases.ts`), Client/Workstream taxonomy navigation + global search, Phase 1 as a fluid workspace, commercial documents in one shared "document has many Versions, exactly one current" pattern (MSA, Rate Cards, SOW Template Library), the "Capabilities & Estimate Brief" panel, "Build The Estimate" (Stage 6), "Generate SOW" (Stage 8), brief key attributes, and the PM perspective.
 
+**Client approval of estimates/SOWs (FB-005, Oct 2026)**: a version is Draft until a PM records that the client approved it outside the app. `CommercialApproval` is append-only (one table, `documentType` + an estimate-or-SOW version FK; undo/revert set `revokedAt`/`revokeKind`, never delete) with partial unique indexes: one active approval per project per document type and per version. Status is derived (`deriveApprovalState`, `src/lib/commercial/approvalState.ts`), never stored. Rules live in `approvalService.ts` (approve/undo/revert; SOW must come from the approved estimate version; 10s undo + 2s grace on the server clock); every mutating estimate/SOW action calls `assertEstimateEditable`/`assertSowEditable` (`approvalGuards.ts`), re-checked inside the writing transaction for slow work. All permission decisions are in `src/lib/permissions.ts` (`canApprove` = any signed-in user; `canRevertApproval` = `ADMIN_ROLES`, empty until FB-006 defines an Admin role, so revert UI is hidden). Stage 6/8 read Complete from approvals (computed in `stageStatusWithApprovals`, not stored). `assembleSowContext` uses the approved estimate version when one exists. One money formatter (`src/lib/formatMoney.ts`).
+
 **Key details are a single source of truth (this session's fix)**: budget, objective, timeline, client contact, scope, markets, languages and channels live only in the key-details record (`BriefAttributeValue`). Intake reads them first (flat-facts extraction that the API accepts), then the Position Document is told to leave them out and a de-dup check (`position-key-detail-filter.ts`) removes any "Other details" item they already cover. The Position Document no longer stores the contact. Extraction failures are recorded on the project (`getBriefCompleteness().extractionFailure`). SOW, specialist brief and chatbot read key details via `src/lib/keyDetailsContext.ts`. Existing projects were backfilled by `scripts/backfill-key-details.mts`.
 
 **PM perspective**: two optional PM fields (Initial thoughts, Proposed solution — config in `src/lib/pmPerspective.ts`; Context, Consultancy guidance and Early KPIs were removed after user feedback) captured on the New Project form below the brief and editable in Phase 1's own "PM's view — not from the client" panel, each recording its last edit time and author. Stored in `PmPerspectiveEntry`, never merged into the brief. Agents get it only via `formatPmPerspectiveForPrompt` — a separate `<pm_perspective>` block that must never be presented as the client's words: the Position Document (intake + every Additional Input), the clarification email, and the specialist brief / capability suggestions. Brief classification and key-attribute extraction never see it. It no longer feeds any key detail: the PM-content → key-detail link (`pmPerspectiveFieldId` → PM_ENTRY `pmSuggestion`) still exists in code but no sub-field uses it since Early KPIs was removed.
@@ -15,15 +17,16 @@ Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (P
 
 ## File Inventory
 
-### Source Files — Key details trusted by default + compact Phase 1 (this session)
+### Source Files — Client approval (FB-005)
 | File | Purpose | Last Modified Task |
 |------|---------|-------------------|
-| `src/lib/briefCompleteness.ts` | Latest row of any kind is `current` (with `origin`: brief / update vN / pm); PM-perspective suggestions never count; `updateNumbers` from knowledge item order | Trust by default |
-| `src/lib/briefAttributes.ts` | Budget is one free-text sub-field; `upgradeStoredValues` reads old amount + currency as one value | Trust by default |
-| `src/components/features/KeyAttributeRow.tsx`, `KeyAttributeForm.tsx`, `BriefChecklist.tsx` | One-line rows with source tag and inline Update/Add (Save/Cancel); full value + quote under "Show more"; "Re-read brief & inputs" | Trust by default |
-| `CapabilitiesAndEstimateBriefPanel.tsx`, `PositionDocumentView.tsx`, `PmPerspectivePanel.tsx` | Summary first: saved teams on one line ("Change teams"), client-flagged items collapsed, empty PM fields one line | Compact Phase 1 |
-| `projects/[projectId]/actions.ts` | `saveBriefAttributeAction` (PM edit, always PM_ENTRY), `rereadBriefAttributesAction` | Trust by default |
-| `src/lib/keyDetailsContext.ts` | `formatKeyDetailsForPrompt(completeness)` marks each value's origin; `currentText` | Trust by default |
+| `prisma/migrations/20261019100000_commercial_approvals/` | `CommercialApproval` table, enums, CHECKs, partial unique indexes (applied) | FB-005 |
+| `src/lib/commercial/{approvalState,approvalService,approvalGuards,approvalViewData,approvalCopy,sowApprovalGate}.ts` | Derived state, approve/undo/revert rules, editable guards, page view data, copy, SOW approval gate | FB-005 |
+| `src/lib/permissions.ts`, `src/lib/undoWindow.ts`, `src/lib/formatMoney.ts` | Central approval permissions; client-safe undo window; shared money formatter | FB-005 |
+| `src/types/approvals.ts` | `ApprovalState`, `ApprovalInfo`, `ActionResult`, zod input schemas | FB-005 |
+| `projects/[projectId]/approval-actions.ts` | Thin server actions: approve estimate/SOW, undo, revert | FB-005 |
+| `ApprovalActions`, `ApproveVersionDialog`, `RevertApprovalDialog`, `ApprovedDocumentsPanel`, `LockedNotice`, `ui/DocumentStatusBadge` | Approve/undo/revert UI, sidebar panel, locked note, status badge | FB-005 |
+| `EstimatesListPanel`, `StartSowDevelopmentPanel`, `EstimateBuildWorkspace`, `EstimateReviewCard`, `ProjectWorkflow`, project `page.tsx` | Badges, locks (aria-disabled), read-only estimate, panel mounted under the checklist | FB-005 |
 
 ### Source Files — "What We Need to Find Out" checklist + Timeline and Key Milestones
 | File | Purpose | Last Modified Task |
@@ -94,7 +97,7 @@ Unchanged recently — see `progress.md`. Auth (`src/lib/{auth,permissions}.ts`,
 | `.prettierrc.json`, `eslint.config.mjs`, `vitest.config.mts`, `.claude/launch.json` | Formatting (printWidth 100), lint, tests, dev/prod preview servers |
 | `.gitignore` | Includes `.env.local` |
 
-### Test Files (72 files, 487 tests, all passing)
+### Test Files (102 files, 831 tests, all passing)
 | File | Tests | Status |
 |------|-------|--------|
 | `tests/services/{key-attribute-extraction,position-key-detail-filter}.test.ts`, `tests/fixtures/keyAttributeFacts.ts` | Flat-schema regression guard, fact grouping/validation, de-dup removes only covered items and keeps all on failure | ✅ New |
@@ -107,6 +110,7 @@ Unchanged recently — see `progress.md`. Auth (`src/lib/{auth,permissions}.ts`,
 | `tests/brief-key-attributes.test.ts` (real DB) | Suggestions only from uploads, non-fatal extraction, on-demand merge, confirm/accept/edit sources, validation, date sync both ways, SOW gate | ✅ New |
 | `tests/fixtures/briefCompleteness.ts` | Shared completeness fixtures built with the real status logic | ✅ New |
 | `tests/components/{StartSowDevelopmentPanel,Phase1Workspace,ProjectWorkflow,PositionDocumentView,DocumentVersionContent}.test.tsx`, `tests/{stage-1-5-happy-path,sow-generation}.test.ts` | Updated: SOW gate alert + inline fill-in, Key details panel, readiness strip, warning banner, extra extraction calls | ✅ |
+| `tests/lib/approvals.test.ts`, `tests/components/Approvals.test.tsx`, `tests/commercial-approvals.test.ts` (real DB) | Derived state, permissions, schemas; badge/dialog/panel/locked UI; approve rules, concurrency, locks on every action, SOW-generation race, undo/revert, identical approved download bytes | ✅ New |
 | Everything else | Estimates/unit conversion, SOW, Stage 1-5 pipeline, chatbot cross-project isolation, components | ✅ |
 
 ## Key Dependencies
@@ -134,14 +138,9 @@ Unchanged recently — see `progress.md`. Auth (`src/lib/{auth,permissions}.ts`,
 - **Scripted edits**: no Python on this machine; use Node. Many files are CRLF — normalize to LF while editing and restore on write. The shell tool mangles apostrophes and backslashes in heredocs, so write edit scripts to the scratchpad with the Write tool first.
 
 ## Current State Summary
-All MVP scope plus Build The Estimate, Generate SOW, brief key attributes and the PM perspective are built. **This session**:
-- "What We Need to Find Out" became a fixed checklist from `getBriefCompleteness()`, and the timeline renders from the key details.
-- Key details are now **trusted by default**: the latest information wins, shown with source tags and an inline Update/Add, and Budget is free text.
-- Phase 1 is summary-first.
-
-Tests (515 across 72 files), typecheck and lint are clean.
+All MVP scope plus Build The Estimate, Generate SOW, brief key attributes, the PM perspective and (latest) **client approval of estimates/SOWs** are built and deployed (FB-005 merged to main, migration applied).
 
 Next:
-- SOW-specific rules for which captured values may appear on the SOW (user will define).
-- Surface `extractionFailure` in the checklist.
-- Propagate later PM edits to generated documents.
+- FB-006 roles review: define an Admin role in `ADMIN_ROLES`, decide who may approve (`canApprove`); this switches on the revert UI.
+- Change Requests (reference the approval they amend).
+- SOW-specific rules for which captured values appear on the SOW; surface `extractionFailure` in the checklist.
