@@ -1,10 +1,10 @@
 # Project Brain — Progress
 
 ## Current Status
-- **Active Task**: None — key details trusted by default + compact Phase 1 (ad-hoc change) — see the dated note at the end
-- **Last Completed**: captured key details count straight away, with source tags and an inline Update/Add; Phase 1 sections are summary-first
+- **Active Task**: None — FB-005 (client approval of estimates/SOWs) shipped; see the dated note at the end
+- **Last Completed**: FB-005 — Draft / Client approved status for estimates and SOWs (merged to main, migration applied)
 - **Blocked**: None
-- **Last Updated**: 2026-09-29T12:00:00Z
+- **Last Updated**: 2026-10-19T18:00:00Z
 
 ## Task Status
 | Task | Status | Completed At |
@@ -600,3 +600,13 @@
 - **Drag-to-reorder**: not implemented (no existing drag-and-drop pattern in the codebase); items keep their `position`.
 - **Limitations**: matching regenerated items to ids relies on the model returning real ids (unknown ids dropped; the failure mode is a near-duplicate flagged "New since last review", not data loss). A review left in progress doesn't pick up new project inputs until it is generated (then the next Regenerate re-extracts). Reworded untouched AGENT items aren't flagged as changed. Blank PM-added items are ignored everywhere rather than rejected.
 - **Tests**: merge rules (pure), review rules, extraction and composition agents (mocked), autosave hook, overlay (steps, validation, provenance, autosave flush, failure blocking, conflicts, accessibility), panel flow with focus return, and a real-DB integration suite (first generation, edit/add/exclude/revert/delete, concurrency, project scoping, resume at step, composition from included items only, snapshot, regeneration merge, accept/dismiss). 702 tests across 93 files passing.
+
+### Feature: Draft / Client approved status for estimates and SOWs (FB-005 commercial approval) (2026-10-19)
+
+- **What**: an explicit Draft -> Client approved status. A PM records an approval the client gave outside the app (date, client contact, optional reference, confirmation tick); the version then locks and can only change through a future Change Request. One approved estimate and one approved SOW per project. The approving user can undo for 10 seconds (server-enforced, +2s grace); reverting later is Admin-only. (Not to be confused with the earlier "FB-005 spec" PM-validated SOW content note above.)
+- **Data**: `CommercialApproval` (migration `20261019100000_commercial_approvals`, additive, applied to the shared DB via WSL before deploy). Append-only; undo/revert set `revokedAt`/`revokeKind`/`revokeReason`. Partial unique indexes (raw SQL in the migration) allow one active approval per project per document type and per version; CHECK constraints tie the version FK to the document type. `fileSha256` of the stored .docx recorded at approval. Status is derived (`deriveApprovalState`), never stored.
+- **Deviations from the brief**: (1) no Admin/PM role exists (only CLIENT_ENGAGEMENT/DELIVERY) and no audit-log table: `canApprove` = any signed-in user, `canRevertApproval` = false for everyone via an empty `ADMIN_ROLES`, revert UI hidden, revert reason stored on the approval row. (2) Permission helpers live in the existing `src/lib/permissions.ts` (`lib/auth/` would clash with `lib/auth.ts`). (3) .docx downloads are already stored bytes served as-is, so nothing is regenerated at approval; the SHA-256 is recorded instead. The estimate .xlsx is still a live export from the immutable stored content. (4) Stages 6 and 8 have no stored status rows, so Complete is computed from approvals on read (revert simply drops it). (5) `VersionHistory.tsx` is the brief-update history, not estimate/SOW versions; badges went on the "Download a past version" rows instead. (6) `assembleSowContext` now uses the approved estimate version when there is one (previously the newest across all estimates, which could make a SOW unapprovable). (7) Extra rule: the estimate approval can't be undone/reverted while the SOW approved from it stands. (8) The one money formatter now always shows two decimals ("50,400.00 USD"); existing test expectations updated.
+- **Server locks**: `assertEstimateEditable`/`assertSowEditable` in createEstimate, addEstimateRoleInput (re-checked in the writing transaction), updateRoleResolutionQuantity, resolveRoleResolution, saveEstimateVersion, startSowDevelopment, generateSowAction (re-checked after the agent returns) and startSowReview. SOW review item edits are not guarded (working state; the review is only reachable via the locked Regenerate).
+- **Tests**: 831 across 102 files passing, including a real-DB suite (approve rules, concurrent approvals, one-estimate rule, SOW source rules, locks on every action, regenerate-SOW race, undo window, admin revert, identical download bytes after a rate-card change); typecheck and lint clean. Verified in the browser on localhost.
+- **Deployed (2026-10-19)**: `feat/fb-005-client-approval` merged to main via PR (`83eec6a`), Vercel deployment Ready.
+- **Open**: FB-006 must define an Admin role (switches on the revert UI) and decide who may approve; Change Requests are not built.
