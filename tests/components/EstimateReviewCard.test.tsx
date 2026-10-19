@@ -81,7 +81,7 @@ describe("EstimateReviewCard", () => {
       render(<EstimateReviewCard projectId="p1" estimateId="e1" content={content} sowNotice={sowNotice} />);
 
       expect(screen.getByRole("note")).toHaveTextContent(
-        "Your SOW is based on Estimate v1 (50,400 USD) — saving this version will put it out of date."
+        "Your SOW is based on Estimate v1 (50,400.00 USD) — saving this version will put it out of date."
       );
       expect(screen.getByRole("button", { name: "Save as version" })).toBeEnabled();
     });

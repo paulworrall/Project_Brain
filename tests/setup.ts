@@ -37,3 +37,19 @@ vi.mock("@/lib/afterResponse", () => ({
 afterEach(() => {
   afterResponseQueue().length = 0;
 });
+
+// The approve/undo/revert server actions pull in prisma + auth; component tests
+// render ApprovalActions without caring, so they get inert defaults here. Tests
+// that exercise them declare their own vi.mock for this module.
+vi.mock("@/app/(dashboard)/projects/[projectId]/approval-actions", () => ({
+  approveEstimateVersion: vi.fn(),
+  approveSowVersion: vi.fn(),
+  undoApprovalAction: vi.fn(),
+  revertApprovalAction: vi.fn(),
+}));
+
+// ApprovalActions calls useRouter(); component tests render without an app router.
+vi.mock("next/navigation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("next/navigation")>();
+  return { ...actual, useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }) };
+});

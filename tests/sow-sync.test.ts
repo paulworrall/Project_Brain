@@ -138,7 +138,7 @@ describe("getSowSyncStatus", () => {
     expect(sync.needsAttention).toBe(true);
     expect(sync.versions.map((v) => [v.sowVersionNumber, v.label, v.status])).toEqual([
       [2, "SOW v2 — source unknown", "unlinked"],
-      [1, "SOW v1 — from Estimate v1 — 50,400 USD", "in_sync"],
+      [1, "SOW v1 — from Estimate v1 — 50,400.00 USD", "in_sync"],
     ]);
   });
 });

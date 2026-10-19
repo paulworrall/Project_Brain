@@ -25,7 +25,40 @@ export interface SourceEstimateSnapshot {
 }
 
 export function formatSowDate(date: Date): string {
-  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric" }).format(date);
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
+
+const SOURCE_ESTIMATE_SELECT = {
+  id: true,
+  totalValue: true,
+  currency: true,
+  description: true,
+  needsRecalculation: true,
+  capabilitiesIncluded: true,
+} as const;
+
+/**
+ * The estimate version a SOW is built from. Once the client has approved an
+ * estimate version it is ALWAYS that one (a SOW can only be approved from the
+ * approved estimate). Otherwise the single most recently saved version across
+ * the project's estimate tracks (each independently versioned — versionNumber
+ * is unique only within one Estimate, not project-wide).
+ */
+async function findSourceEstimateVersion(projectId: string) {
+  const approved = await prisma.estimateVersion.findFirst({
+    where: { estimate: { projectId }, approvals: { some: { revokedAt: null } } },
+    select: SOURCE_ESTIMATE_SELECT,
+  });
+  if (approved) return approved;
+  return prisma.estimateVersion.findFirst({
+    where: { estimate: { projectId } },
+    orderBy: { createdAt: "desc" },
+    select: SOURCE_ESTIMATE_SELECT,
+  });
 }
 
 /**
@@ -38,44 +71,35 @@ export function formatSowDate(date: Date): string {
  * layer.
  */
 export async function assembleSowContext(projectId: string): Promise<SowContext> {
-  const [project, context, positionContent, deliverablesServicesDocument, confirmedCapabilities, latestEstimateVersion] =
-    await Promise.all([
-      prisma.project.findUniqueOrThrow({
-        where: { id: projectId },
-        select: {
-          name: true,
-          jobCode: true,
-          kickOffDate: true,
-          targetCompletionDate: true,
-          workstream: { select: { client: { select: { name: true } } } },
-        },
-      }),
-      // The brief, every update, key details and the PM's view — the same
-      // context every agent works from.
-      getProjectContext(projectId),
-      latestPositionDocumentContent(projectId),
-      prisma.document.findUnique({
-        where: { projectId_type: { projectId, type: "DELIVERABLES_SERVICES_DOCUMENT" } },
-        include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
-      }),
-      prisma.projectCapability.findMany({ where: { projectId } }),
-      // A Project can have several Estimate tracks, each independently
-      // versioned (versionNumber is unique only within one Estimate, not
-      // project-wide) — this relation filter finds the single most
-      // recently saved version across all of them.
-      prisma.estimateVersion.findFirst({
-        where: { estimate: { projectId } },
-        orderBy: { createdAt: "desc" },
-        select: {
-          id: true,
-          totalValue: true,
-          currency: true,
-          description: true,
-          needsRecalculation: true,
-          capabilitiesIncluded: true,
-        },
-      }),
-    ]);
+  const [
+    project,
+    context,
+    positionContent,
+    deliverablesServicesDocument,
+    confirmedCapabilities,
+    latestEstimateVersion,
+  ] = await Promise.all([
+    prisma.project.findUniqueOrThrow({
+      where: { id: projectId },
+      select: {
+        name: true,
+        jobCode: true,
+        kickOffDate: true,
+        targetCompletionDate: true,
+        workstream: { select: { client: { select: { name: true } } } },
+      },
+    }),
+    // The brief, every update, key details and the PM's view — the same
+    // context every agent works from.
+    getProjectContext(projectId),
+    latestPositionDocumentContent(projectId),
+    prisma.document.findUnique({
+      where: { projectId_type: { projectId, type: "DELIVERABLES_SERVICES_DOCUMENT" } },
+      include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
+    }),
+    prisma.projectCapability.findMany({ where: { projectId } }),
+    findSourceEstimateVersion(projectId),
+  ]);
   const briefCompleteness = context.keyDetails;
 
   // Key details come with the context: current values, trusted by default.
@@ -88,7 +112,9 @@ export async function assembleSowContext(projectId: string): Promise<SowContext>
 
   const deliverablesServicesContent = deliverablesServicesDocument?.versions[0]?.content;
   if (deliverablesServicesContent) {
-    sections.push(`## Deliverables & Services Document\n${JSON.stringify(deliverablesServicesContent)}`);
+    sections.push(
+      `## Deliverables & Services Document\n${JSON.stringify(deliverablesServicesContent)}`
+    );
   }
 
   if (confirmedCapabilities.length > 0) {
@@ -104,7 +130,7 @@ export async function assembleSowContext(projectId: string): Promise<SowContext>
             ? "\nWARNING: this estimate was calculated before hours/days/weeks were converted to hours and is flagged for recalculation — do not treat its total as final; say the commercials are pending a recalculated estimate."
             : ""
         }`
-      :"## Latest saved estimate\nNo estimate has been saved for this project yet."
+      : "## Latest saved estimate\nNo estimate has been saved for this project yet."
   );
 
   const narrativeContext = sections.join("\n\n");
@@ -115,10 +141,20 @@ export async function assembleSowContext(projectId: string): Promise<SowContext>
     jobCode: project.jobCode,
     preparedDate: formatSowDate(new Date()),
     kickOffDate: project.kickOffDate ? formatSowDate(project.kickOffDate) : null,
-    targetCompletionDate: project.targetCompletionDate ? formatSowDate(project.targetCompletionDate) : null,
+    targetCompletionDate: project.targetCompletionDate
+      ? formatSowDate(project.targetCompletionDate)
+      : null,
     // Only ever the Client Contact key detail — never inferred from elsewhere.
-    primaryClientContactName: currentText(briefCompleteness, CLIENT_CONTACT_FIELDS.attributeId, CLIENT_CONTACT_FIELDS.name),
-    primaryClientContactEmail: currentText(briefCompleteness, CLIENT_CONTACT_FIELDS.attributeId, CLIENT_CONTACT_FIELDS.email),
+    primaryClientContactName: currentText(
+      briefCompleteness,
+      CLIENT_CONTACT_FIELDS.attributeId,
+      CLIENT_CONTACT_FIELDS.name
+    ),
+    primaryClientContactEmail: currentText(
+      briefCompleteness,
+      CLIENT_CONTACT_FIELDS.attributeId,
+      CLIENT_CONTACT_FIELDS.email
+    ),
     commercials: latestEstimateVersion
       ? {
           totalValue: Number(latestEstimateVersion.totalValue),

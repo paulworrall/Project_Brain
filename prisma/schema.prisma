@@ -140,6 +140,8 @@ model Project {
   pmPerspectiveEntries   PmPerspectiveEntry[]
 
   @@unique([workstreamId, name])
+
+  commercialApprovals CommercialApproval[]
 }
 
 // ---------------------------------------------------------------------------
@@ -522,6 +524,8 @@ model SOWVersion {
   sowTemplateVersion SOWTemplateVersion? @relation(fields: [sowTemplateVersionId], references: [id], onDelete: SetNull)
   createdBy          User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
+  approvals CommercialApproval[]
+
   @@unique([sowId, versionNumber])
   @@index([sourceEstimateVersionId])
 }
@@ -795,6 +799,7 @@ model EstimateVersion {
   createdBy       User?              @relation(fields: [createdById], references: [id], onDelete: SetNull)
   lineItems       EstimateLineItem[]
   sowVersions     SOWVersion[]
+  approvals       CommercialApproval[]
 
   @@unique([estimateId, versionNumber])
 }
@@ -1013,6 +1018,8 @@ model User {
   sowSectionItemsUpdated         SowSectionItem[] @relation("SowSectionItemUpdatedBy")
   briefAttributeValuesCreated    BriefAttributeValue[]
   pmPerspectiveEntriesEdited     PmPerspectiveEntry[]
+  commercialApprovalsRecorded    CommercialApproval[] @relation("ApprovalRecordedBy")
+  commercialApprovalsRevoked     CommercialApproval[] @relation("ApprovalRevokedBy")
 }
 
 // ---------------------------------------------------------------------------
@@ -1037,4 +1044,64 @@ model PmPerspectiveEntry {
   updatedBy User?   @relation(fields: [updatedById], references: [id], onDelete: SetNull)
 
   @@unique([projectId, fieldId])
+}
+
+// ---------------------------------------------------------------------------
+// Client approval of an Estimate or SOW version (FB-005). Append-only: an
+// approval belongs to ONE specific version (never the parent document) and is
+// never deleted — undoing or reverting sets the revoke fields, so the full
+// history survives and a future Change Request can reference the approval it
+// amends. Status (draft / approved / superseded / not approved) is DERIVED, not
+// stored — see src/lib/commercial/approvalState.ts.
+//
+// Exactly one of estimateVersionId / sowVersionId is set, matching documentType
+// (CHECK constraint in the migration). Prisma can't express partial unique
+// indexes, so the migration adds them as raw SQL — keep them if the schema is
+// ever re-baselined:
+//   CommercialApproval_active_project_type_key  UNIQUE (projectId, documentType) WHERE revokedAt IS NULL
+//   CommercialApproval_active_estimate_version_key UNIQUE (estimateVersionId) WHERE revokedAt IS NULL AND estimateVersionId IS NOT NULL
+//   CommercialApproval_active_sow_version_key   UNIQUE (sowVersionId) WHERE revokedAt IS NULL AND sowVersionId IS NOT NULL
+// ---------------------------------------------------------------------------
+
+enum CommercialDocumentType {
+  ESTIMATE
+  SOW
+}
+
+enum ApprovalRevokeKind {
+  UNDO
+  ADMIN_REVERT
+}
+
+model CommercialApproval {
+  id                String                 @id @default(cuid())
+  projectId         String
+  documentType      CommercialDocumentType
+  estimateVersionId String?
+  sowVersionId      String?
+
+  clientApprovedOn   DateTime @db.Date
+  clientApproverName String
+  reference          String?
+  // SHA-256 of the stored .docx at approval time — tamper evidence; the
+  // version's fileBytes are never rewritten.
+  fileSha256         String
+
+  recordedByUserId String
+  recordedAt       DateTime @default(now())
+
+  revokedAt       DateTime?
+  revokedByUserId String?
+  revokeReason    String?
+  revokeKind      ApprovalRevokeKind?
+
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  estimateVersion EstimateVersion? @relation(fields: [estimateVersionId], references: [id], onDelete: Cascade)
+  sowVersion      SOWVersion?      @relation(fields: [sowVersionId], references: [id], onDelete: Cascade)
+  recordedBy      User             @relation("ApprovalRecordedBy", fields: [recordedByUserId], references: [id], onDelete: Restrict)
+  revokedBy       User?            @relation("ApprovalRevokedBy", fields: [revokedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, documentType])
+  @@index([estimateVersionId])
+  @@index([sowVersionId])
 }

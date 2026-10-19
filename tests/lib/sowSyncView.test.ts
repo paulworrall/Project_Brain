@@ -66,13 +66,13 @@ describe("evaluateSowSync", () => {
 });
 
 describe("wording", () => {
-  it("formats money as the estimate does, e.g. 50,400 USD", () => {
-    expect(formatMoney(50400, "USD")).toBe("50,400 USD");
+  it("formats money as the estimate does, e.g. 50,400.00 USD", () => {
+    expect(formatMoney(50400, "USD")).toBe("50,400.00 USD");
     expect(formatMoney(1234.5, "GBP")).toBe("1,234.50 GBP");
   });
 
   it("labels each SOW version with its source, or 'source unknown'", () => {
-    expect(sowVersionSourceLabel({ sowVersionNumber: 2, source: v1 })).toBe("SOW v2 — from Estimate v1 — 50,400 USD");
+    expect(sowVersionSourceLabel({ sowVersionNumber: 2, source: v1 })).toBe("SOW v2 — from Estimate v1 — 50,400.00 USD");
     expect(sowVersionSourceLabel({ sowVersionNumber: 1, source: null })).toBe("SOW v1 — source unknown");
   });
 });

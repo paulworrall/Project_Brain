@@ -196,7 +196,7 @@ describe("getSowChangeStatus", () => {
     const result = await getSowChangeStatus(projectId);
     expect(result.status).toBe("changed_since_generation");
     expect(result.changes[0]).toMatchObject({ versionLabel: "Estimate v2", source: "Estimate", fields: ["Estimate"] });
-    expect(result.changes[0].summary).toMatch(/Main is now 93,000 USD \(\+42,600 USD\); this SOW used v1/);
+    expect(result.changes[0].summary).toMatch(/Main is now 93,000.00 USD \(\+42,600.00 USD\); this SOW used v1/);
     expect(result.estimateSync?.status).toBe("stale");
   });
 

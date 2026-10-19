@@ -11,6 +11,12 @@ import {
 } from "@/app/(dashboard)/projects/[projectId]/estimates/actions";
 import type { RateCardOption } from "@/app/(dashboard)/projects/new/actions";
 import { EstimateBuildWorkspace } from "./EstimateBuildWorkspace";
+import { DocumentStatusBadge } from "@/components/ui/DocumentStatusBadge";
+import { ApprovalActions } from "./ApprovalActions";
+import { LockedNotice } from "./LockedNotice";
+import { formatMoney } from "@/lib/formatMoney";
+import type { Capability } from "@/generated/prisma/enums";
+import type { ApprovalInfo, ApprovalPermissions, ApprovalState } from "@/types/approvals";
 
 export interface EstimateVersionListItem {
   id: string;
@@ -21,6 +27,17 @@ export interface EstimateVersionListItem {
   description: string;
   /** Priced before unit conversion existed — left as saved, flagged for the PM. */
   needsRecalculation: boolean;
+  /** Derived with deriveApprovalState on the server; absent = draft. */
+  approvalState?: ApprovalState;
+  approval?: ApprovalInfo | null;
+  capabilities?: Capability[];
+}
+
+/** Set once the client has approved an estimate: the whole project's estimates lock. */
+export interface EstimateLock {
+  versionNumber: number;
+  /** YYYY-MM-DD */
+  clientApprovedOn: string;
 }
 
 export interface EstimateListItem {
@@ -67,9 +84,11 @@ interface CreatedEstimate {
 function NewEstimateForm({
   projectId,
   rateCardOptions,
+  lock,
 }: {
   projectId: string;
   rateCardOptions: RateCardOption[];
+  lock: EstimateLock | null;
 }) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
@@ -104,9 +123,25 @@ function NewEstimateForm({
 
   return (
     <>
-      <Button type="button" variant="secondary" className="text-xs" onClick={() => setIsOpen(true)}>
-        + New estimate
-      </Button>
+      <div className="space-y-1">
+        <Button
+          type="button"
+          variant="secondary"
+          className={`text-xs ${lock ? "cursor-not-allowed opacity-50" : ""}`}
+          aria-disabled={lock ? true : undefined}
+          onClick={() => {
+            if (!lock) setIsOpen(true);
+          }}
+        >
+          + New estimate
+        </Button>
+        {lock && (
+          <LockedNotice
+            versionNumber={lock.versionNumber}
+            clientApprovedOn={lock.clientApprovedOn}
+          />
+        )}
+      </div>
 
       <Modal isOpen={isOpen} title={created ? created.label : "New estimate"} onClose={closeModal}>
         {created ? (
@@ -208,20 +243,40 @@ function NewEstimateForm({
 function EstimateTrackCard({
   projectId,
   estimate,
+  lock,
+  permissions,
 }: {
   projectId: string;
   estimate: EstimateListItem;
+  lock: EstimateLock | null;
+  permissions: ApprovalPermissions;
 }) {
   const latest = estimate.versions[0] as EstimateVersionListItem | undefined;
+  const cardId = `estimate-card-${estimate.id}`;
 
   return (
     <Card className="p-3">
-      <div className="flex items-center justify-between gap-3">
+      <div
+        id={cardId}
+        tabIndex={-1}
+        className="flex items-center justify-between gap-3 outline-none"
+      >
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-foreground">{estimate.label}</p>
+          <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">
+            <span className="truncate">
+              {estimate.label}
+              {latest ? ` · v${latest.versionNumber}` : ""}
+            </span>
+            {latest && (
+              <DocumentStatusBadge
+                state={latest.approvalState ?? "draft"}
+                approvedOn={latest.approval?.clientApprovedOn}
+              />
+            )}
+          </p>
           <p className="truncate text-xs text-muted-foreground">
             {latest
-              ? `${formatDate(latest.createdAt)} · ${latest.description} · ${latest.totalValue.toFixed(2)} ${latest.currency}`
+              ? `${formatDate(latest.createdAt)} · ${latest.description} · ${formatMoney(latest.totalValue, latest.currency)}`
               : "No version saved yet"}
           </p>
           {latest?.needsRecalculation && (
@@ -231,9 +286,31 @@ function EstimateTrackCard({
           )}
         </div>
         <a href={`/projects/${projectId}/estimates/${estimate.id}`} className={OPEN_LINK_CLASS}>
-          Open →
+          {lock ? "View →" : "Open →"}
         </a>
       </div>
+
+      {latest && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <ApprovalActions
+            documentType="ESTIMATE"
+            versionId={latest.id}
+            versionNumber={latest.versionNumber}
+            approvalState={latest.approvalState ?? "draft"}
+            approval={latest.approval ?? null}
+            permissions={permissions}
+            focusId={cardId}
+            summary={{
+              name: estimate.label,
+              versionNumber: latest.versionNumber,
+              generatedDate: formatDate(latest.createdAt),
+              total: latest.totalValue,
+              currency: latest.currency,
+              capabilities: latest.capabilities,
+            }}
+          />
+        </div>
+      )}
 
       {estimate.versions.length > 0 && (
         <details className="mt-2">
@@ -246,12 +323,16 @@ function EstimateTrackCard({
                 key={version.id}
                 className="flex flex-wrap items-center justify-between gap-2 text-xs text-foreground"
               >
-                <span>
+                <span className="flex flex-wrap items-center gap-2">
                   v{version.versionNumber} — {formatDate(version.createdAt)} ·{" "}
-                  {version.totalValue.toFixed(2)} {version.currency}
+                  {formatMoney(version.totalValue, version.currency)}
                   {version.needsRecalculation && (
                     <span className="ml-1 font-medium text-warning">· needs recalculation</span>
                   )}
+                  <DocumentStatusBadge
+                    state={version.approvalState ?? "draft"}
+                    approvedOn={version.approval?.clientApprovedOn}
+                  />
                 </span>
                 <a
                   href={`/api/projects/${projectId}/estimates/${estimate.id}/versions/${version.id}`}
@@ -282,18 +363,22 @@ export function EstimatesListPanel({
   projectId,
   estimates,
   rateCardOptions,
+  lock = null,
+  permissions = { canApprove: false, canRevert: false },
 }: {
   projectId: string;
   estimates: EstimateListItem[];
   rateCardOptions: RateCardOption[];
+  lock?: EstimateLock | null;
+  permissions?: ApprovalPermissions;
 }) {
   const [showAllOpen, setShowAllOpen] = useState(false);
   const visibleEstimates = estimates.slice(0, MAX_VISIBLE_ESTIMATES);
   const hiddenCount = estimates.length - visibleEstimates.length;
 
   return (
-    <div className="space-y-3">
-      <NewEstimateForm projectId={projectId} rateCardOptions={rateCardOptions} />
+    <div id="estimates" className="scroll-mt-6 space-y-3">
+      <NewEstimateForm projectId={projectId} rateCardOptions={rateCardOptions} lock={lock} />
 
       {estimates.length === 0 ? (
         <p className="text-sm text-muted-foreground">No estimates started yet.</p>
@@ -304,6 +389,8 @@ export function EstimatesListPanel({
               key={estimate.id}
               projectId={projectId}
               estimate={estimate}
+              lock={lock}
+              permissions={permissions}
             />
           ))}
         </div>
@@ -327,6 +414,8 @@ export function EstimatesListPanel({
               key={estimate.id}
               projectId={projectId}
               estimate={estimate}
+              lock={lock}
+              permissions={permissions}
             />
           ))}
         </div>
