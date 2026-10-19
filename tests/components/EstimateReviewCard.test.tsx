@@ -96,7 +96,7 @@ describe("EstimateReviewCard", () => {
       const toast = await screen.findByRole("status", { name: "Notification" });
       expect(toast).toHaveAttribute("aria-live", "polite");
       expect(toast).toHaveTextContent("Estimate saved. Your SOW is now out of date.");
-      expect(screen.getByRole("link", { name: "Update SOW" })).toHaveAttribute("href", "/projects/p1#sow");
+      expect(screen.getByRole("link", { name: "Update SOW" })).toHaveAttribute("href", "/projects/p1/discover#sow");
     });
 
     it("shows neither when no SOW is based on this estimate", async () => {

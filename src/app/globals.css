@@ -26,6 +26,13 @@
   --danger-bg: #fef2f2;
 
   --ring: #6366f1;
+
+  /* 5D phase accents — small accents only; text never relies on them. */
+  --phase-discover: #5b3a29;
+  --phase-define: #ea580c;
+  --phase-develop: #fb923c;
+  --phase-deliver: #f59e0b;
+  --phase-dialogue: #fde68a;
 }
 
 @theme inline {
@@ -54,6 +61,12 @@
   --color-danger-bg: var(--danger-bg);
 
   --color-ring: var(--ring);
+
+  --color-phase-discover: var(--phase-discover);
+  --color-phase-define: var(--phase-define);
+  --color-phase-develop: var(--phase-develop);
+  --color-phase-deliver: var(--phase-deliver);
+  --color-phase-dialogue: var(--phase-dialogue);
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);

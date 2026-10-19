@@ -69,7 +69,7 @@ export function Phase1Workspace({
     <div className="space-y-6">
       <div
         className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground"
-        aria-label="Phase 1 progress summary"
+        aria-label="Step 1 progress summary"
       >
         <span>{pluralize(otherDetailsCount, "other detail")} from the brief</span>
         <span aria-hidden="true">·</span>

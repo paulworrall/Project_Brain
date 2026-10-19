@@ -137,7 +137,7 @@ describe("Phase1Workspace", () => {
       />
     );
 
-    const summary = screen.getByLabelText("Phase 1 progress summary");
+    const summary = screen.getByLabelText("Step 1 progress summary");
     expect(summary).toHaveTextContent("1 other detail from the brief");
     // Nothing confirmed yet: all 4 required details are still to find out.
     expect(summary).toHaveTextContent("4 required details to find out");
@@ -162,7 +162,7 @@ describe("Phase1Workspace", () => {
       />
     );
 
-    const summary = screen.getByLabelText("Phase 1 progress summary");
+    const summary = screen.getByLabelText("Step 1 progress summary");
     expect(summary).toHaveTextContent("2 other details from the brief");
     expect(summary).toHaveTextContent("1 required detail to find out");
     expect(summary).toHaveTextContent("0 updates logged");

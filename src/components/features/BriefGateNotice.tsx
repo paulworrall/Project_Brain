@@ -81,7 +81,7 @@ export function BriefCompletenessWarning({ completeness }: { completeness: Brief
       </ul>
       <p className="mt-1 text-muted-foreground">
         Nothing is locked, but a SOW can&apos;t be generated until they&apos;re added under
-        &ldquo;What We Need to Find Out&rdquo; in Phase 1.
+        &ldquo;What We Need to Find Out&rdquo; in Step 1.
       </p>
     </div>
   );

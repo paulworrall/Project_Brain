@@ -24,7 +24,7 @@ async function actor() {
 
 function refresh(result: ActionResult<ApprovalResultData>): ActionResult<ApprovalResultData> {
   if (result.ok) {
-    revalidatePath(`/projects/${result.data.projectId}`);
+    revalidatePath(`/projects/${result.data.projectId}`, "layout");
     revalidatePath(`/projects/${result.data.projectId}/estimates`, "layout");
   }
   return result;

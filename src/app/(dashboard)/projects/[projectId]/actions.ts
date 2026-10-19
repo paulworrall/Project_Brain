@@ -167,7 +167,7 @@ export async function updateProjectSummaryAction(
     await recordProjectDateEdits(projectId, before, dates);
   }
 
-  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/projects/${projectId}`, "layout");
 }
 
 type ProjectDateColumns = { kickOffDate: Date | null; targetCompletionDate: Date | null };
@@ -287,7 +287,7 @@ export async function startSowDevelopmentAction(
     data: { sowTemplateId: validTemplate.id, sowTemplateVersionId: validTemplateVersion.id },
   });
 
-  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/projects/${projectId}`, "layout");
 }
 
 /**
@@ -417,7 +417,7 @@ export async function generateSowAction(
     throw error;
   }
 
-  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/projects/${projectId}`, "layout");
 }
 
 /**
@@ -525,7 +525,7 @@ export async function submitSpecialistFeedbackAction(
   const briefCompleteness = context.keyDetails;
   const estimateBrief = EstimateBriefContentSchema.safeParse(latestEstimateBrief?.content);
   if (!estimateBrief.success) {
-    return { message: "Prepare the Estimate Brief in Phase 1 before adding specialist feedback." };
+    return { message: "Prepare the Estimate Brief in Step 1 before adding specialist feedback." };
   }
   const outstandingGaps = [
     ...briefCompleteness.requiredOutstanding.map((a) =>
@@ -599,7 +599,7 @@ export async function submitSpecialistFeedbackAction(
     await tx.project.update({ where: { id: projectId }, data: { currentStageNumber: 6 } });
   });
 
-  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/projects/${projectId}`, "layout");
 }
 
 export async function toggleChecklistItemAction(
@@ -619,7 +619,7 @@ export async function toggleChecklistItemAction(
     return { message: "Checklist item not found." };
   }
 
-  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/projects/${projectId}`, "layout");
 }
 
 const ChecklistDetailSchema = z.object({
@@ -651,7 +651,7 @@ export async function updateChecklistItemDetailAction(
     return { message: "Checklist item not found." };
   }
 
-  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/projects/${projectId}`, "layout");
 }
 
 const OtherLabelSchema = z.object({
@@ -696,7 +696,7 @@ export async function updateOtherServiceLabelAction(
     },
   });
 
-  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/projects/${projectId}`, "layout");
 }
 
 /**
@@ -871,7 +871,7 @@ export async function uploadKnowledgeItemAction(
     }
   });
 
-  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/projects/${projectId}`, "layout");
   const draftNotice = `Saved as v${knowledgeItem.versionNumber}. A fresh client email draft is being written from it — refresh in a moment to see it.`;
   return {
     notice: positionDocumentNotice ? `${positionDocumentNotice} ${draftNotice}` : draftNotice,
@@ -935,7 +935,7 @@ export async function saveBriefAttributeAction(
     }
   });
 
-  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/projects/${projectId}`, "layout");
 }
 
 /**
@@ -957,7 +957,7 @@ export async function rereadBriefAttributesAction(
   }
 
   const { error } = await fillKeyAttributeGapsFromProjectSources(projectId);
-  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/projects/${projectId}`, "layout");
   if (error) {
     return { message: error };
   }
@@ -1085,7 +1085,7 @@ export async function updateConfirmedCapabilitiesAction(
     }
   });
 
-  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/projects/${projectId}`, "layout");
 }
 
 /**
@@ -1181,7 +1181,7 @@ export async function generateEstimateBriefAction(
     }
   });
 
-  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/projects/${projectId}`, "layout");
 }
 
 // ---------------------------------------------------------------------------
@@ -1209,5 +1209,5 @@ export async function updatePmPerspectiveFieldAction(
     { [fieldId]: typeof content === "string" ? content : "" },
     session?.user?.id ?? null
   );
-  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/projects/${projectId}`, "layout");
 }
