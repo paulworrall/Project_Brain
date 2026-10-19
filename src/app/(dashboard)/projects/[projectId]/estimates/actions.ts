@@ -135,7 +135,7 @@ export async function createEstimateAction(
 
   const view = await getEstimateBuildViewData(estimate.id);
 
-  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/projects/${projectId}`, "layout");
   return {
     estimateId: estimate.id,
     label: estimate.label,

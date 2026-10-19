@@ -13,15 +13,13 @@ import { BriefCompletenessWarning } from "./BriefGateNotice";
 import type { BriefCompleteness } from "@/lib/briefCompleteness";
 import type { PmPerspectiveFieldView } from "@/lib/pmPerspectiveStore";
 import type { ClientUpdateLogEntry } from "./Phase1Workspace";
-import { ChatPanel } from "./ChatPanel";
 import { SOW_PHASE_INDICATOR_TEXT, type SowChangeStatus } from "@/lib/sowChangeView";
 import type { ClarificationEmailDraftMeta } from "./ClarificationEmailCard";
-import { KnowledgeUpload, type VersionView } from "./KnowledgeUpload";
 import type { ChecklistItemView } from "./ChecklistView";
-import { EditableChecklist } from "./EditableChecklist";
+import type { VersionView } from "./KnowledgeUpload";
+import { ProjectSidebar } from "./ProjectSidebar";
 import { SpecialistFeedbackForm } from "./SpecialistFeedbackForm";
 import { EstimatesListPanel, type EstimateListItem, type EstimateLock } from "./EstimatesListPanel";
-import { ApprovedDocumentsPanel } from "./ApprovedDocumentsPanel";
 import type { SowLock } from "./StartSowDevelopmentPanel";
 import type { ApprovalPermissions, ApprovedDocumentsSummary } from "@/types/approvals";
 import { DeliverablesServicesDocumentView } from "./DeliverablesServicesDocumentView";
@@ -108,7 +106,7 @@ function SpecialistReviewStepContent({
   );
 }
 
-interface ProjectWorkflowProps {
+export interface ProjectWorkflowProps {
   /** What's changed since the latest SOW was generated (getSowChangeStatus). */
   sowChange?: SowChangeStatus;
   clarificationEmailDraft?: ClarificationEmailDraftMeta | null;
@@ -162,9 +160,13 @@ function derivePhase1Status(stages: WorkflowStep[]): Phase1Status {
   return "IN_PROGRESS";
 }
 
-export function ProjectWorkflow({
+/**
+ * Discover's content (the left column): Clarifying the brief and scope,
+ * Estimation and team planning, Statement of work and delivery setup, plus the
+ * Delivery Monitoring card. The project-wide sidebar is ProjectSidebar.
+ */
+export function DiscoverPhaseContent({
   projectId,
-  projectName,
   stages,
   clarificationEmail,
   positionDocument,
@@ -172,7 +174,6 @@ export function ProjectWorkflow({
   checklistItems,
   specialistFeedback,
   deliverablesServicesDocument,
-  versions,
   currentSowTemplate,
   currentSowTemplateVersion,
   sowTemplateOptions,
@@ -185,7 +186,6 @@ export function ProjectWorkflow({
   rateCardOptions,
   clarificationEmailDraft = null,
   sowChange,
-  approvedDocuments = NOTHING_APPROVED,
   approvalPermissions = NO_APPROVAL_PERMISSIONS,
   estimateLock = null,
   sowLock = null,
@@ -254,27 +254,33 @@ export function ProjectWorkflow({
   };
 
   return (
+    <div className="min-w-0 space-y-4">
+      <BriefCompletenessWarning completeness={briefCompleteness} />
+      <StageTracker
+        steps={steps}
+        phase1Status={derivePhase1Status(stages)}
+        phase1Content={phase1Content}
+        headerExtraByPhaseKey={headerExtraByPhaseKey}
+        attentionByPhaseKey={
+          sowChange?.status === "changed_since_generation" ? { sow: SOW_PHASE_INDICATOR_TEXT } : undefined
+        }
+      />
+    </div>
+  );
+}
+
+/** Discover beside the project sidebar — the pre-5D page body, kept for composing both in one place. */
+export function ProjectWorkflow(props: ProjectWorkflowProps) {
+  return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
-      <div className="min-w-0 space-y-4">
-        <BriefCompletenessWarning completeness={briefCompleteness} />
-        <StageTracker
-          steps={steps}
-          phase1Status={derivePhase1Status(stages)}
-          phase1Content={phase1Content}
-          headerExtraByPhaseKey={headerExtraByPhaseKey}
-          attentionByPhaseKey={
-            sowChange?.status === "changed_since_generation"
-              ? { sow: SOW_PHASE_INDICATOR_TEXT }
-              : undefined
-          }
-        />
-      </div>
-      <div className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-        <ChatPanel projectId={projectId} projectName={projectName} />
-        <KnowledgeUpload projectId={projectId} versions={versions} />
-        <EditableChecklist projectId={projectId} items={checklistItems} />
-        <ApprovedDocumentsPanel summary={approvedDocuments} />
-      </div>
+      <DiscoverPhaseContent {...props} />
+      <ProjectSidebar
+        projectId={props.projectId}
+        projectName={props.projectName}
+        versions={props.versions}
+        checklistItems={props.checklistItems}
+        approvedDocuments={props.approvedDocuments ?? NOTHING_APPROVED}
+      />
     </div>
   );
 }

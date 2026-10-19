@@ -3,6 +3,8 @@
 ## Architecture Overview
 Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (Postgres/Neon, driver-adapter-based), and NextAuth v5 (beta) for email/password auth. All Level 1 MVP scope (Stages 1-5, Knowledge Upload, Chatbot, polish/QA/deploy) is complete, plus post-MVP additions: a Phase-grouped Stage Tracker (`src/lib/phases.ts`), Client/Workstream taxonomy navigation + global search, Phase 1 as a fluid workspace, commercial documents in one shared "document has many Versions, exactly one current" pattern (MSA, Rate Cards, SOW Template Library), the "Capabilities & Estimate Brief" panel, "Build The Estimate" (Stage 6), "Generate SOW" (Stage 8), brief key attributes, and the PM perspective.
 
+**5D phase tabs (FB-007, Oct 2026)**: the project page is now a persistent shell (`projects/[projectId]/(shell)/layout.tsx`: header box, `PhaseTabs` nav of five links with derived status, sticky sidebar / mobile "Project tools" dialog) over phase routes `/projects/[id]/{discover,define,develop,deliver,dialogue}`; `/projects/[id]` redirects to the first non-Complete phase. Config and status rules: `src/lib/projectPhases.ts` (not `phases.ts`, which groups Stages into Discover's three Steps). Discover is rendered by the layout and kept mounted (hidden) on other tabs so unsaved card state survives; other phases render `PhaseComingSoon` until built. Shared cached loader: `src/lib/projectPageData.ts`. `revalidatePath` on the project route must use `"layout"`.
+
 **Client approval of estimates/SOWs (FB-005, Oct 2026)**: a version is Draft until a PM records that the client approved it outside the app. `CommercialApproval` is append-only (one table, `documentType` + an estimate-or-SOW version FK; undo/revert set `revokedAt`/`revokeKind`, never delete) with partial unique indexes: one active approval per project per document type and per version. Status is derived (`deriveApprovalState`, `src/lib/commercial/approvalState.ts`), never stored. Rules live in `approvalService.ts` (approve/undo/revert; SOW must come from the approved estimate version; 10s undo + 2s grace on the server clock); every mutating estimate/SOW action calls `assertEstimateEditable`/`assertSowEditable` (`approvalGuards.ts`), re-checked inside the writing transaction for slow work. All permission decisions are in `src/lib/permissions.ts` (`canApprove` = any signed-in user; `canRevertApproval` = `ADMIN_ROLES`, empty until FB-006 defines an Admin role, so revert UI is hidden). Stage 6/8 read Complete from approvals (computed in `stageStatusWithApprovals`, not stored). `assembleSowContext` uses the approved estimate version when one exists. One money formatter (`src/lib/formatMoney.ts`).
 
 **Key details are a single source of truth (this session's fix)**: budget, objective, timeline, client contact, scope, markets, languages and channels live only in the key-details record (`BriefAttributeValue`). Intake reads them first (flat-facts extraction that the API accepts), then the Position Document is told to leave them out and a de-dup check (`position-key-detail-filter.ts`) removes any "Other details" item they already cover. The Position Document no longer stores the contact. Extraction failures are recorded on the project (`getBriefCompleteness().extractionFailure`). SOW, specialist brief and chatbot read key details via `src/lib/keyDetailsContext.ts`. Existing projects were backfilled by `scripts/backfill-key-details.mts`.
@@ -16,6 +18,15 @@ Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (P
 **Generate SOW**: pick a SOW Template, click "Generate SOW"/"Regenerate SOW" (gated as above). That first runs extraction (`sow-extraction-agent.ts`, behind ProcessingOverlay) and opens a full-screen stepped review (`SowReviewOverlay`: Deliverables, Services, Assumptions, Out of Scope, Risks, Review & generate) where the PM validates the items; items persist per project (`SowSectionItem`) and respect a pure merge on regeneration (`src/lib/sowItemsMerge.ts`). Generate then composes the `.docx` (`sow-agent.ts`) from only the included items, guided by the template, and snapshots them on the version (`SOWVersion.itemsSnapshot`). Regenerating appends a version.
 
 ## File Inventory
+
+### Source Files — 5D phase tabs (FB-007)
+| File | Purpose | Last Modified Task |
+|------|---------|-------------------|
+| `src/lib/projectPhases.ts` | 5D phase config, `deriveProjectPhaseStatuses`, current-phase helper | FB-007 |
+| `src/lib/projectPageData.ts` | Cached `loadProjectPageData` (all project page queries and derivations) | FB-007 |
+| `projects/[projectId]/(shell)/{layout,page}.tsx`, `(shell)/[phase]/page.tsx` | Persistent shell, redirect to current phase, phase page (404 unknown slug) | FB-007 |
+| `ProjectShell`, `PhaseTabs`, `PhaseStatusIndicator`, `PhaseComingSoon`, `PreviousPhaseNotice`, `ProjectSidebar` | Tab row/columns/drawer, nav, status icon+text, placeholder panel, non-blocking note, project-wide tools | FB-007 |
+| `ProjectWorkflow` | Now exports `DiscoverPhaseContent` (left column) + `ProjectWorkflow` (both) | FB-007 |
 
 ### Source Files — Client approval (FB-005)
 | File | Purpose | Last Modified Task |
@@ -97,9 +108,10 @@ Unchanged recently — see `progress.md`. Auth (`src/lib/{auth,permissions}.ts`,
 | `.prettierrc.json`, `eslint.config.mjs`, `vitest.config.mts`, `.claude/launch.json` | Formatting (printWidth 100), lint, tests, dev/prod preview servers |
 | `.gitignore` | Includes `.env.local` |
 
-### Test Files (102 files, 831 tests, all passing)
+### Test Files (107 files, 861 tests, all passing)
 | File | Tests | Status |
 |------|-------|--------|
+| `tests/lib/projectPhases.test.ts`, `tests/components/{PhaseTabs,PhaseComingSoon,ProjectShell}.test.tsx`, `tests/project-phase-routing.test.tsx` | Status derivation, tab nav/aria/keyboard, coming-soon content and no controls, sidebar+Discover persistence, focus/announce, drawer, redirect/404 routing, revalidatePath uses layout | ✅ New |
 | `tests/services/{key-attribute-extraction,position-key-detail-filter}.test.ts`, `tests/fixtures/keyAttributeFacts.ts` | Flat-schema regression guard, fact grouping/validation, de-dup removes only covered items and keeps all on failure | ✅ New |
 | `tests/services/{intake-agent,clarification-extraction}.test.ts`, `tests/{brief-key-attributes,pm-perspective,stage-1-5-happy-path,sow-context,chatbot-isolation}.test.ts` | New intake order, exclusion, no contact fields, failure recorded/cleared, SOW contact only from confirmed key detail, chatbot isolation for key details | ✅ Updated |
 | `tests/lib/pmPerspective.test.ts`, `tests/pm-perspective.test.ts` (real DB), `tests/components/PmPerspectivePanel.test.tsx`, `tests/fixtures/pmPerspective.ts` | Config + labelled prompt block; empty submission; separate storage; per-field author/time; prompts include the block but key-attribute extraction doesn't; KPI → PM_ENTRY suggestion only; panel labelling and editing | ✅ New |
@@ -138,6 +150,8 @@ Unchanged recently — see `progress.md`. Auth (`src/lib/{auth,permissions}.ts`,
 - **Scripted edits**: no Python on this machine; use Node. Many files are CRLF — normalize to LF while editing and restore on write. The shell tool mangles apostrophes and backslashes in heredocs, so write edit scripts to the scratchpad with the Write tool first.
 
 ## Current State Summary
+Latest: **5D phase tabs (FB-007)** on branch `feat/fb-007-phase-tabs` (not yet merged/deployed); Define-Dialogue are coming-soon panels.
+
 All MVP scope plus Build The Estimate, Generate SOW, brief key attributes, the PM perspective and (latest) **client approval of estimates/SOWs** are built and deployed (FB-005 merged to main, migration applied).
 
 Next:

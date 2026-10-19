@@ -277,7 +277,7 @@ export function EstimateReviewCard({
         <Toast onDismiss={() => setShowSowToast(false)}>
           Estimate saved. Your SOW is now out of date.{" "}
           <a
-            href={`/projects/${projectId}#sow`}
+            href={`/projects/${projectId}/discover#sow`}
             className="font-medium text-primary hover:underline"
           >
             Update SOW

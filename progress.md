@@ -610,3 +610,15 @@
 - **Tests**: 831 across 102 files passing, including a real-DB suite (approve rules, concurrent approvals, one-estimate rule, SOW source rules, locks on every action, regenerate-SOW race, undo window, admin revert, identical download bytes after a rate-card change); typecheck and lint clean. Verified in the browser on localhost.
 - **Deployed (2026-10-19)**: `feat/fb-005-client-approval` merged to main via PR (`83eec6a`), Vercel deployment Ready.
 - **Open**: FB-006 must define an Admin role (switches on the revert UI) and decide who may approve; Change Requests are not built.
+
+### Feature: 5D phase tabs on the project page (FB-007) (2026-10-19)
+
+- **Step 0 findings**: the project page was a single server page at `app/(dashboard)/projects/[projectId]/page.tsx` (no project layout) rendering the header box and `ProjectWorkflow` (Discover accordion + sidebar). Cards submit explicitly (no autosave, no unsaved-changes handling); only the SOW review overlay autosaves. Stage/phase status is computed on read. Only three user-facing "Phase" strings existed (not the "Phase 1/2/3" headings the brief assumed).
+- **What**: `projects/[projectId]/(shell)/layout.tsx` is the persistent shell (header box, `PhaseTabs` nav, sticky sidebar); `(shell)/page.tsx` redirects to the current phase; `(shell)/[phase]/page.tsx` 404s unknown slugs and renders `PhaseComingSoon` for Define/Develop/Deliver/Dialogue. Config + pure `deriveProjectPhaseStatuses` in `src/lib/projectPhases.ts` (Discover complete = client-approved SOW; others not started). The `(shell)` route group keeps `outputs/` and `estimates/` pages outside the layout. No Prisma changes.
+- **Unsaved work (keep-mounted)**: Discover's content is rendered by the layout and hidden (not unmounted) on other tabs, so card state survives. Consequence: Discover's data loads in the layout (`loadProjectPageData`, React `cache`d, shared with the redirect page), not in the phase page. Later phases load their own data in their page.
+- **Mobile**: the one sidebar instance becomes a slide-in dialog below `lg` via "Project tools" (same components and state; reuses `useFocusTrap`; the existing drawer primitive is bespoke and can't wrap children without remounting).
+- **Copy renamed**: "Phase 1 progress summary" -> "Step 1 progress summary" (aria-label); BriefGateNotice "in Phase 1" -> "in Step 1"; action message "Prepare the Estimate Brief in Phase 1" -> "in Step 1". Deep link `#sow` now `/projects/{id}/discover#sow`.
+- **Revalidation**: every `revalidatePath(/projects/{id})` now passes `"layout"` (guarded by a source-scan test).
+- **Deviations/known**: ApprovedDocumentsPanel "Go to section" (`#sow`) does nothing visible when another phase tab is active. Delivery Monitoring stays in Discover (TODO in `ProjectShell.tsx`). Not browser-verified at the time of commit.
+- **Tests**: 107 files, 861 tests passing; tsc, eslint and `next build` clean.
+

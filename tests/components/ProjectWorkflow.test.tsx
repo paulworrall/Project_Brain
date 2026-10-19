@@ -184,7 +184,7 @@ describe("ProjectWorkflow", () => {
     expect(screen.queryByText("Step 1.1")).not.toBeInTheDocument();
   });
 
-  it("counts past client updates in the Phase 1 progress summary, without a separate log list", () => {
+  it("counts past client updates in the Step 1 progress summary, without a separate log list", () => {
     render(
       <ProjectWorkflow
         {...baseProps()}
@@ -199,7 +199,7 @@ describe("ProjectWorkflow", () => {
       />
     );
 
-    expect(screen.getByLabelText("Phase 1 progress summary")).toHaveTextContent(
+    expect(screen.getByLabelText("Step 1 progress summary")).toHaveTextContent(
       "1 update logged"
     );
     // No standalone client-update log anymore — folded into Additional Inputs.
