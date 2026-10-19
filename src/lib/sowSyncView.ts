@@ -1,4 +1,5 @@
 import type { Capability } from "@/generated/prisma/enums";
+import { formatMoney } from "@/lib/formatMoney";
 
 /**
  * SOW ↔ estimate sync — the pure half (no database), safe for client
@@ -97,13 +98,8 @@ export function evaluateSowSync({
   };
 }
 
-const WHOLE = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 0 });
-const PENCE = new Intl.NumberFormat("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-/** "50,400 USD", or "1,234.50 GBP" when there are pence. */
-export function formatMoney(amount: number, currency: string): string {
-  return `${(Number.isInteger(amount) ? WHOLE : PENCE).format(amount)} ${currency}`;
-}
+// One shared money formatter app-wide ("50,400.00 USD") — see formatMoney.ts.
+export { formatMoney };
 
 /** "SOW v2 — from Estimate v1 — 50,400 USD", or "SOW v1 — source unknown". */
 export function sowVersionSourceLabel({

@@ -10,6 +10,7 @@ import {
 } from "./RoleResolutionReview";
 import { EstimateReviewCard, type EstimateSowNotice } from "./EstimateReviewCard";
 import type { EstimateDocumentContent } from "@/types/estimates";
+import { LockedNotice } from "./LockedNotice";
 
 /**
  * Composes one Estimate track's whole build flow: add a role (extraction +
@@ -37,7 +38,10 @@ export function EstimateBuildWorkspace({
   latestVersion: initialLatestVersion,
   embedded = false,
   sowNotice = null,
+  lock = null,
 }: {
+  /** Set once the client has approved an estimate: this workspace is view-only. */
+  lock?: { versionNumber: number; clientApprovedOn: string } | null;
   /** Set when the project's SOW is based on this estimate (getSowSyncStatus). */
   sowNotice?: EstimateSowNotice | null;
   projectId: string;
@@ -89,17 +93,23 @@ export function EstimateBuildWorkspace({
         </div>
       )}
 
-      <BuildEstimateInputForm
-        estimateId={estimateId}
-        embedded={embedded}
-        onSuccess={handleViewUpdate}
-      />
+      {lock ? (
+        <LockedNotice versionNumber={lock.versionNumber} clientApprovedOn={lock.clientApprovedOn} />
+      ) : (
+        <>
+          <BuildEstimateInputForm
+            estimateId={estimateId}
+            embedded={embedded}
+            onSuccess={handleViewUpdate}
+          />
 
-      <RoleResolutionReview
-        pendingResolutions={pendingResolutions}
-        rateCardLines={rateCardLines}
-        onResolved={handleViewUpdate}
-      />
+          <RoleResolutionReview
+            pendingResolutions={pendingResolutions}
+            rateCardLines={rateCardLines}
+            onResolved={handleViewUpdate}
+          />
+        </>
+      )}
 
       {reviewContent && pendingResolutions.length === 0 && (
         <EstimateReviewCard
@@ -109,6 +119,7 @@ export function EstimateBuildWorkspace({
           onUpdated={handleViewUpdate}
           onSaved={handleViewUpdate}
           sowNotice={sowNotice}
+          readOnly={lock !== null}
         />
       )}
     </div>

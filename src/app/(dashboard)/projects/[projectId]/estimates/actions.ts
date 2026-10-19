@@ -25,6 +25,11 @@ import { getEstimateBuildViewData, type EstimateBuildViewData } from "@/lib/esti
 import { renderEstimateDocumentDocx } from "@/services/documents/estimate-document-docx";
 import { parseEstimateUnit } from "@/lib/estimateUnits";
 import { EstimateUnit } from "@/generated/prisma/enums";
+import {
+  CommercialLockedError,
+  assertEstimateEditable,
+  lockMessage,
+} from "@/lib/commercial/approvalGuards";
 
 const EstimateUnitSchema = z.enum(EstimateUnit, { error: "Choose hours, days or weeks." });
 
@@ -88,6 +93,9 @@ export async function createEstimateAction(
     };
   }
 
+  const locked = await lockMessage("ESTIMATE", projectId);
+  if (locked) return { message: locked };
+
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     select: { workstream: { select: { clientId: true } } },
@@ -107,14 +115,23 @@ export async function createEstimateAction(
 
   const session = await auth();
 
-  const estimate = await prisma.estimate.create({
-    data: {
-      projectId,
-      label: parsed.data.label,
-      rateCardVersionId: validRateCardVersion.id,
-      createdById: session?.user?.id,
-    },
-  });
+  let estimate;
+  try {
+    estimate = await prisma.$transaction(async (tx) => {
+      await assertEstimateEditable(projectId, tx);
+      return tx.estimate.create({
+        data: {
+          projectId,
+          label: parsed.data.label,
+          rateCardVersionId: validRateCardVersion.id,
+          createdById: session?.user?.id,
+        },
+      });
+    });
+  } catch (error) {
+    if (error instanceof CommercialLockedError) return { message: error.message };
+    throw error;
+  }
 
   const view = await getEstimateBuildViewData(estimate.id);
 
@@ -204,6 +221,8 @@ export async function addEstimateRoleInputAction(
   if (!estimate) {
     return { message: "Estimate not found." };
   }
+  const lockedBefore = await lockMessage("ESTIMATE", estimate.projectId);
+  if (lockedBefore) return { message: lockedBefore };
 
   let lineItemCount = await prisma.rateCardLineItem.count({
     where: { rateCardVersionId: estimate.rateCardVersionId },
@@ -279,36 +298,45 @@ export async function addEstimateRoleInputAction(
   }
   const matchByRawText = new Map(matchResults.map((m) => [m.rawRoleText, m]));
 
-  await prisma.$transaction(
-    extractedRoles.map((role) => {
-      const match = matchByRawText.get(role.rawRoleText) ?? {
-        matchType: "NO_MATCH" as const,
-        confidence: 0,
-        suggestedRateCardLineId: null,
-      };
-      const { autoResolve } = resolveMatchRouting(match, ROLE_MATCH_CONFIDENCE_THRESHOLD);
+  // Re-checked inside the writing transaction: an approval can land while the
+  // (slow) extraction and matching calls above are running.
+  try {
+    await prisma.$transaction(async (tx) => {
+      await assertEstimateEditable(estimate.projectId, tx);
+      for (const role of extractedRoles) {
+        const match = matchByRawText.get(role.rawRoleText) ?? {
+          matchType: "NO_MATCH" as const,
+          confidence: 0,
+          suggestedRateCardLineId: null,
+        };
+        const { autoResolve } = resolveMatchRouting(match, ROLE_MATCH_CONFIDENCE_THRESHOLD);
 
-      return prisma.roleResolution.create({
-        data: {
-          estimateId,
-          estimateCapabilityInputId: input.id,
-          capability: role.extractedCapability,
-          rawRoleText: role.rawRoleText,
-          extractedRole: role.extractedRole,
-          extractedLevel: role.extractedLevel,
-          extractedQuantity: role.quantity,
-          // null (missing/ambiguous) holds the role for PM review — never defaulted to hours.
-          extractedUnit: parseEstimateUnit(role.unit),
-          rawUnitText: role.rawUnitText ?? role.unit,
-          matchType: match.matchType,
-          confidence: match.confidence,
-          suggestedRateCardLineId: match.suggestedRateCardLineId,
-          resolvedRateCardLineId: autoResolve ? match.suggestedRateCardLineId : null,
-          resolvedAt: autoResolve ? new Date() : null,
-        },
-      });
-    })
-  );
+        await tx.roleResolution.create({
+          data: {
+            estimateId,
+            estimateCapabilityInputId: input.id,
+            capability: role.extractedCapability,
+            rawRoleText: role.rawRoleText,
+            extractedRole: role.extractedRole,
+            extractedLevel: role.extractedLevel,
+            extractedQuantity: role.quantity,
+            // null (missing/ambiguous) holds the role for PM review — never defaulted to hours.
+            extractedUnit: parseEstimateUnit(role.unit),
+            rawUnitText: role.rawUnitText ?? role.unit,
+            matchType: match.matchType,
+            confidence: match.confidence,
+            suggestedRateCardLineId: match.suggestedRateCardLineId,
+            resolvedRateCardLineId: autoResolve ? match.suggestedRateCardLineId : null,
+            resolvedAt: autoResolve ? new Date() : null,
+          },
+        });
+      }
+    });
+  } catch (error) {
+    await prisma.estimateCapabilityInput.delete({ where: { id: input.id } });
+    if (error instanceof CommercialLockedError) return { message: error.message };
+    throw error;
+  }
 
   revalidatePath(`/projects/${estimate.projectId}/estimates/${estimateId}`);
   const view = await getEstimateBuildViewData(estimateId);
@@ -359,6 +387,12 @@ export async function updateRoleResolutionQuantityAction(
   if (!roleResolution.resolvedAt) {
     return { message: "This role must be resolved before its quantity can be updated." };
   }
+  const owner = await prisma.estimate.findUnique({
+    where: { id: roleResolution.estimateId },
+    select: { projectId: true },
+  });
+  const lockedQty = owner ? await lockMessage("ESTIMATE", owner.projectId) : null;
+  if (lockedQty) return { message: lockedQty };
 
   await prisma.roleResolution.update({
     where: { id: roleResolutionId },
@@ -418,6 +452,8 @@ export async function resolveRoleResolutionAction(
   if (!roleResolution) {
     return { message: "Role resolution not found." };
   }
+  const lockedResolve = await lockMessage("ESTIMATE", roleResolution.estimate.projectId);
+  if (lockedResolve) return { message: lockedResolve };
   const unit = parsed.data.unit ?? roleResolution.extractedUnit;
   if (!unit) {
     return {
@@ -480,6 +516,9 @@ export async function saveEstimateVersionAction(
     return { message: "Estimate not found." };
   }
 
+  const lockedSave = await lockMessage("ESTIMATE", estimate.projectId);
+  if (lockedSave) return { message: lockedSave };
+
   const draft = await buildEstimateContentDraft(estimateId);
   if ("message" in draft) {
     return { message: draft.message };
@@ -504,35 +543,42 @@ export async function saveEstimateVersionAction(
     orderBy: { versionNumber: "desc" },
   });
 
-  const version = await prisma.$transaction(async (tx) => {
-    const created = await tx.estimateVersion.create({
-      data: {
-        estimateId,
-        versionNumber: (latestVersion?.versionNumber ?? 0) + 1,
-        rateCardVersionId: estimate.rateCardVersionId,
-        capabilitiesIncluded,
-        totalValue,
-        currency,
-        // Recorded so this version stays reproducible if the factors change later.
-        hoursPerDay: conversionFactors.hoursPerDay,
-        daysPerWeek: conversionFactors.daysPerWeek,
-        description,
-        fileName,
-        fileBytes,
-        content,
-        createdById: session?.user?.id,
-      },
-    });
+  let version;
+  try {
+    version = await prisma.$transaction(async (tx) => {
+      await assertEstimateEditable(estimate.projectId, tx);
+      const created = await tx.estimateVersion.create({
+        data: {
+          estimateId,
+          versionNumber: (latestVersion?.versionNumber ?? 0) + 1,
+          rateCardVersionId: estimate.rateCardVersionId,
+          capabilitiesIncluded,
+          totalValue,
+          currency,
+          // Recorded so this version stays reproducible if the factors change later.
+          hoursPerDay: conversionFactors.hoursPerDay,
+          daysPerWeek: conversionFactors.daysPerWeek,
+          description,
+          fileName,
+          fileBytes,
+          content,
+          createdById: session?.user?.id,
+        },
+      });
 
-    await tx.estimateLineItem.createMany({
-      data: lineItems.map((item) => ({
-        ...item,
-        estimateVersionId: created.id,
-      })),
-    });
+      await tx.estimateLineItem.createMany({
+        data: lineItems.map((item) => ({
+          ...item,
+          estimateVersionId: created.id,
+        })),
+      });
 
-    return created;
-  });
+      return created;
+    });
+  } catch (error) {
+    if (error instanceof CommercialLockedError) return { message: error.message };
+    throw error;
+  }
 
   revalidatePath(`/projects/${estimate.projectId}/estimates/${estimateId}`);
   const view = await getEstimateBuildViewData(estimateId);

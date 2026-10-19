@@ -18,7 +18,10 @@ import { runAfterResponse } from "@/lib/afterResponse";
 import { formatVersionsBefore, nextUpdateVersion } from "@/lib/updateVersions";
 import { getProjectContext } from "@/lib/projectContext";
 import { latestPositionDocumentContent } from "@/lib/positionDocument";
-import { rebuildPositionDocumentVersion, redraftClarificationEmail } from "@/lib/outputRegeneration";
+import {
+  rebuildPositionDocumentVersion,
+  redraftClarificationEmail,
+} from "@/lib/outputRegeneration";
 import { IntakeAgentError } from "@/services/agents/intake-agent";
 import { parseDocumentToText, UnsupportedBriefFormatError } from "@/services/parsing";
 import { PositionDocumentFieldsSchema, type PositionDocumentFields } from "@/types/intake";
@@ -48,7 +51,11 @@ import { snapshotItems } from "@/lib/sowReview";
 import type { SOWContent, SOWDocumentContent } from "@/types/sow";
 import type { Capability, UpdateSource } from "@/generated/prisma/enums";
 import { Prisma } from "@/generated/prisma/client";
-import { BRIEF_ATTRIBUTES, getBriefAttribute, type BriefAttributeValues } from "@/lib/briefAttributes";
+import {
+  BRIEF_ATTRIBUTES,
+  getBriefAttribute,
+  type BriefAttributeValues,
+} from "@/lib/briefAttributes";
 import {
   attributeValuesFromFormData,
   normalizeAttributeValues,
@@ -64,6 +71,11 @@ import { describeKnownKeyDetails } from "@/lib/keyDetailsContext";
 import { removeItemsCoveredByKeyDetails } from "@/services/agents/position-key-detail-filter";
 import { getPmPerspectiveField } from "@/lib/pmPerspective";
 import { savePmPerspective } from "@/lib/pmPerspectiveStore";
+import {
+  CommercialLockedError,
+  assertSowEditable,
+  lockMessage,
+} from "@/lib/commercial/approvalGuards";
 
 export interface ActionState {
   /** Something went wrong; nothing (or not everything) was saved. */
@@ -179,8 +191,8 @@ async function recordProjectDateEdits(
   const completeness = await getBriefCompleteness(projectId);
 
   for (const attribute of BRIEF_ATTRIBUTES) {
-    const mapping = Object.entries(attribute.projectDateFields ?? {}).flatMap(([subFieldId, column]) =>
-      column ? [[subFieldId, column] as const] : []
+    const mapping = Object.entries(attribute.projectDateFields ?? {}).flatMap(
+      ([subFieldId, column]) => (column ? [[subFieldId, column] as const] : [])
     );
     if (!mapping.some(([, column]) => isoDate(before[column]) !== isoDate(after[column]))) continue;
 
@@ -205,7 +217,10 @@ async function recordProjectDateEdits(
 
 const StartSowDevelopmentSchema = z.object({
   sowTemplateId: z.string().trim().min(1, { error: "Select a SOW Template." }),
-  sowTemplateVersionId: z.string().trim().min(1, { error: "Select a version of the chosen template." }),
+  sowTemplateVersionId: z
+    .string()
+    .trim()
+    .min(1, { error: "Select a version of the chosen template." }),
 });
 
 /**
@@ -231,9 +246,13 @@ export async function startSowDevelopmentAction(
   if (!parsed.success) {
     const errors = z.flattenError(parsed.error).fieldErrors;
     return {
-      message: errors.sowTemplateId?.[0] ?? errors.sowTemplateVersionId?.[0] ?? "Select a SOW Template.",
+      message:
+        errors.sowTemplateId?.[0] ?? errors.sowTemplateVersionId?.[0] ?? "Select a SOW Template.",
     };
   }
+
+  const lockedTemplate = await lockMessage("SOW", projectId);
+  if (lockedTemplate) return { message: lockedTemplate };
 
   const project = await prisma.project.findUnique({
     where: { id: projectId },
@@ -302,6 +321,9 @@ export async function generateSowAction(
 ): Promise<GenerateSowActionState | undefined> {
   const session = await auth();
 
+  const lockedBefore = await lockMessage("SOW", projectId);
+  if (lockedBefore) return { message: lockedBefore };
+
   // Project exists, template selected, brief gate passed — enforced here,
   // server-side; the panel's alert is just the explanation.
   const preconditions = await checkSowPreconditions(projectId);
@@ -321,7 +343,10 @@ export async function generateSowAction(
   const keyAttributesSnapshot = await snapshotMaterialKeyDetails(projectId);
   // Every new SOW records the exact estimate version its commercials came from.
   if (!sourceEstimate) {
-    return { message: "Save an estimate version before generating the SOW — its fees come from the estimate." };
+    return {
+      message:
+        "Save an estimate version before generating the SOW — its fees come from the estimate.",
+    };
   }
 
   // The SOW is composed ONLY from the items the PM validated (SowSectionItem):
@@ -329,7 +354,9 @@ export async function generateSowAction(
   const items = await listSowItems(projectId);
   const validated = validatedListsFromItems(items);
   if (validated.deliverables.length === 0) {
-    return { message: "Review the SOW content first — include at least one deliverable before generating." };
+    return {
+      message: "Review the SOW content first — include at least one deliverable before generating.",
+    };
   }
   const itemsSnapshot = snapshotItems(items);
 
@@ -346,41 +373,49 @@ export async function generateSowAction(
   const content: SOWContent = { coverDetails, body };
   const fileBytes = new Uint8Array(await renderSowDocx(content));
 
-  await prisma.$transaction(async (tx) => {
-    const existing = await tx.sOW.findUnique({
-      where: { projectId },
-      include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
-    });
-
-    const versionNumber = (existing?.versions[0]?.versionNumber ?? 0) + 1;
-    const fileName = `SOW - ${project.name} - v${versionNumber}.docx`;
-    const versionData = {
-      versionNumber,
-      fileName,
-      fileBytes,
-      content: content as unknown as Prisma.InputJsonValue,
-      sowTemplateId: project.sowTemplateId,
-      sowTemplateVersionId: project.sowTemplateVersionId,
-      builtFromVersion,
-      sourceEstimateVersionId: sourceEstimate.estimateVersionId,
-      sourceEstimateTotal: sourceEstimate.total,
-      sourceEstimateCurrency: sourceEstimate.currency,
-      sourceEstimateCapabilities: sourceEstimate.capabilities,
-      itemsSnapshot: itemsSnapshot as unknown as Prisma.InputJsonValue,
-      keyAttributesSnapshot: keyAttributesSnapshot as unknown as Prisma.InputJsonValue,
-      createdById: session?.user?.id,
-    };
-
-    if (existing) {
-      await tx.sOWVersion.create({ data: { sowId: existing.id, ...versionData } });
-    } else {
-      await tx.sOW.create({
-        data: { projectId, versions: { create: versionData } },
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Re-checked here, after the (slow) agent call: an approval that landed
+      // during generation must not be overwritten by this new version.
+      await assertSowEditable(projectId, tx);
+      const existing = await tx.sOW.findUnique({
+        where: { projectId },
+        include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
       });
-    }
-    // The review is done: clear "new since last review" and reset its step.
-    await completeSowReview(tx, projectId);
-  });
+
+      const versionNumber = (existing?.versions[0]?.versionNumber ?? 0) + 1;
+      const fileName = `SOW - ${project.name} - v${versionNumber}.docx`;
+      const versionData = {
+        versionNumber,
+        fileName,
+        fileBytes,
+        content: content as unknown as Prisma.InputJsonValue,
+        sowTemplateId: project.sowTemplateId,
+        sowTemplateVersionId: project.sowTemplateVersionId,
+        builtFromVersion,
+        sourceEstimateVersionId: sourceEstimate.estimateVersionId,
+        sourceEstimateTotal: sourceEstimate.total,
+        sourceEstimateCurrency: sourceEstimate.currency,
+        sourceEstimateCapabilities: sourceEstimate.capabilities,
+        itemsSnapshot: itemsSnapshot as unknown as Prisma.InputJsonValue,
+        keyAttributesSnapshot: keyAttributesSnapshot as unknown as Prisma.InputJsonValue,
+        createdById: session?.user?.id,
+      };
+
+      if (existing) {
+        await tx.sOWVersion.create({ data: { sowId: existing.id, ...versionData } });
+      } else {
+        await tx.sOW.create({
+          data: { projectId, versions: { create: versionData } },
+        });
+      }
+      // The review is done: clear "new since last review" and reset its step.
+      await completeSowReview(tx, projectId);
+    });
+  } catch (error) {
+    if (error instanceof CommercialLockedError) return { message: error.message };
+    throw error;
+  }
 
   revalidatePath(`/projects/${projectId}`);
 }
@@ -451,7 +486,7 @@ const FeedbackSchema = z
     otherLabel: z.string().trim().optional(),
   })
   .refine((data) => data.capability !== "OTHER" || !!data.otherLabel, {
-    error: "Name the capability team when selecting \"Other\".",
+    error: 'Name the capability team when selecting "Other".',
     path: ["otherLabel"],
   });
 
@@ -469,7 +504,10 @@ export async function submitSpecialistFeedbackAction(
     const errors = z.flattenError(parsed.error).fieldErrors;
     return {
       message:
-        errors.feedback?.[0] ?? errors.capability?.[0] ?? errors.otherLabel?.[0] ?? "Invalid feedback.",
+        errors.feedback?.[0] ??
+        errors.capability?.[0] ??
+        errors.otherLabel?.[0] ??
+        "Invalid feedback.",
     };
   }
 
@@ -759,7 +797,10 @@ export async function uploadKnowledgeItemAction(
   // Each key detail is recorded once: drop anything from the updated
   // Position Document that the key details (known + just read) already cover.
   if (updatedFields) {
-    const knownKeyDetails = describeKnownKeyDetails(await getBriefCompleteness(projectId), keyAttributes);
+    const knownKeyDetails = describeKnownKeyDetails(
+      await getBriefCompleteness(projectId),
+      keyAttributes
+    );
     updatedFields = {
       ...updatedFields,
       whatWeKnow: await removeItemsCoveredByKeyDetails(updatedFields.whatWeKnow, knownKeyDetails),
@@ -832,7 +873,9 @@ export async function uploadKnowledgeItemAction(
 
   revalidatePath(`/projects/${projectId}`);
   const draftNotice = `Saved as v${knowledgeItem.versionNumber}. A fresh client email draft is being written from it — refresh in a moment to see it.`;
-  return { notice: positionDocumentNotice ? `${positionDocumentNotice} ${draftNotice}` : draftNotice };
+  return {
+    notice: positionDocumentNotice ? `${positionDocumentNotice} ${draftNotice}` : draftNotice,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -905,7 +948,10 @@ export async function rereadBriefAttributesAction(
   _prevState: ActionState | undefined,
   _formData: FormData
 ): Promise<ActionState | undefined> {
-  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { id: true },
+  });
   if (!project) {
     return { message: "Project not found." };
   }
@@ -970,7 +1016,9 @@ async function assembleCapabilityBriefContext(
   ]);
   const sections = [context.text];
   if (positionDocument) {
-    sections.push(`## Position Document (other details from the brief)\n${JSON.stringify(positionDocument)}`);
+    sections.push(
+      `## Position Document (other details from the brief)\n${JSON.stringify(positionDocument)}`
+    );
   }
   return { text: sections.join("\n\n"), builtFromVersion: context.latestVersion };
 }

@@ -20,7 +20,10 @@ import { KnowledgeUpload, type VersionView } from "./KnowledgeUpload";
 import type { ChecklistItemView } from "./ChecklistView";
 import { EditableChecklist } from "./EditableChecklist";
 import { SpecialistFeedbackForm } from "./SpecialistFeedbackForm";
-import { EstimatesListPanel, type EstimateListItem } from "./EstimatesListPanel";
+import { EstimatesListPanel, type EstimateListItem, type EstimateLock } from "./EstimatesListPanel";
+import { ApprovedDocumentsPanel } from "./ApprovedDocumentsPanel";
+import type { SowLock } from "./StartSowDevelopmentPanel";
+import type { ApprovalPermissions, ApprovedDocumentsSummary } from "@/types/approvals";
 import { DeliverablesServicesDocumentView } from "./DeliverablesServicesDocumentView";
 import {
   StartSowDevelopmentPanel,
@@ -129,7 +132,15 @@ interface ProjectWorkflowProps {
   estimateBriefVersion: EstimateBriefVersionMeta | null;
   estimates: EstimateListItem[];
   rateCardOptions: RateCardOption[];
+  /** Client-approved estimate/SOW (FB-005). Absent = nothing approved, nobody may approve. */
+  approvedDocuments?: ApprovedDocumentsSummary;
+  approvalPermissions?: ApprovalPermissions;
+  estimateLock?: EstimateLock | null;
+  sowLock?: SowLock | null;
 }
+
+const NOTHING_APPROVED: ApprovedDocumentsSummary = { estimate: null, sow: null };
+const NO_APPROVAL_PERMISSIONS: ApprovalPermissions = { canApprove: false, canRevert: false };
 
 /**
  * Derives Phase 1's simplified badge status. Phase 1 no longer has 4
@@ -174,6 +185,10 @@ export function ProjectWorkflow({
   rateCardOptions,
   clarificationEmailDraft = null,
   sowChange,
+  approvedDocuments = NOTHING_APPROVED,
+  approvalPermissions = NO_APPROVAL_PERMISSIONS,
+  estimateLock = null,
+  sowLock = null,
 }: ProjectWorkflowProps) {
   const contentByStage: Record<number, ReactNode> = {
     5: (
@@ -188,6 +203,8 @@ export function ProjectWorkflow({
         projectId={projectId}
         estimates={estimates}
         rateCardOptions={rateCardOptions}
+        lock={estimateLock}
+        permissions={approvalPermissions}
       />
     ),
     8: (
@@ -199,6 +216,8 @@ export function ProjectWorkflow({
         templateOptions={sowTemplateOptions}
         sowVersions={sowVersions}
         briefCompleteness={briefCompleteness}
+        lock={sowLock}
+        permissions={approvalPermissions}
       />
     ),
     9: <PlaceholderStepContent taskRef="Level 3 (post-MVP)" actionLabel="Run Agent" />,
@@ -237,21 +256,24 @@ export function ProjectWorkflow({
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
       <div className="min-w-0 space-y-4">
-      <BriefCompletenessWarning completeness={briefCompleteness} />
-      <StageTracker
-        steps={steps}
-        phase1Status={derivePhase1Status(stages)}
-        phase1Content={phase1Content}
-        headerExtraByPhaseKey={headerExtraByPhaseKey}
-        attentionByPhaseKey={
-          sowChange?.status === "changed_since_generation" ? { sow: SOW_PHASE_INDICATOR_TEXT } : undefined
-        }
-      />
+        <BriefCompletenessWarning completeness={briefCompleteness} />
+        <StageTracker
+          steps={steps}
+          phase1Status={derivePhase1Status(stages)}
+          phase1Content={phase1Content}
+          headerExtraByPhaseKey={headerExtraByPhaseKey}
+          attentionByPhaseKey={
+            sowChange?.status === "changed_since_generation"
+              ? { sow: SOW_PHASE_INDICATOR_TEXT }
+              : undefined
+          }
+        />
       </div>
       <div className="space-y-4 lg:sticky lg:top-6 lg:self-start">
         <ChatPanel projectId={projectId} projectName={projectName} />
         <KnowledgeUpload projectId={projectId} versions={versions} />
         <EditableChecklist projectId={projectId} items={checklistItems} />
+        <ApprovedDocumentsPanel summary={approvedDocuments} />
       </div>
     </div>
   );

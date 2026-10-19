@@ -24,6 +24,11 @@ import { SowReviewOverlay } from "./SowReviewOverlay";
 import type { SowItemDto } from "@/lib/sowReview";
 import type { BriefCompleteness } from "@/lib/briefCompleteness";
 import { BriefGateAlert } from "./BriefGateNotice";
+import { DocumentStatusBadge } from "@/components/ui/DocumentStatusBadge";
+import { ApprovalActions } from "./ApprovalActions";
+import { LockedNotice } from "./LockedNotice";
+import { formatMoney } from "@/lib/formatMoney";
+import type { ApprovalInfo, ApprovalPermissions, ApprovalState } from "@/types/approvals";
 
 export interface SowTemplateVersionSelectOption {
   id: string;
@@ -46,6 +51,22 @@ export interface SowVersionMeta {
   id: string;
   versionNumber: number;
   createdAt: Date;
+  /** Derived with deriveApprovalState on the server; absent = draft. */
+  approvalState?: ApprovalState;
+  approval?: ApprovalInfo | null;
+  /** The estimate version this SOW was generated from (commercials snapshot). */
+  sourceEstimateVersionNumber?: number | null;
+  total?: number | null;
+  currency?: string | null;
+  /** Why "Mark as client approved" is unavailable right now, or null. */
+  approveBlockedReason?: string | null;
+}
+
+/** Set once the client has approved a SOW: regenerate and template changes lock. */
+export interface SowLock {
+  versionNumber: number;
+  /** YYYY-MM-DD */
+  clientApprovedOn: string;
 }
 
 function defaultVersionId(template: SowTemplateSelectOption | undefined): string {
@@ -83,7 +104,11 @@ export function StartSowDevelopmentPanel({
   sowVersions,
   briefCompleteness,
   sowChange,
+  lock = null,
+  permissions = { canApprove: false, canRevert: false },
 }: {
+  lock?: SowLock | null;
+  permissions?: ApprovalPermissions;
   /** What's changed since the latest SOW was generated (getSowChangeStatus) — the only source of SOW change notices. */
   sowChange?: SowChangeStatus;
   projectId: string;
@@ -106,13 +131,19 @@ export function StartSowDevelopmentPanel({
   // the currently-selected template; otherwise fall back to whichever
   // version is flagged current for that template.
   const [selectedVersionId, setSelectedVersionId] = useState(() => {
-    if (currentTemplateVersion && selectedTemplate?.versions.some((v) => v.id === currentTemplateVersion.id)) {
+    if (
+      currentTemplateVersion &&
+      selectedTemplate?.versions.some((v) => v.id === currentTemplateVersion.id)
+    ) {
       return currentTemplateVersion.id;
     }
     return defaultVersionId(selectedTemplate);
   });
 
+  const locked = lock !== null;
+
   function handleTemplateChange(value: string) {
+    if (locked) return;
     setSelectedTemplateId(value);
     setSelectedVersionId(defaultVersionId(templateOptions.find((t) => t.id === value)));
   }
@@ -188,8 +219,13 @@ export function StartSowDevelopmentPanel({
   }
 
   const stageDurations =
-    processingKind === "extract" ? SOW_EXTRACTION_STAGE_DURATIONS_MS : SOW_GENERATION_STAGE_DURATIONS_MS;
-  const { stageIndex, isFinalHold, elapsedInFinalHoldMs } = useFallbackStageProgress(busy, stageDurations);
+    processingKind === "extract"
+      ? SOW_EXTRACTION_STAGE_DURATIONS_MS
+      : SOW_GENERATION_STAGE_DURATIONS_MS;
+  const { stageIndex, isFinalHold, elapsedInFinalHoldMs } = useFallbackStageProgress(
+    busy,
+    stageDurations
+  );
 
   // Composition succeeded: show the success state briefly, then dismiss both
   // overlays into the generated SOW.
@@ -204,6 +240,7 @@ export function StartSowDevelopmentPanel({
   }, [overlayOpen, overlayStatus, processingKind]);
 
   function handleGenerateClick() {
+    if (locked) return;
     if (!briefCompleteness.canProceed) {
       setShowBriefGate(true);
       return;
@@ -223,11 +260,18 @@ export function StartSowDevelopmentPanel({
 
   const latestSowVersion = sowVersions[0];
   const olderSowVersions = sowVersions.slice(1);
-  const labelOf = (sowVersionId: string) => sowChange?.versions.find((v) => v.sowVersionId === sowVersionId)?.label;
+  const labelOf = (sowVersionId: string) =>
+    sowChange?.versions.find((v) => v.sowVersionId === sowVersionId)?.label;
 
   return (
     <div id="sow" className="scroll-mt-6 space-y-4">
-      <form action={formAction} className="space-y-3">
+      <form
+        action={formAction}
+        onSubmit={(event) => {
+          if (locked) event.preventDefault();
+        }}
+        className="space-y-3"
+      >
         <div>
           <label
             htmlFor="sowTemplateId"
@@ -240,6 +284,7 @@ export function StartSowDevelopmentPanel({
             name="sowTemplateId"
             value={selectedTemplateId}
             onChange={(e) => handleTemplateChange(e.target.value)}
+            aria-disabled={locked ? true : undefined}
             className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
           >
             <option value="" disabled>
@@ -266,7 +311,10 @@ export function StartSowDevelopmentPanel({
               id="sowTemplateVersionId"
               name="sowTemplateVersionId"
               value={selectedVersionId}
-              onChange={(e) => setSelectedVersionId(e.target.value)}
+              onChange={(e) => {
+                if (!locked) setSelectedVersionId(e.target.value);
+              }}
+              aria-disabled={locked ? true : undefined}
               className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
             >
               <option value="" disabled>
@@ -287,9 +335,20 @@ export function StartSowDevelopmentPanel({
             {state.message}
           </p>
         )}
-        <Button type="submit" disabled={pending}>
+        <Button
+          type="submit"
+          disabled={pending}
+          aria-disabled={locked ? true : undefined}
+          className={locked ? "cursor-not-allowed opacity-50" : ""}
+        >
           {pending ? "Saving…" : currentTemplate ? "Change SOW Template" : "Select SOW Template"}
         </Button>
+        {lock && (
+          <LockedNotice
+            versionNumber={lock.versionNumber}
+            clientApprovedOn={lock.clientApprovedOn}
+          />
+        )}
       </form>
 
       {currentTemplate && (
@@ -306,7 +365,8 @@ export function StartSowDevelopmentPanel({
             onClick={handleGenerateClick}
             // Not disabled while the review is open: focus must be able to return here when it closes.
             disabled={busy || !currentTemplate}
-            className="text-xs"
+            aria-disabled={locked ? true : undefined}
+            className={`text-xs ${locked ? "cursor-not-allowed opacity-50" : ""}`}
           >
             {busy ? "Working…" : latestSowVersion ? "Regenerate SOW" : "Generate SOW"}
           </Button>
@@ -333,15 +393,30 @@ export function StartSowDevelopmentPanel({
         )}
 
         {latestSowVersion ? (
-          <Card className="mt-3 space-y-1 p-4">
+          <Card id="sow-card" tabIndex={-1} className="mt-3 space-y-1 p-4 outline-none">
             {sowChange?.sowVersionId === latestSowVersion.id && (
               <div className="mb-2 empty:hidden">
                 <SowChangeNotice changes={sowChange.changes} onReview={handleGenerateClick} />
               </div>
             )}
-            <p className="text-sm font-medium text-foreground">
-              Version {latestSowVersion.versionNumber} — {formatDateTime(latestSowVersion.createdAt)}
+            <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground">
+              <span>
+                Version {latestSowVersion.versionNumber} —{" "}
+                {formatDateTime(latestSowVersion.createdAt)}
+              </span>
+              <DocumentStatusBadge
+                state={latestSowVersion.approvalState ?? "draft"}
+                approvedOn={latestSowVersion.approval?.clientApprovedOn}
+              />
             </p>
+            {latestSowVersion.sourceEstimateVersionNumber != null &&
+              latestSowVersion.total != null &&
+              latestSowVersion.currency && (
+                <p className="text-xs text-muted-foreground">
+                  From Estimate v{latestSowVersion.sourceEstimateVersionNumber} —{" "}
+                  {formatMoney(latestSowVersion.total, latestSowVersion.currency)}
+                </p>
+              )}
             {labelOf(latestSowVersion.id) && (
               <p className="text-xs text-muted-foreground">{labelOf(latestSowVersion.id)}</p>
             )}
@@ -354,6 +429,27 @@ export function StartSowDevelopmentPanel({
               Download .docx →
             </SowDownloadLink>
 
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <ApprovalActions
+                documentType="SOW"
+                versionId={latestSowVersion.id}
+                versionNumber={latestSowVersion.versionNumber}
+                approvalState={latestSowVersion.approvalState ?? "draft"}
+                approval={latestSowVersion.approval ?? null}
+                permissions={permissions}
+                blockedReason={latestSowVersion.approveBlockedReason ?? null}
+                focusId="sow-card"
+                summary={{
+                  name: "Statement of Work",
+                  versionNumber: latestSowVersion.versionNumber,
+                  generatedDate: formatDateTime(latestSowVersion.createdAt),
+                  total: latestSowVersion.total ?? null,
+                  currency: latestSowVersion.currency ?? null,
+                  sourceEstimateVersionNumber: latestSowVersion.sourceEstimateVersionNumber ?? null,
+                }}
+              />
+            </div>
+
             {olderSowVersions.length > 0 && (
               <details className="mt-2 border-t border-border pt-2">
                 <summary className="cursor-pointer text-xs font-medium text-primary">
@@ -365,9 +461,15 @@ export function StartSowDevelopmentPanel({
                       key={version.id}
                       className="flex flex-wrap items-center justify-between gap-2 text-xs text-foreground"
                     >
-                      <span>
-                        {labelOf(version.id) ?? `v${version.versionNumber}`} ·{" "}
-                        {formatDateTime(version.createdAt)}
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span>
+                          {labelOf(version.id) ?? `v${version.versionNumber}`} ·{" "}
+                          {formatDateTime(version.createdAt)}
+                        </span>
+                        <DocumentStatusBadge
+                          state={version.approvalState ?? "superseded"}
+                          approvedOn={version.approval?.clientApprovedOn}
+                        />
                       </span>
                       <SowDownloadLink
                         href={`/api/projects/${projectId}/sow/${version.id}`}
@@ -400,9 +502,15 @@ export function StartSowDevelopmentPanel({
 
       <ProcessingOverlay
         isOpen={overlayOpen}
-        title={processingKind === "extract" ? "Preparing the SOW review" : "Generating the Statement of Work"}
+        title={
+          processingKind === "extract"
+            ? "Preparing the SOW review"
+            : "Generating the Statement of Work"
+        }
         stages={[
-          ...(processingKind === "extract" ? SOW_EXTRACTION_PROCESSING_STAGES : SOW_GENERATION_PROCESSING_STAGES),
+          ...(processingKind === "extract"
+            ? SOW_EXTRACTION_PROCESSING_STAGES
+            : SOW_GENERATION_PROCESSING_STAGES),
         ]}
         stageIndex={stageIndex}
         status={overlayStatus}

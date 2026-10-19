@@ -400,7 +400,7 @@ describe("StartSowDevelopmentPanel", () => {
       ...extra,
     });
     const versions = [
-      { sowVersionId: "sowv_2", sowVersionNumber: 2, label: "SOW v2 — from Estimate v1 — 50,400 USD", status: "in_sync" as const },
+      { sowVersionId: "sowv_2", sowVersionNumber: 2, label: "SOW v2 — from Estimate v1 — 50,400.00 USD", status: "in_sync" as const },
       { sowVersionId: "sowv_1", sowVersionNumber: 1, label: "SOW v1 — source unknown", status: "unlinked" as const },
     ];
     const upToDate: SowChangeStatus = {
@@ -429,7 +429,7 @@ describe("StartSowDevelopmentPanel", () => {
 
     it("labels each version with the estimate version it came from", () => {
       renderPanel(upToDate);
-      expect(screen.getByText(/SOW v2 — from Estimate v1 — 50,400 USD/)).toBeInTheDocument();
+      expect(screen.getByText(/SOW v2 — from Estimate v1 — 50,400.00 USD/)).toBeInTheDocument();
       expect(screen.getByText(/SOW v1 — source unknown/)).toBeInTheDocument();
     });
 

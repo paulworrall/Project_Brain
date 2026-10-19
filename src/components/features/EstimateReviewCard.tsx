@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Toast } from "@/components/ui/Toast";
-import { formatMoney } from "@/lib/sowSyncView";
+import { formatMoney } from "@/lib/formatMoney";
 import { Button } from "@/components/ui/Button";
 import { capabilityLabel } from "@/lib/mapCapabilities";
 import {
@@ -38,9 +38,11 @@ interface FlatLineItem {
 function EstimateReviewLineRow({
   row,
   onUpdated,
+  readOnly = false,
 }: {
   row: FlatLineItem;
   onUpdated?: (view: EstimateBuildViewData) => void;
+  readOnly?: boolean;
 }) {
   // Same reasoning as RoleResolutionRow: report the fresh view here, inside
   // the action's own async function, once the update actually succeeds.
@@ -70,32 +72,43 @@ function EstimateReviewLineRow({
       <td className="py-1.5 pr-2">{row.role}</td>
       <td className="py-1.5 pr-2">{row.level ?? "—"}</td>
       <td className="py-1.5 pr-2">
-        <form action={formAction} className="flex flex-wrap items-center gap-1">
-          <input
-            type="number"
-            name="quantity"
-            step="0.01"
-            min="0.01"
-            defaultValue={row.quantity}
-            aria-label={`Quantity for ${row.role}`}
-            className="w-16 rounded-md border border-border bg-surface px-1.5 py-0.5 text-xs text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
-          />
-          <select
-            name="unit"
-            defaultValue={row.unit}
-            aria-label={`Unit for ${row.role}`}
-            className="rounded-md border border-border bg-surface px-1 py-0.5 text-xs text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
-          >
-            {ESTIMATE_UNIT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <Button type="submit" variant="ghost" className="px-2 py-0.5 text-xs" disabled={pending}>
-            {pending ? "…" : "Update"}
-          </Button>
-        </form>
+        {readOnly ? (
+          <p>
+            {row.quantity} {row.unit.toLowerCase()}
+          </p>
+        ) : (
+          <form action={formAction} className="flex flex-wrap items-center gap-1">
+            <input
+              type="number"
+              name="quantity"
+              step="0.01"
+              min="0.01"
+              defaultValue={row.quantity}
+              aria-label={`Quantity for ${row.role}`}
+              className="w-16 rounded-md border border-border bg-surface px-1.5 py-0.5 text-xs text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+            />
+            <select
+              name="unit"
+              defaultValue={row.unit}
+              aria-label={`Unit for ${row.role}`}
+              className="rounded-md border border-border bg-surface px-1 py-0.5 text-xs text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+            >
+              {ESTIMATE_UNIT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <Button
+              type="submit"
+              variant="ghost"
+              className="px-2 py-0.5 text-xs"
+              disabled={pending}
+            >
+              {pending ? "…" : "Update"}
+            </Button>
+          </form>
+        )}
         <p className="mt-0.5 text-muted-foreground">
           {formatQuantityWithHours(row.quantity, row.unit, row.hours)}
         </p>
@@ -137,7 +150,10 @@ export function EstimateReviewCard({
   onUpdated,
   onSaved,
   sowNotice,
+  readOnly = false,
 }: {
+  /** Estimate is locked (client approved): no quantity edits, no saving. */
+  readOnly?: boolean;
   projectId: string;
   estimateId: string;
   content: EstimateDocumentContent;
@@ -215,7 +231,12 @@ export function EstimateReviewCard({
           </thead>
           <tbody>
             {rows.map((row) => (
-              <EstimateReviewLineRow key={row.roleResolutionId} row={row} onUpdated={onUpdated} />
+              <EstimateReviewLineRow
+                key={row.roleResolutionId}
+                row={row}
+                onUpdated={onUpdated}
+                readOnly={readOnly}
+              />
             ))}
           </tbody>
         </table>
@@ -233,23 +254,32 @@ export function EstimateReviewCard({
             </p>
           )}
         </div>
-        <form action={formAction}>
-          <Button type="submit" disabled={pending}>
-            {pending ? "Saving…" : "Save as version"}
-          </Button>
-        </form>
+        {!readOnly && (
+          <form action={formAction}>
+            <Button type="submit" disabled={pending}>
+              {pending ? "Saving…" : "Save as version"}
+            </Button>
+          </form>
+        )}
       </div>
 
       {sowNotice && (
-        <p role="note" className="rounded-md border border-warning bg-warning-bg px-3 py-2 text-xs text-foreground">
+        <p
+          role="note"
+          className="rounded-md border border-warning bg-warning-bg px-3 py-2 text-xs text-foreground"
+        >
           Your SOW is based on Estimate v{sowNotice.estimateVersionNumber} (
-          {formatMoney(sowNotice.total, sowNotice.currency)}) — saving this version will put it out of date.
+          {formatMoney(sowNotice.total, sowNotice.currency)}) — saving this version will put it out
+          of date.
         </p>
       )}
       {showSowToast && (
         <Toast onDismiss={() => setShowSowToast(false)}>
           Estimate saved. Your SOW is now out of date.{" "}
-          <a href={`/projects/${projectId}#sow`} className="font-medium text-primary hover:underline">
+          <a
+            href={`/projects/${projectId}#sow`}
+            className="font-medium text-primary hover:underline"
+          >
             Update SOW
           </a>
         </Toast>

@@ -14,6 +14,14 @@ import {
 import { DeliverablesServicesDocumentSchema } from "@/types/deliverables-services";
 import { getBriefCompleteness } from "@/lib/briefCompleteness";
 import { getPmPerspective } from "@/lib/pmPerspectiveStore";
+import { auth } from "@/lib/auth";
+import { canApprove, canRevertApproval } from "@/lib/permissions";
+import {
+  approvalViewFor,
+  getProjectApprovals,
+  stageStatusWithApprovals,
+} from "@/lib/commercial/approvalViewData";
+import { sowApprovalBlockedReason } from "@/lib/commercial/sowApprovalGate";
 
 export default async function ProjectDetailPage({
   params,
@@ -80,7 +88,10 @@ export default async function ProjectDetailPage({
       },
       sow: {
         include: {
-          versions: { orderBy: { versionNumber: "desc" } },
+          versions: {
+            orderBy: { versionNumber: "desc" },
+            include: { sourceEstimateVersion: { select: { versionNumber: true } } },
+          },
         },
       },
       projectManager: true,
@@ -145,9 +156,21 @@ export default async function ProjectDetailPage({
       }
     : null;
 
-  const projectStatus = stages.every((stage) => stage.stageStatuses[0]?.status === "COMPLETE")
-    ? "COMPLETE"
-    : "ACTIVE";
+  const [session, approvals] = await Promise.all([auth(), getProjectApprovals(prisma, projectId)]);
+  const actor = session?.user ? { id: session.user.id, role: session.user.role } : null;
+  // Booleans only — role logic never reaches the client.
+  const permissions = { canApprove: canApprove(actor), canRevert: canRevertApproval(actor) };
+
+  // Stages 6 and 8 read Complete while their document is approved (computed on
+  // read — see stageStatusWithApprovals — so reverting restores them).
+  const stageStatuses = stages.map((stage) =>
+    stageStatusWithApprovals(
+      stage.number,
+      stage.stageStatuses[0]?.status ?? "NOT_STARTED",
+      approvals.summary
+    )
+  );
+  const projectStatus = stageStatuses.every((status) => status === "COMPLETE") ? "COMPLETE" : "ACTIVE";
 
   const [briefCompleteness, pmPerspective, versionHistory] = await Promise.all([
     getBriefCompleteness(project.id),
@@ -224,11 +247,29 @@ export default async function ProjectDetailPage({
       <ProjectWorkflow
         projectId={project.id}
         projectName={project.name}
-        stages={stages.map((stage) => ({
+        stages={stages.map((stage, index) => ({
           stageNumber: stage.number,
           name: stage.name,
-          status: stage.stageStatuses[0]?.status ?? "NOT_STARTED",
+          status: stageStatuses[index],
         }))}
+        approvedDocuments={approvals.summary}
+        approvalPermissions={permissions}
+        estimateLock={
+          approvals.summary.estimate
+            ? {
+                versionNumber: approvals.summary.estimate.versionNumber,
+                clientApprovedOn: approvals.summary.estimate.approval.clientApprovedOn,
+              }
+            : null
+        }
+        sowLock={
+          approvals.summary.sow
+            ? {
+                versionNumber: approvals.summary.sow.versionNumber,
+                clientApprovedOn: approvals.summary.sow.approval.clientApprovedOn,
+              }
+            : null
+        }
         clarificationEmail={clarificationEmail.success ? clarificationEmail.data : null}
         positionDocument={positionDocument.success ? positionDocument.data : null}
         clientUpdates={clientUpdates}
@@ -267,7 +308,21 @@ export default async function ProjectDetailPage({
           })),
         }))}
         sowVersions={
-          sow?.versions.map((v) => ({ id: v.id, versionNumber: v.versionNumber, createdAt: v.createdAt })) ?? []
+          sow?.versions.map((v, index) => ({
+            id: v.id,
+            versionNumber: v.versionNumber,
+            createdAt: v.createdAt,
+            ...approvalViewFor(approvals, "SOW", v.id, index === 0),
+            sourceEstimateVersionNumber: v.sourceEstimateVersion?.versionNumber ?? null,
+            total: v.sourceEstimateTotal === null ? null : Number(v.sourceEstimateTotal),
+            currency: v.sourceEstimateCurrency,
+            approveBlockedReason: sowApprovalBlockedReason({
+              approvedEstimateVersionId: approvals.approvedEstimateVersionId,
+              approvedEstimateVersionNumber: approvals.approvedEstimateVersionNumber,
+              sowSourceEstimateVersionId: v.sourceEstimateVersionId,
+              sowSourceEstimateVersionNumber: v.sourceEstimateVersion?.versionNumber ?? null,
+            }),
+          })) ?? []
         }
         briefCompleteness={briefCompleteness}
         pmPerspective={pmPerspective}
@@ -276,7 +331,7 @@ export default async function ProjectDetailPage({
         estimates={estimates.map((estimate) => ({
           id: estimate.id,
           label: estimate.label,
-          versions: estimate.versions.map((version) => ({
+          versions: estimate.versions.map((version, index) => ({
             id: version.id,
             versionNumber: version.versionNumber,
             createdAt: version.createdAt,
@@ -284,6 +339,8 @@ export default async function ProjectDetailPage({
             currency: version.currency,
             description: version.description,
             needsRecalculation: version.needsRecalculation,
+            capabilities: version.capabilitiesIncluded,
+            ...approvalViewFor(approvals, "ESTIMATE", version.id, index === 0),
           })),
         }))}
         rateCardOptions={rateCardOptions}

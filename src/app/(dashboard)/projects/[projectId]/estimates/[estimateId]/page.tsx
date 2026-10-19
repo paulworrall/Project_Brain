@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { EstimateBuildWorkspace } from "@/components/features/EstimateBuildWorkspace";
 import { getEstimateBuildViewData } from "@/lib/estimateBuildViewData";
 import { getSowChangeStatus } from "@/lib/sowChangeStatus";
+import { findActiveApproval } from "@/lib/commercial/approvalGuards";
 
 export default async function EstimateDetailPage({
   params,
@@ -31,9 +32,10 @@ export default async function EstimateDetailPage({
   const { client } = workstream;
   const { hub } = client;
 
-  const [view, sowChange] = await Promise.all([
+  const [view, sowChange, estimateApproval] = await Promise.all([
     getEstimateBuildViewData(estimateId),
     getSowChangeStatus(projectId),
+    findActiveApproval(prisma, projectId, "ESTIMATE"),
   ]);
   if (!view) {
     notFound();
@@ -82,6 +84,14 @@ export default async function EstimateDetailPage({
       <EstimateBuildWorkspace
         projectId={project.id}
         estimateId={estimate.id}
+        lock={
+          estimateApproval
+            ? {
+                versionNumber: estimateApproval.estimateVersion?.versionNumber ?? 0,
+                clientApprovedOn: estimateApproval.clientApprovedOn.toISOString().slice(0, 10),
+              }
+            : null
+        }
         sowNotice={
           pinnedSow?.source
             ? {

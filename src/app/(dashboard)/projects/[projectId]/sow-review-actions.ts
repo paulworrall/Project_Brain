@@ -1,6 +1,7 @@
 "use server";
 
 import { auth } from "@/lib/auth";
+import { lockMessage } from "@/lib/commercial/approvalGuards";
 import { assembleSowContext } from "@/lib/sow-context";
 import { checkSowPreconditions, type SowPreconditionFailure } from "@/lib/sowPreconditions";
 import {
@@ -48,6 +49,10 @@ export interface StartSowReviewResult extends Partial<SowPreconditionFailure> {
  * (planExtractionMerge). Nothing is ever deleted.
  */
 export async function startSowReviewAction(projectId: string): Promise<StartSowReviewResult> {
+  // Opening a review is the first step of regenerating the SOW — locked once approved.
+  const locked = await lockMessage("SOW", projectId);
+  if (locked) return { message: locked };
+
   const preconditions = await checkSowPreconditions(projectId);
   if (!preconditions.ok) return preconditions.failure;
 
