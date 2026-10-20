@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Card } from "@/components/ui/Card";
+import { SidebarPanel } from "./SidebarPanel";
 import { Button } from "@/components/ui/Button";
 import {
   uploadKnowledgeItemAction,
@@ -32,30 +32,18 @@ export function KnowledgeUpload({
   const latest = versions.at(-1);
 
   return (
-    <Card variant="feature" className="p-5">
-      <div className="flex items-center gap-3">
-        <span
-          aria-hidden="true"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
-        >
-          <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
-            <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.75" />
-            <path
-              d="M12 8v8M8 12h8"
-              stroke="currentColor"
-              strokeWidth="1.75"
-              strokeLinecap="round"
-            />
-          </svg>
-        </span>
-        <div>
-          <h3 className="text-base font-semibold text-foreground">Keep This Project Up to Date</h3>
-          <p className="text-xs text-muted-foreground">
-            Got an update from the client or team? Add it here to keep everything current.
-          </p>
-        </div>
-      </div>
-
+    <SidebarPanel
+      headingLevel={3}
+      className="p-5"
+      icon={
+        <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.75" />
+          <path d="M12 8v8M8 12h8" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+        </svg>
+      }
+      title="Keep This Project Up to Date"
+      subtitle={<>Got an update from the client or team? Add it here to keep everything current.</>}
+    >
       <form action={formAction} className="mt-3 space-y-2">
         <div
           role="radiogroup"
@@ -147,7 +135,11 @@ export function KnowledgeUpload({
           </button>
         </p>
       )}
-      <VersionHistoryDrawer versions={versions} isOpen={historyOpen} onClose={() => setHistoryOpen(false)} />
-    </Card>
+      <VersionHistoryDrawer
+        versions={versions}
+        isOpen={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+      />
+    </SidebarPanel>
   );
 }

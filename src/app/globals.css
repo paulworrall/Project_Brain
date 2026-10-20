@@ -10,6 +10,8 @@
   --border: #e2e8f0;
 
   --muted-foreground: #64748b;
+  /* Secondary text on the indigo tint (active phase tab): ~7:1 where muted-foreground is ~4.4:1. */
+  --muted-foreground-strong: #475569;
 
   --primary: #4338ca;
   --primary-hover: #3730a3;
@@ -45,6 +47,7 @@
   --color-border: var(--border);
 
   --color-muted-foreground: var(--muted-foreground);
+  --color-muted-foreground-strong: var(--muted-foreground-strong);
 
   --color-primary: var(--primary);
   --color-primary-hover: var(--primary-hover);

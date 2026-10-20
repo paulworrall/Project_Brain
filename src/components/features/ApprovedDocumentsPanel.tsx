@@ -1,4 +1,4 @@
-import { Card } from "@/components/ui/Card";
+import { SidebarPanel } from "./SidebarPanel";
 import { DocumentStatusBadge } from "@/components/ui/DocumentStatusBadge";
 import { formatApprovalDate } from "@/lib/commercial/approvalCopy";
 import { formatMoney } from "@/lib/formatMoney";
@@ -52,11 +52,34 @@ function Slot({ heading, doc }: { heading: string; doc: ApprovedDocSummary | nul
  */
 export function ApprovedDocumentsPanel({ summary }: { summary: ApprovedDocumentsSummary }) {
   return (
-    <Card className="space-y-4 p-4">
-      <h3 className="text-sm font-semibold text-foreground">Approved documents</h3>
-      <Slot heading="Estimate" doc={summary.estimate} />
-      <div className="border-t border-border" />
-      <Slot heading="Statement of Work" doc={summary.sow} />
-    </Card>
+    <SidebarPanel
+      className="p-5"
+      icon={
+        <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+          <path
+            d="M13 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4M13 3l5 5v2"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <rect x="13" y="15" width="7" height="5.5" rx="1.25" stroke="currentColor" strokeWidth="1.75" />
+          <path
+            d="M14.75 15v-1.25a1.75 1.75 0 0 1 3.5 0V15"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+          />
+        </svg>
+      }
+      title="Approved documents"
+      subtitle="Client-approved versions are locked. Changes need a change request."
+    >
+      <div className="mt-4 space-y-4">
+        <Slot heading="Estimate" doc={summary.estimate} />
+        <div className="border-t border-border" />
+        <Slot heading="Statement of Work" doc={summary.sow} />
+      </div>
+    </SidebarPanel>
   );
 }

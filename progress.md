@@ -622,3 +622,10 @@
 - **Deviations/known**: ApprovedDocumentsPanel "Go to section" (`#sow`) does nothing visible when another phase tab is active. Delivery Monitoring stays in Discover (TODO in `ProjectShell.tsx`). Not browser-verified at the time of commit.
 - **Tests**: 107 files, 861 tests passing; tsc, eslint and `next build` clean.
 
+### Follow-up: clearer phase tabs + Approved documents panel styling (FB-007) (2026-10-20)
+
+- **Tabs**: active tab gets the indigo tint fill, a 3px indigo bottom indicator, semibold indigo name and a 4px accent bar (3px inactive). Inactive tabs are one 44px-min link with pointer cursor, hover/press fills, an inset focus ring and `motion-safe` transitions; connectors are lighter and centred on the label line. Copy, accent colours, icons, routing and status logic are unchanged.
+- **Deviations**: (1) the active tab's verb pair and status use a new `--muted-foreground-strong` (#475569, ~7:1) because `muted-foreground` on the tint is ~4.4:1; inactive tabs use it on hover for the same reason. (2) The focus ring is inset (`-outline-offset-2`) so the scrolling strip doesn't clip it. (3) Tab border colours need `!` (`border-primary!`) because the global unlayered `* { border-color }` rule in globals.css beats plain utilities; that rule likely also neutralises other `border-primary` utilities in the app (e.g. the feature Card's `border-primary/30`), not changed here.
+- **Sidebar**: new shared `SidebarPanel` (icon badge, title, subtitle) used by Ask me anything, Keep This Project Up to Date, Project Set-Up Checklist and Approved documents. The first three render byte-identical markup (snapshot test captured before the refactor). No icon library exists, so the Approved documents icon (document with lock) is an inline SVG.
+- **Tests**: 108 files, 869 passing; tsc and eslint clean. Browser-checked at desktop and 375px (selected, hover, scroll-into-view, sidebar).
+
