@@ -222,6 +222,24 @@ describe("ApprovedDocumentsPanel", () => {
     sectionId: "estimates",
   };
 
+  it("sits in the shared sidebar panel: icon badge, title and subtitle, in both states", () => {
+    const { container, rerender } = render(<ApprovedDocumentsPanel summary={{ estimate: null, sow: null }} />);
+    const check = () => {
+      expect(screen.getByRole("heading", { name: "Approved documents" })).toBeInTheDocument();
+      expect(
+        screen.getByText("Client-approved versions are locked. Changes need a change request.")
+      ).toBeInTheDocument();
+      const badge = container.querySelector("span.rounded-full.bg-primary");
+      expect(badge).toHaveAttribute("aria-hidden", "true");
+      expect(badge?.querySelector("svg")).not.toBeNull();
+      // Same card treatment as the other sidebar panels.
+      expect(container.firstElementChild).toHaveClass("border-2", "p-5");
+    };
+    check();
+    rerender(<ApprovedDocumentsPanel summary={{ estimate: estimateDoc, sow: null }} />);
+    check();
+  });
+
   it("always shows both slots, with a placeholder for what is not approved", () => {
     render(<ApprovedDocumentsPanel summary={{ estimate: null, sow: null }} />);
     expect(screen.getAllByText("Not yet approved")).toHaveLength(2);

@@ -1,9 +1,16 @@
 import { PHASE_STATUS_LABEL, type PhaseStatus } from "@/lib/projectPhases";
 
 /** Status as icon + text — never colour alone. */
-export function PhaseStatusIndicator({ status }: { status: PhaseStatus }) {
+export function PhaseStatusIndicator({
+  status,
+  className = "text-muted-foreground",
+}: {
+  status: PhaseStatus;
+  /** Text colour; the active tab passes a stronger one for AA contrast on its tint. */
+  className?: string;
+}) {
   return (
-    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+    <span className={`inline-flex items-center gap-1 text-xs ${className}`}>
       <svg viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5 shrink-0" aria-hidden="true">
         {status === "complete" ? (
           <>

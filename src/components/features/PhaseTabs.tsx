@@ -48,28 +48,50 @@ export function PhaseTabs({
           return (
             <li key={phase.id} className="flex items-stretch">
               {index > 0 && (
-                <span aria-hidden="true" className="my-auto h-px w-4 shrink-0 bg-border sm:w-8" />
+                // Centred on the label line; not part of either tab's hit area.
+                <span
+                  aria-hidden="true"
+                  className="mt-[26px] h-px w-4 shrink-0 self-start bg-border/60 sm:w-8"
+                />
               )}
               <Link
                 ref={isActive ? activeRef : undefined}
                 href={`/projects/${projectId}/${phase.id}`}
                 aria-current={isActive ? "page" : undefined}
                 aria-label={`${phase.label}, ${PHASE_STATUS_LABEL[status].toLowerCase()}`}
-                className={`relative flex flex-col gap-0.5 rounded-t-md border-b-2 px-3 py-2 pt-3 text-left hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-safe:transition-colors ${
-                  isActive ? "border-primary bg-surface" : "border-transparent"
+                className={`group relative flex min-h-11 cursor-pointer flex-col gap-0.5 rounded-t-md border-b-[3px] px-3 pb-2 pt-3 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring motion-safe:transition-colors motion-safe:duration-150 ${
+                  // The global `* { border-color }` rule is unlayered and would beat plain utilities, hence `!`.
+                  isActive
+                    ? "border-primary! bg-accent"
+                    : "border-transparent! hover:bg-surface-muted active:bg-border"
                 }`}
               >
                 <span
                   aria-hidden="true"
-                  className={`absolute inset-x-3 top-0 h-1 rounded-full ${ACCENT_CLASS[phase.accentToken] ?? "bg-border"}`}
+                  className={`absolute inset-x-3 top-0 rounded-full ${isActive ? "h-1" : "h-[3px]"} ${ACCENT_CLASS[phase.accentToken] ?? "bg-border"}`}
                 />
-                <span className={`text-sm text-foreground ${isActive ? "font-semibold" : "font-medium"}`}>
+                <span
+                  className={`text-sm motion-safe:transition-colors motion-safe:duration-150 ${
+                    isActive
+                      ? "font-semibold text-primary"
+                      : "font-medium text-foreground/75 group-hover:text-foreground"
+                  }`}
+                >
                   {phase.label}
                 </span>
-                <span className="hidden text-xs text-muted-foreground md:block">
+                <span
+                  className={`hidden text-xs md:block ${isActive ? "text-muted-foreground-strong" : "text-muted-foreground group-hover:text-muted-foreground-strong"}`}
+                >
                   {phase.verbs[0]} · {phase.verbs[1]}
                 </span>
-                <PhaseStatusIndicator status={status} />
+                <PhaseStatusIndicator
+                  status={status}
+                  className={
+                    isActive
+                      ? "text-muted-foreground-strong"
+                      : "text-muted-foreground group-hover:text-muted-foreground-strong"
+                  }
+                />
               </Link>
             </li>
           );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useRef } from "react";
-import { Card } from "@/components/ui/Card";
+import { SidebarPanel } from "./SidebarPanel";
 import {
   toggleChecklistItemAction,
   updateChecklistItemDetailAction,
@@ -17,10 +17,7 @@ function ChecklistItemDetailField({
   item: ChecklistItemView;
 }) {
   const action = updateChecklistItemDetailAction.bind(null, projectId, item.id);
-  const [state, formAction] = useActionState<ActionState | undefined, FormData>(
-    action,
-    undefined
-  );
+  const [state, formAction] = useActionState<ActionState | undefined, FormData>(action, undefined);
   const formRef = useRef<HTMLFormElement>(null);
 
   return (
@@ -84,30 +81,34 @@ export function EditableChecklist({
   items: ChecklistItemView[];
 }) {
   return (
-    <Card variant="feature" className="p-5">
-      <div className="flex items-center gap-3">
-        <span
-          aria-hidden="true"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
-        >
-          <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
-            <rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" strokeWidth="1.75" />
-            <path
-              d="M8 12.5l2.5 2.5L16 9.5"
-              stroke="currentColor"
-              strokeWidth="1.75"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </span>
-        <div>
-          <h3 className="text-base font-semibold text-foreground">Project Set-Up Checklist</h3>
-          <p className="text-xs text-muted-foreground">
-            Tick items off as they&apos;re completed — the detail field is always editable.
-          </p>
-        </div>
-      </div>
+    <SidebarPanel
+      headingLevel={3}
+      className="p-5"
+      icon={
+        <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+          <rect
+            x="4"
+            y="4"
+            width="16"
+            height="16"
+            rx="3"
+            stroke="currentColor"
+            strokeWidth="1.75"
+          />
+          <path
+            d="M8 12.5l2.5 2.5L16 9.5"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      }
+      title="Project Set-Up Checklist"
+      subtitle={
+        <>Tick items off as they&apos;re completed — the detail field is always editable.</>
+      }
+    >
       {items.length === 0 ? (
         <p className="mt-2 text-sm text-muted-foreground">No checklist items yet.</p>
       ) : (
@@ -130,6 +131,6 @@ export function EditableChecklist({
           ))}
         </ul>
       )}
-    </Card>
+    </SidebarPanel>
   );
 }

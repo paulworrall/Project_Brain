@@ -25,6 +25,7 @@ Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (P
 | `src/lib/projectPhases.ts` | 5D phase config, `deriveProjectPhaseStatuses`, current-phase helper | FB-007 |
 | `src/lib/projectPageData.ts` | Cached `loadProjectPageData` (all project page queries and derivations) | FB-007 |
 | `projects/[projectId]/(shell)/{layout,page}.tsx`, `(shell)/[phase]/page.tsx` | Persistent shell, redirect to current phase, phase page (404 unknown slug) | FB-007 |
+| `SidebarPanel` | Shared sidebar panel look (icon badge, title, subtitle); used by chat, knowledge upload, checklist, approved documents | FB-007 follow-up |
 | `ProjectShell`, `PhaseTabs`, `PhaseStatusIndicator`, `PhaseComingSoon`, `PreviousPhaseNotice`, `ProjectSidebar` | Tab row/columns/drawer, nav, status icon+text, placeholder panel, non-blocking note, project-wide tools | FB-007 |
 | `ProjectWorkflow` | Now exports `DiscoverPhaseContent` (left column) + `ProjectWorkflow` (both) | FB-007 |
 
@@ -108,7 +109,7 @@ Unchanged recently — see `progress.md`. Auth (`src/lib/{auth,permissions}.ts`,
 | `.prettierrc.json`, `eslint.config.mjs`, `vitest.config.mts`, `.claude/launch.json` | Formatting (printWidth 100), lint, tests, dev/prod preview servers |
 | `.gitignore` | Includes `.env.local` |
 
-### Test Files (107 files, 861 tests, all passing)
+### Test Files (108 files, 869 tests, all passing)
 | File | Tests | Status |
 |------|-------|--------|
 | `tests/lib/projectPhases.test.ts`, `tests/components/{PhaseTabs,PhaseComingSoon,ProjectShell}.test.tsx`, `tests/project-phase-routing.test.tsx` | Status derivation, tab nav/aria/keyboard, coming-soon content and no controls, sidebar+Discover persistence, focus/announce, drawer, redirect/404 routing, revalidatePath uses layout | ✅ New |
