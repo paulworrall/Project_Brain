@@ -29,7 +29,7 @@ import {
   type ClarificationEmail,
   type IntakeAgentResult,
   type PositionDocumentExtraction,
-  type SetupChecklist,
+  type IntakeSetupChecklist,
 } from "@/types/intake";
 
 export class IntakeAgentError extends Error {
@@ -148,8 +148,8 @@ export async function generateClarificationEmail(
   }
 }
 
-export function generateSetupChecklist(): SetupChecklist {
-  return { items: [...DEFAULT_SETUP_CHECKLIST_ITEMS] };
+export function generateSetupChecklist(): IntakeSetupChecklist {
+  return { items: DEFAULT_SETUP_CHECKLIST_ITEMS.map((item) => ({ ...item })) };
 }
 
 /**

@@ -33,9 +33,10 @@ export function SidebarPanel({
         >
           {icon}
         </span>
-        <div>
+        <div className="min-w-0">
           <Heading className="text-base font-medium text-foreground">{title}</Heading>
-          <p className="text-xs text-muted-foreground">{subtitle}</p>
+          {/* break-words: a long unbroken project name must not widen the sticky sidebar. */}
+          <p className="text-xs break-words text-muted-foreground">{subtitle}</p>
         </div>
       </div>
       {children}

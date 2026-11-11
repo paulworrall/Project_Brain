@@ -47,7 +47,11 @@ export type ApprovalErrorCode =
   | "LOCKED"
   | "UNDO_WINDOW_EXPIRED"
   | "FORBIDDEN"
-  | "VALIDATION";
+  | "VALIDATION"
+  // FB-008 project-step actions share this result shape.
+  | "PROJECT_COMPLETE"
+  | "NOT_FOUND"
+  | "ESTIMATE_APPROVED";
 
 export type ActionResult<T> =
   | { ok: true; data: T }

@@ -1,12 +1,6 @@
 import type { ClarificationEmail, PositionDocumentFields } from "@/types/intake";
-import type { Capability } from "@/generated/prisma/enums";
 import { PositionDocumentView } from "./PositionDocumentView";
 import { ClarificationEmailCard, type ClarificationEmailDraftMeta } from "./ClarificationEmailCard";
-import {
-  CapabilitiesAndEstimateBriefPanel,
-  type EstimateBriefVersionMeta,
-} from "./CapabilitiesAndEstimateBriefPanel";
-import type { ChecklistItemView } from "./ChecklistView";
 import { BriefChecklist } from "./BriefChecklist";
 import type { BriefCompleteness } from "@/lib/briefCompleteness";
 import { PmPerspectivePanel } from "./PmPerspectivePanel";
@@ -29,24 +23,24 @@ export interface ClientUpdateLogEntry {
 }
 
 /**
- * Phase 1 ("Clarifying the brief and scope") as a single fluid workspace —
- * replaces the old 4-step gated sequence (Intake / Clarification Email Sent
- * / Get Clarifications / Triage). Clarification happens repeatedly, over
- * days or weeks, outside the platform, so this surfaces the Position
- * Document's live state plus a repeatable client-update log instead of a
- * one-shot step you complete once.
+ * The Brief step's working content (FB-008; formerly Phase 1, "Clarifying the
+ * brief and scope") as a single fluid workspace. Clarification happens
+ * repeatedly, over days or weeks, outside the platform, so this surfaces the
+ * key details, the PM's perspective, the Position Document's live state and
+ * the client email draft. The step's readiness list and scope gate are added
+ * around it by BriefStep. Capabilities & Estimate Brief moved to the Estimate
+ * step in FB-008.
  */
 export interface Phase1WorkspaceProps {
   projectId: string;
   positionDocument: PositionDocumentFields | null;
   clientUpdates: ClientUpdateLogEntry[];
   clarificationEmail: ClarificationEmail | null;
-  checklistItems: ChecklistItemView[];
   briefCompleteness: BriefCompleteness;
   pmPerspective: PmPerspectiveFieldView[];
-  confirmedCapabilities: Capability[];
-  estimateBriefVersion: EstimateBriefVersionMeta | null;
   clarificationEmailDraft?: ClarificationEmailDraftMeta | null;
+  /** The project is complete: key details and PM perspective can't be edited. */
+  readOnly?: boolean;
 }
 
 export function Phase1Workspace({
@@ -54,37 +48,33 @@ export function Phase1Workspace({
   positionDocument,
   clientUpdates,
   clarificationEmail,
-  checklistItems,
   briefCompleteness,
   pmPerspective,
-  confirmedCapabilities,
-  estimateBriefVersion,
   clarificationEmailDraft,
+  readOnly = false,
 }: Phase1WorkspaceProps) {
   const otherDetailsCount = positionDocument?.whatWeKnow.length ?? 0;
   const outstandingCount = briefCompleteness.requiredOutstanding.length;
-  const completeChecklistCount = checklistItems.filter((item) => item.isComplete).length;
 
   return (
     <div className="space-y-6">
       <div
         className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground"
-        aria-label="Step 1 progress summary"
+        aria-label="Brief progress summary"
       >
         <span>{pluralize(otherDetailsCount, "other detail")} from the brief</span>
         <span aria-hidden="true">·</span>
         <span>{pluralize(outstandingCount, "required detail")} to find out</span>
         <span aria-hidden="true">·</span>
         <span>{pluralize(clientUpdates.length, "update")} logged</span>
-        <span aria-hidden="true">·</span>
-        <span>
-          {completeChecklistCount}/{checklistItems.length} checklist items complete
-        </span>
       </div>
 
-      <BriefChecklist projectId={projectId} completeness={briefCompleteness} />
-
-      <PmPerspectivePanel projectId={projectId} fields={pmPerspective} />
+      {/* A disabled fieldset makes every control inside read-only once the project is complete. */}
+      <fieldset disabled={readOnly} className="min-w-0 space-y-6">
+        <legend className="sr-only">Key details and PM perspective</legend>
+        <BriefChecklist projectId={projectId} completeness={briefCompleteness} />
+        <PmPerspectivePanel projectId={projectId} fields={pmPerspective} />
+      </fieldset>
 
       <div>
         <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -101,12 +91,6 @@ export function Phase1Workspace({
         projectId={projectId}
         email={clarificationEmail}
         draft={clarificationEmailDraft}
-      />
-
-      <CapabilitiesAndEstimateBriefPanel
-        projectId={projectId}
-        confirmedCapabilities={confirmedCapabilities}
-        estimateBriefVersion={estimateBriefVersion}
       />
     </div>
   );

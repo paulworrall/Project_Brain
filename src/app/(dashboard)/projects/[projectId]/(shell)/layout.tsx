@@ -1,19 +1,21 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { DiscoverPhaseContent } from "@/components/features/ProjectWorkflow";
+import { BriefStep, EstimateStep, SowStep } from "@/components/features/ProjectWorkflow";
 import { ProjectSummaryBar } from "@/components/features/ProjectSummaryBar";
 import { ProjectSidebar } from "@/components/features/ProjectSidebar";
 import { ProjectShell } from "@/components/features/ProjectShell";
 import { loadProjectPageData } from "@/lib/projectPageData";
 import { approvalViewFor } from "@/lib/commercial/approvalViewData";
 import { sowApprovalBlockedReason } from "@/lib/commercial/sowApprovalGate";
+import { SOW_PHASE_INDICATOR_TEXT } from "@/lib/sowChangeView";
 
 /**
- * The persistent project shell: breadcrumb, title, header box, phase tab bar
- * and the project sidebar. It renders once and survives phase-tab switches, so
- * the sidebar never remounts. Discover's content is rendered here too (and
- * hidden while another phase is showing) so unsaved edits in its cards are not
- * lost on a tab switch — see ProjectShell. Other phases render via `children`.
+ * The persistent project shell: breadcrumb, title, header box, the Brief →
+ * Estimate → SOW stepper and the Project assistant sidebar. It renders once
+ * and survives step switches, so the sidebar never remounts. All three steps'
+ * content is rendered here (only the active one shown) so unsaved edits in a
+ * step are not lost on a switch — see ProjectShell. Each step's route page
+ * renders nothing of its own.
  */
 export default async function ProjectLayout({
   children,
@@ -33,17 +35,13 @@ export default async function ProjectLayout({
     workstream,
     client,
     hub,
-    stages,
-    stageStatuses,
     projectStatus,
     projectManagerOptions,
     sowTemplateOptions,
     rateCardOptions,
     clarificationEmail,
     positionDocument,
-    deliverablesServicesDocument,
     clarificationEmailVersion,
-    specialistFeedback,
     permissions,
     approvals,
     briefCompleteness,
@@ -56,7 +54,11 @@ export default async function ProjectLayout({
     estimateBriefVersion,
     estimates,
     sow,
-    phaseStatuses,
+    stepStatuses,
+    stepSummaries,
+    projectComplete,
+    systemChecks,
+    specialistRows,
   } = data;
 
   const versions = versionHistory.map(({ content: _content, ...version }) => version);
@@ -65,7 +67,10 @@ export default async function ProjectLayout({
     label: item.label,
     isComplete: item.isComplete,
     detailText: item.detailText,
+    step: item.step,
   }));
+  const estimateApproved = approvals.summary.estimate !== null;
+  const common = { projectId: project.id, checklistItems: checklistView, projectComplete };
 
   return (
     <div className="space-y-6">
@@ -84,7 +89,9 @@ export default async function ProjectLayout({
               {workstream.name}
             </Link>
           </nav>
-          <h1 className="mt-1 text-3xl leading-tight font-light text-foreground sm:text-4xl">{project.name}</h1>
+          <h1 className="mt-1 text-3xl leading-tight font-light text-foreground sm:text-4xl">
+            {project.name}
+          </h1>
         </div>
         <Link
           href={`/projects/${project.id}/outputs`}
@@ -104,7 +111,11 @@ export default async function ProjectLayout({
         projectManagerOptions={projectManagerOptions}
         rateCard={
           project.rateCard
-            ? { id: project.rateCard.id, name: project.rateCard.name, currency: project.rateCard.currency }
+            ? {
+                id: project.rateCard.id,
+                name: project.rateCard.name,
+                currency: project.rateCard.currency,
+              }
             : null
         }
         rateCardOptions={client.rateCards.map((rc) => ({
@@ -116,113 +127,129 @@ export default async function ProjectLayout({
 
       <ProjectShell
         projectId={project.id}
-        phaseStatuses={phaseStatuses}
-        discover={
-          <DiscoverPhaseContent
-            projectId={project.id}
-            projectName={project.name}
-            stages={stages.map((stage, index) => ({
-              stageNumber: stage.number,
-              name: stage.name,
-              status: stageStatuses[index],
-            }))}
-            approvedDocuments={approvals.summary}
-            approvalPermissions={permissions}
-            estimateLock={
-              approvals.summary.estimate
-                ? {
-                    versionNumber: approvals.summary.estimate.versionNumber,
-                    clientApprovedOn: approvals.summary.estimate.approval.clientApprovedOn,
-                  }
-                : null
-            }
-            sowLock={
-              approvals.summary.sow
-                ? {
-                    versionNumber: approvals.summary.sow.versionNumber,
-                    clientApprovedOn: approvals.summary.sow.approval.clientApprovedOn,
-                  }
-                : null
-            }
-            clarificationEmail={clarificationEmail.success ? clarificationEmail.data : null}
-            positionDocument={positionDocument.success ? positionDocument.data : null}
-            clientUpdates={clientUpdates}
-            checklistItems={checklistView}
-            specialistFeedback={specialistFeedback}
-            deliverablesServicesDocument={
-              deliverablesServicesDocument.success ? deliverablesServicesDocument.data : null
-            }
-            versions={versions}
-            sowChange={sowChange}
-            clarificationEmailDraft={
-              clarificationEmailVersion
-                ? {
-                    versionNumber: clarificationEmailVersion.versionNumber,
-                    triggeredByUpdateVersion: clarificationEmailVersion.triggeredByUpdateVersion,
-                    createdAt: clarificationEmailVersion.createdAt,
-                  }
-                : null
-            }
-            currentSowTemplate={project.sowTemplate ? { id: project.sowTemplate.id, name: project.sowTemplate.name } : null}
-            currentSowTemplateVersion={project.sowTemplateVersion ? { id: project.sowTemplateVersion.id } : null}
-            sowTemplateOptions={sowTemplateOptions.map((t) => ({
-              id: t.id,
-              name: t.name,
-              isBaseline: t.isBaseline,
-              versions: t.versions.map((v) => ({
-                id: v.id,
-                versionNumber: v.versionNumber,
-                fileName: v.fileName,
-                status: v.status,
-              })),
-            }))}
-            sowVersions={
-              sow?.versions.map((v, index) => ({
-                id: v.id,
-                versionNumber: v.versionNumber,
-                createdAt: v.createdAt,
-                ...approvalViewFor(approvals, "SOW", v.id, index === 0),
-                sourceEstimateVersionNumber: v.sourceEstimateVersion?.versionNumber ?? null,
-                total: v.sourceEstimateTotal === null ? null : Number(v.sourceEstimateTotal),
-                currency: v.sourceEstimateCurrency,
-                approveBlockedReason: sowApprovalBlockedReason({
-                  approvedEstimateVersionId: approvals.approvedEstimateVersionId,
-                  approvedEstimateVersionNumber: approvals.approvedEstimateVersionNumber,
-                  sowSourceEstimateVersionId: v.sourceEstimateVersionId,
-                  sowSourceEstimateVersionNumber: v.sourceEstimateVersion?.versionNumber ?? null,
-                }),
-              })) ?? []
-            }
-            briefCompleteness={briefCompleteness}
-            pmPerspective={pmPerspective}
-            confirmedCapabilities={confirmedCapabilities}
-            estimateBriefVersion={estimateBriefVersion}
-            estimates={estimates.map((estimate) => ({
-              id: estimate.id,
-              label: estimate.label,
-              versions: estimate.versions.map((version, index) => ({
-                id: version.id,
-                versionNumber: version.versionNumber,
-                createdAt: version.createdAt,
-                totalValue: Number(version.totalValue),
-                currency: version.currency,
-                description: version.description,
-                needsRecalculation: version.needsRecalculation,
-                capabilities: version.capabilitiesIncluded,
-                ...approvalViewFor(approvals, "ESTIMATE", version.id, index === 0),
-              })),
-            }))}
-            rateCardOptions={rateCardOptions}
-          />
+        stepStatuses={stepStatuses}
+        stepSummaries={stepSummaries}
+        attention={
+          sowChange?.status === "changed_since_generation"
+            ? { sow: SOW_PHASE_INDICATOR_TEXT }
+            : undefined
         }
+        steps={{
+          brief: (
+            <BriefStep
+              {...common}
+              systemChecks={systemChecks.brief}
+              positionDocument={positionDocument.success ? positionDocument.data : null}
+              clientUpdates={clientUpdates}
+              clarificationEmail={clarificationEmail.success ? clarificationEmail.data : null}
+              clarificationEmailDraft={
+                clarificationEmailVersion
+                  ? {
+                      versionNumber: clarificationEmailVersion.versionNumber,
+                      triggeredByUpdateVersion: clarificationEmailVersion.triggeredByUpdateVersion,
+                      createdAt: clarificationEmailVersion.createdAt,
+                    }
+                  : null
+              }
+              briefCompleteness={briefCompleteness}
+              pmPerspective={pmPerspective}
+              scopeConfirmedAt={project.scopeConfirmedAt?.toISOString() ?? null}
+              scopeConfirmedByName={project.scopeConfirmedBy?.name ?? null}
+              estimateApproved={estimateApproved}
+            />
+          ),
+          estimate: (
+            <EstimateStep
+              {...common}
+              systemChecks={systemChecks.estimate}
+              scopeConfirmed={project.scopeConfirmedAt !== null}
+              confirmedCapabilities={confirmedCapabilities}
+              estimateBriefVersion={estimateBriefVersion}
+              specialistRows={specialistRows}
+              estimates={estimates.map((estimate) => ({
+                id: estimate.id,
+                label: estimate.label,
+                versions: estimate.versions.map((version, index) => ({
+                  id: version.id,
+                  versionNumber: version.versionNumber,
+                  createdAt: version.createdAt,
+                  totalValue: Number(version.totalValue),
+                  currency: version.currency,
+                  description: version.description,
+                  needsRecalculation: version.needsRecalculation,
+                  capabilities: version.capabilitiesIncluded,
+                  ...approvalViewFor(approvals, "ESTIMATE", version.id, index === 0),
+                })),
+              }))}
+              rateCardOptions={rateCardOptions}
+              estimateLock={
+                approvals.summary.estimate
+                  ? {
+                      versionNumber: approvals.summary.estimate.versionNumber,
+                      clientApprovedOn: approvals.summary.estimate.approval.clientApprovedOn,
+                    }
+                  : null
+              }
+              approvalPermissions={permissions}
+            />
+          ),
+          sow: (
+            <SowStep
+              {...common}
+              systemChecks={systemChecks.sow}
+              estimateApproved={estimateApproved}
+              sowChange={sowChange}
+              currentSowTemplate={
+                project.sowTemplate
+                  ? { id: project.sowTemplate.id, name: project.sowTemplate.name }
+                  : null
+              }
+              currentSowTemplateVersion={
+                project.sowTemplateVersion ? { id: project.sowTemplateVersion.id } : null
+              }
+              sowTemplateOptions={sowTemplateOptions.map((t) => ({
+                id: t.id,
+                name: t.name,
+                isBaseline: t.isBaseline,
+                versions: t.versions.map((v) => ({
+                  id: v.id,
+                  versionNumber: v.versionNumber,
+                  fileName: v.fileName,
+                  status: v.status,
+                })),
+              }))}
+              sowVersions={
+                sow?.versions.map((v, index) => ({
+                  id: v.id,
+                  versionNumber: v.versionNumber,
+                  createdAt: v.createdAt,
+                  ...approvalViewFor(approvals, "SOW", v.id, index === 0),
+                  sourceEstimateVersionNumber: v.sourceEstimateVersion?.versionNumber ?? null,
+                  total: v.sourceEstimateTotal === null ? null : Number(v.sourceEstimateTotal),
+                  currency: v.sourceEstimateCurrency,
+                  approveBlockedReason: sowApprovalBlockedReason({
+                    approvedEstimateVersionId: approvals.approvedEstimateVersionId,
+                    approvedEstimateVersionNumber: approvals.approvedEstimateVersionNumber,
+                    sowSourceEstimateVersionId: v.sourceEstimateVersionId,
+                    sowSourceEstimateVersionNumber: v.sourceEstimateVersion?.versionNumber ?? null,
+                  }),
+                })) ?? []
+              }
+              briefCompleteness={briefCompleteness}
+              sowLock={
+                approvals.summary.sow
+                  ? {
+                      versionNumber: approvals.summary.sow.versionNumber,
+                      clientApprovedOn: approvals.summary.sow.approval.clientApprovedOn,
+                    }
+                  : null
+              }
+              approvalPermissions={permissions}
+            />
+          ),
+        }}
         sidebar={
-          <ProjectSidebar
-            projectId={project.id}
-            projectName={project.name}
-            versions={versions}
-            checklistItems={checklistView}
-            approvedDocuments={approvals.summary}
-          />
+          <ProjectSidebar projectId={project.id} projectName={project.name} versions={versions} />
         }
       >
         {children}

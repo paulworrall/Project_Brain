@@ -69,24 +69,44 @@ export const ClarificationEmailSchema = z.object({
 });
 export type ClarificationEmail = z.infer<typeof ClarificationEmailSchema>;
 
+/** The stored Set-Up Checklist document (DocumentType CHECKLIST): labels only. */
 export const SetupChecklistSchema = z.object({
   items: z.array(z.string()),
 });
 export type SetupChecklist = z.infer<typeof SetupChecklistSchema>;
 
-export const DEFAULT_SETUP_CHECKLIST_ITEMS: readonly string[] = [
-  "Set up Workbook entry",
-  "Create project folder",
-  "Assign job code",
-  "Assign Project Manager",
-  "Create Teams channel",
+/**
+ * One checklist item as intake creates it (FB-008): its label and the step
+ * whose "Before you move on" list it belongs to.
+ */
+export const SetupChecklistItemSchema = z.object({
+  label: z.string(),
+  step: z.enum(["brief", "estimate", "sow"]),
+});
+export type SetupChecklistItem = z.infer<typeof SetupChecklistItemSchema>;
+
+export interface IntakeSetupChecklist {
+  items: SetupChecklistItem[];
+}
+
+/**
+ * The fixed set-up items every new project starts with (not AI-generated).
+ * All are early admin tasks, so all belong to the Brief step; PMs can move
+ * any of them to another step when editing.
+ */
+export const DEFAULT_SETUP_CHECKLIST_ITEMS: readonly SetupChecklistItem[] = [
+  { label: "Set up Workbook entry", step: "brief" },
+  { label: "Create project folder", step: "brief" },
+  { label: "Assign job code", step: "brief" },
+  { label: "Assign Project Manager", step: "brief" },
+  { label: "Create Teams channel", step: "brief" },
 ];
 
 export interface IntakeAgentResult {
   classification: BriefClassification;
   positionDocument: PositionDocumentExtraction;
   clarificationEmail: ClarificationEmail;
-  checklist: SetupChecklist;
+  checklist: IntakeSetupChecklist;
   /** Key details read from the brief (stored as suggestions), or null if that step failed. */
   keyAttributes: KeyAttributeExtraction | null;
   /** Why key-detail extraction failed — recorded on the project, never blocks intake. */

@@ -115,6 +115,11 @@ model Project {
   keyAttributeExtractionFailedAt DateTime?
   keyAttributeExtractionError    String?
 
+  // FB-008: the PM confirmed the scope is ready to estimate (the Brief step's
+  // gate). Cleared by "Reopen scope". Both null until confirmed.
+  scopeConfirmedAt       DateTime?
+  scopeConfirmedByUserId String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -125,6 +130,7 @@ model Project {
   sowTemplate            SOWTemplate?            @relation(fields: [sowTemplateId], references: [id], onDelete: SetNull)
   sowTemplateVersion     SOWTemplateVersion?     @relation(fields: [sowTemplateVersionId], references: [id], onDelete: SetNull)
   masterServiceAgreement MasterServiceAgreement? @relation(fields: [masterServiceAgreementId], references: [id], onDelete: SetNull)
+  scopeConfirmedBy       User?                   @relation("ScopeConfirmedBy", fields: [scopeConfirmedByUserId], references: [id], onDelete: SetNull)
   stageStatuses          ProjectStageStatus[]
   documents              Document[]
   checklistItems         ChecklistItem[]
@@ -138,10 +144,11 @@ model Project {
   sow                    SOW?
   briefAttributeValues   BriefAttributeValue[]
   pmPerspectiveEntries   PmPerspectiveEntry[]
-
-  @@unique([workstreamId, name])
+  specialistInputs       SpecialistInput[]
 
   commercialApprovals CommercialApproval[]
+
+  @@unique([workstreamId, name])
 }
 
 // ---------------------------------------------------------------------------
@@ -351,22 +358,22 @@ model Document {
 }
 
 model DocumentVersion {
-  id            String   @id @default(cuid())
-  documentId    String
-  versionNumber Int
+  id                       String   @id @default(cuid())
+  documentId               String
+  versionNumber            Int
   // Structured fields for this artifact type (see src/types for the shape
   // matching each DocumentType) — agents write this, never free text.
-  content       Json
-  stageNumber   Int
+  content                  Json
+  stageNumber              Int
   // The brief version (1 = the brief, then each update's) this was built
   // from; null on outputs made before this was recorded (worked out from
   // createdAt instead). Provenance only: kept for audit; no longer drives any staleness flag.
-  builtFromVersion Int?
+  builtFromVersion         Int?
   // Set when this version was drafted automatically because an update was
   // saved (the clarification email): that update's version number.
   triggeredByUpdateVersion Int?
-  createdById   String?
-  createdAt     DateTime @default(now())
+  createdById              String?
+  createdAt                DateTime @default(now())
 
   document  Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
   createdBy User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
@@ -426,26 +433,26 @@ model EstimateBrief {
 }
 
 model EstimateBriefVersion {
-  id              String       @id @default(cuid())
-  estimateBriefId String
-  versionNumber   Int
-  fileName        String
+  id               String       @id @default(cuid())
+  estimateBriefId  String
+  versionNumber    Int
+  fileName         String
   // Rendered .docx bytes, downloaded as-is — see estimate-brief-docx.ts.
-  fileBytes       Bytes
+  fileBytes        Bytes
   // Structured content behind the .docx (project overview + one section per
   // capability) — kept alongside the rendered file for the in-app review
   // step, same rationale as DocumentVersion.content.
-  content         Json
+  content          Json
   // Snapshot of which capabilities were confirmed at generation time — a
   // frozen historical record, not a live relation, so a plain Postgres enum
   // array rather than another join table.
-  capabilities    Capability[]
-  createdById     String?
+  capabilities     Capability[]
+  createdById      String?
   // The brief version (1 = the brief, then each update's) this was built
   // from; null on outputs made before this was recorded (worked out from
   // createdAt instead). Provenance only: kept for audit; no longer drives any staleness flag.
   builtFromVersion Int?
-  createdAt       DateTime     @default(now())
+  createdAt        DateTime     @default(now())
 
   estimateBrief EstimateBrief @relation(fields: [estimateBriefId], references: [id], onDelete: Cascade)
   createdBy     User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
@@ -473,27 +480,27 @@ model SOW {
 }
 
 model SOWVersion {
-  id                   String   @id @default(cuid())
-  sowId                String
-  versionNumber        Int
-  fileName             String
+  id                         String       @id @default(cuid())
+  sowId                      String
+  versionNumber              Int
+  fileName                   String
   // Rendered .docx bytes, downloaded as-is — see sow-docx.ts.
-  fileBytes            Bytes
+  fileBytes                  Bytes
   // { coverDetails: SowCoverDetails, body: SOWDocumentContent } — deterministic
   // cover-details half (client/dates/commercials, never agent-authored) plus
   // the agent-drafted narrative half, kept together as one self-contained
   // historical snapshot — see src/types/sow.ts.
-  content              Json
+  content                    Json
   // Frozen snapshot of which template/version this draft was generated
   // against — see the model comment above. Nullable/SetNull: removing a
   // template later shouldn't invalidate the historical SOWVersion record.
-  sowTemplateId        String?
-  sowTemplateVersionId String?
-  createdById          String?
+  sowTemplateId              String?
+  sowTemplateVersionId       String?
+  createdById                String?
   // The brief version (1 = the brief, then each update's) this was built
   // from; null on outputs made before this was recorded (worked out from
   // createdAt instead). Provenance only: kept for audit; no longer drives any staleness flag.
-  builtFromVersion Int?
+  builtFromVersion           Int?
   // The exact estimate version this SOW's commercials came from, plus a
   // snapshot of it taken at generation time (so the SOW still says what it
   // was based on even if that version is later removed). Required for every
@@ -509,20 +516,20 @@ model SOWVersion {
   // position, source) this version's Deliverables/Services/Assumptions/Out of
   // Scope/Risks were composed from — see SowSectionItem. Null on versions made
   // before the PM review step existed.
-  itemsSnapshot        Json?
+  itemsSnapshot              Json?
   // The SOW-material key details (see src/lib/sowMaterial.ts) and confirmed
   // capabilities as they stood when this version was generated — what the
   // "Updates since this SOW was generated" notice compares against. Null on
   // versions made before this existed: those get no notice for key-detail
   // changes (never a false one); the estimate comparison still applies.
-  keyAttributesSnapshot Json?
-  createdAt            DateTime @default(now())
+  keyAttributesSnapshot      Json?
+  createdAt                  DateTime     @default(now())
 
   sow                   SOW                 @relation(fields: [sowId], references: [id], onDelete: Cascade)
   sourceEstimateVersion EstimateVersion?    @relation(fields: [sourceEstimateVersionId], references: [id], onDelete: SetNull)
-  sowTemplate        SOWTemplate?        @relation(fields: [sowTemplateId], references: [id], onDelete: SetNull)
-  sowTemplateVersion SOWTemplateVersion? @relation(fields: [sowTemplateVersionId], references: [id], onDelete: SetNull)
-  createdBy          User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  sowTemplate           SOWTemplate?        @relation(fields: [sowTemplateId], references: [id], onDelete: SetNull)
+  sowTemplateVersion    SOWTemplateVersion? @relation(fields: [sowTemplateVersionId], references: [id], onDelete: SetNull)
+  createdBy             User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
   approvals CommercialApproval[]
 
@@ -555,26 +562,26 @@ enum SowItemSource {
 }
 
 model SowSectionItem {
-  id        String     @id @default(cuid())
-  projectId String
-  section   SowSection
-  text      String
+  id                     String        @id @default(cuid())
+  projectId              String
+  section                SowSection
+  text                   String
   // The agent's last-proposed wording ("Revert to suggestion" restores it).
   // Null for PM_ADDED items.
-  agentOriginalText    String?
-  source               SowItemSource @default(AGENT)
-  included             Boolean       @default(true)
-  position             Int
-  isNewSinceLastReview Boolean       @default(false)
+  agentOriginalText      String?
+  source                 SowItemSource @default(AGENT)
+  included               Boolean       @default(true)
+  position               Int
+  isNewSinceLastReview   Boolean       @default(false)
   // An agent-proposed change to a PM-authored item: shown, never auto-applied.
   pendingAgentSuggestion String?
   // Optimistic-concurrency counter: every write states the version it read and
   // bumps it, so two people editing one item can't silently overwrite each other.
-  version     Int      @default(0)
-  createdById String?
-  updatedById String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  version                Int           @default(0)
+  createdById            String?
+  updatedById            String?
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
 
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdBy User?   @relation("SowSectionItemCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
@@ -586,10 +593,10 @@ model SowSectionItem {
 // One per project: where the PM got to in the review overlay, so "Save & exit"
 // resumes at the same step.
 model SowReviewState {
-  id        String @id @default(cuid())
-  projectId String @unique
+  id              String    @id @default(cuid())
+  projectId       String    @unique
   // 0-4 = the five sections in order, 5 = Review & generate.
-  currentStep Int @default(0)
+  currentStep     Int       @default(0)
   // True from when extraction has produced items for a review until a SOW is
   // generated from them — so reopening resumes instead of re-extracting.
   inProgress      Boolean   @default(false)
@@ -638,7 +645,7 @@ enum EstimateUnit {
 // never re-parsed for that version again. Read-only derivative of
 // extractedText; never written by the rate card upload flow itself.
 model RateCardLineItem {
-  id                String   @id @default(cuid())
+  id                String      @id @default(cuid())
   rateCardVersionId String
   role              String
   level             String?
@@ -647,16 +654,16 @@ model RateCardLineItem {
   // a decimal type, never a float. No currency conversion exists anywhere —
   // every line simply carries its own ISO 4217 currency, so consumers can
   // filter by currency (see the index below).
-  rate              Decimal  @db.Decimal(14, 4)
+  rate              Decimal     @db.Decimal(14, 4)
   currency          String
   // Written when the line comes from a template-format .xlsx upload (FB-001);
   // all null for older lines that were extracted by the AI agent.
   capability        Capability?
-  effectiveFrom     DateTime? @db.Date
-  effectiveTo       DateTime? @db.Date
+  effectiveFrom     DateTime?   @db.Date
+  effectiveTo       DateTime?   @db.Date
   notes             String?
   sourceRow         Int?
-  createdAt         DateTime @default(now())
+  createdAt         DateTime    @default(now())
 
   rateCardVersion   RateCardVersion    @relation(fields: [rateCardVersionId], references: [id], onDelete: Cascade)
   suggestedFor      RoleResolution[]   @relation("RoleResolutionSuggestedLine")
@@ -794,9 +801,9 @@ model EstimateVersion {
   createdById          String?
   createdAt            DateTime     @default(now())
 
-  estimate        Estimate           @relation(fields: [estimateId], references: [id], onDelete: Cascade)
-  rateCardVersion RateCardVersion    @relation(fields: [rateCardVersionId], references: [id], onDelete: Restrict)
-  createdBy       User?              @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  estimate        Estimate             @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  rateCardVersion RateCardVersion      @relation(fields: [rateCardVersionId], references: [id], onDelete: Restrict)
+  createdBy       User?                @relation(fields: [createdById], references: [id], onDelete: SetNull)
   lineItems       EstimateLineItem[]
   sowVersions     SOWVersion[]
   approvals       CommercialApproval[]
@@ -840,18 +847,27 @@ model EstimateLineItem {
 // CHECKLIST Document artifact that generated the initial items)
 // ---------------------------------------------------------------------------
 
+// FB-008: the three steps of the SOW journey (src/lib/projectSteps.ts).
+enum ProjectStep {
+  brief
+  estimate
+  sow
+}
+
 model ChecklistItem {
-  id          String    @id @default(cuid())
+  id          String      @id @default(cuid())
   projectId   String
   label       String
-  isComplete  Boolean   @default(false)
+  // Which step's "Before you move on" list this item shows in (FB-008).
+  step        ProjectStep @default(brief)
+  isComplete  Boolean     @default(false)
   // Freeform detail (e.g. job code, folder URL) — always editable regardless
   // of isComplete; someone may know the value before ticking the box.
   detailText  String?
-  order       Int       @default(0)
+  order       Int         @default(0)
   completedAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
@@ -1014,12 +1030,14 @@ model User {
   roleResolutionsResolved        RoleResolution[]
   estimateVersionsCreated        EstimateVersion[]
   sowVersionsCreated             SOWVersion[]
-  sowSectionItemsCreated         SowSectionItem[] @relation("SowSectionItemCreatedBy")
-  sowSectionItemsUpdated         SowSectionItem[] @relation("SowSectionItemUpdatedBy")
+  sowSectionItemsCreated         SowSectionItem[]                @relation("SowSectionItemCreatedBy")
+  sowSectionItemsUpdated         SowSectionItem[]                @relation("SowSectionItemUpdatedBy")
   briefAttributeValuesCreated    BriefAttributeValue[]
   pmPerspectiveEntriesEdited     PmPerspectiveEntry[]
-  commercialApprovalsRecorded    CommercialApproval[] @relation("ApprovalRecordedBy")
-  commercialApprovalsRevoked     CommercialApproval[] @relation("ApprovalRevokedBy")
+  commercialApprovalsRecorded    CommercialApproval[]            @relation("ApprovalRecordedBy")
+  commercialApprovalsRevoked     CommercialApproval[]            @relation("ApprovalRevokedBy")
+  projectsScopeConfirmed         Project[]                       @relation("ScopeConfirmedBy")
+  specialistInputsUpdated        SpecialistInput[]
 }
 
 // ---------------------------------------------------------------------------
@@ -1104,4 +1122,33 @@ model CommercialApproval {
   @@index([projectId, documentType])
   @@index([estimateVersionId])
   @@index([sowVersionId])
+}
+
+// ---------------------------------------------------------------------------
+// FB-008: specialist input tracker. One row per (project, capability), set
+// manually by the PM. Rows are shown for the project's confirmed capabilities
+// only; a row whose capability is removed is hidden, not deleted, so its
+// status and note come back if the capability is confirmed again.
+// ---------------------------------------------------------------------------
+
+enum SpecialistInputStatus {
+  not_requested
+  requested
+  received
+}
+
+model SpecialistInput {
+  id              String                @id @default(cuid())
+  projectId       String
+  capability      Capability
+  status          SpecialistInputStatus @default(not_requested)
+  note            String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  updatedByUserId String?
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  updatedBy User?   @relation(fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, capability])
 }

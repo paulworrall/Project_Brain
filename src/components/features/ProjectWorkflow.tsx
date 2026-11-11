@@ -1,286 +1,261 @@
 import type { ReactNode } from "react";
 import type { ClarificationEmail, PositionDocumentFields } from "@/types/intake";
-import type { DeliverablesServicesDocument } from "@/types/deliverables-services";
-import type { WorkflowStep } from "@/types/workflow";
 import type { Capability } from "@/generated/prisma/enums";
-import { capabilityLabel } from "@/lib/mapCapabilities";
-import type { WorkflowStepData } from "./WorkflowStepList";
-import { StageTracker, type Phase1Status } from "./StageTracker";
-import { Phase1Workspace } from "./Phase1Workspace";
-import type { EstimateBriefVersionMeta } from "./CapabilitiesAndEstimateBriefPanel";
-import { BriefReadinessIndicator } from "./BriefReadinessIndicator";
-import { BriefCompletenessWarning } from "./BriefGateNotice";
+import type { ApprovalPermissions } from "@/types/approvals";
 import type { BriefCompleteness } from "@/lib/briefCompleteness";
 import type { PmPerspectiveFieldView } from "@/lib/pmPerspectiveStore";
-import type { ClientUpdateLogEntry } from "./Phase1Workspace";
-import { SOW_PHASE_INDICATOR_TEXT, type SowChangeStatus } from "@/lib/sowChangeView";
+import type { SowChangeStatus } from "@/lib/sowChangeView";
+import type { SpecialistRow, SystemCheck } from "@/lib/project/readiness";
+import {
+  getStep,
+  PROJECT_COMPLETE_MESSAGE,
+  STEP_PREREQUISITE_NOTE,
+  type StepId,
+} from "@/lib/projectSteps";
+import type { RateCardOption } from "@/app/(dashboard)/projects/new/actions";
+import { Phase1Workspace, type ClientUpdateLogEntry } from "./Phase1Workspace";
 import type { ClarificationEmailDraftMeta } from "./ClarificationEmailCard";
+import {
+  CapabilitiesAndEstimateBriefPanel,
+  type EstimateBriefVersionMeta,
+} from "./CapabilitiesAndEstimateBriefPanel";
+import { BriefReadinessIndicator } from "./BriefReadinessIndicator";
+import { BriefCompletenessWarning } from "./BriefGateNotice";
 import type { ChecklistItemView } from "./ChecklistView";
-import type { VersionView } from "./KnowledgeUpload";
-import { ProjectSidebar } from "./ProjectSidebar";
-import { SpecialistFeedbackForm } from "./SpecialistFeedbackForm";
+import { EditableChecklist } from "./EditableChecklist";
 import { EstimatesListPanel, type EstimateListItem, type EstimateLock } from "./EstimatesListPanel";
-import type { SowLock } from "./StartSowDevelopmentPanel";
-import type { ApprovalPermissions, ApprovedDocumentsSummary } from "@/types/approvals";
-import { DeliverablesServicesDocumentView } from "./DeliverablesServicesDocumentView";
+import { ScopeGate } from "./ScopeGate";
+import { SpecialistInputTracker } from "./SpecialistInputTracker";
 import {
   StartSowDevelopmentPanel,
+  type SowLock,
   type SowTemplateSelectOption,
   type SowVersionMeta,
 } from "./StartSowDevelopmentPanel";
-import type { RateCardOption } from "@/app/(dashboard)/projects/new/actions";
 
-function PlaceholderStepContent({
-  taskRef,
-  actionLabel,
-}: {
-  taskRef: string;
-  actionLabel: string;
-}) {
-  return (
-    <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">Coming in task {taskRef}.</p>
-      <button
-        type="button"
-        disabled
-        className="bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground opacity-50"
-      >
-        {actionLabel}
-      </button>
-    </div>
-  );
-}
+/**
+ * The three steps' content (FB-008): Brief, Estimate, Statement of Work. Each
+ * is a StepSection — heading, an optional prerequisite note, the step's
+ * "Before you move on" readiness list, then the step's own cards. The project
+ * layout renders all three and ProjectShell shows the active one.
+ */
 
-export interface SpecialistFeedbackView {
-  content: string;
-  capability: Capability | null;
-  otherCapabilityLabel: string | null;
-}
-
-function SpecialistReviewStepContent({
-  projectId,
-  specialistFeedback,
-  deliverablesServicesDocument,
-}: {
+/** What every step needs to render its readiness list and lock state. */
+export interface StepCommonProps {
   projectId: string;
-  specialistFeedback: SpecialistFeedbackView | null;
-  deliverablesServicesDocument: DeliverablesServicesDocument | null;
+  checklistItems: ChecklistItemView[];
+  systemChecks: SystemCheck[];
+  projectComplete: boolean;
+}
+
+/** The id of a step's prerequisite note, which its disabled main action is described by. */
+export function prerequisiteNoteId(stepId: StepId): string {
+  return `${stepId}-prerequisite-note`;
+}
+
+export function StepSection({
+  stepId,
+  prerequisiteNote = null,
+  projectComplete,
+  readiness,
+  children,
+}: {
+  stepId: StepId;
+  /** Quiet inline note shown when the step's prerequisite isn't met. No step is locked. */
+  prerequisiteNote?: string | null;
+  projectComplete: boolean;
+  readiness: ReactNode;
+  children: ReactNode;
 }) {
-  if (specialistFeedback === null) {
-    return <SpecialistFeedbackForm projectId={projectId} />;
-  }
-
-  const capabilityDisplay = specialistFeedback.capability
-    ? capabilityLabel(specialistFeedback.capability)
-    : specialistFeedback.otherCapabilityLabel;
-
+  const step = getStep(stepId);
+  const headingId = `step-heading-${stepId}`;
   return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Input
-        </h3>
-        {capabilityDisplay && (
-          <span className="mt-1 inline-block bg-accent px-2.5 py-0.5 text-xs font-medium text-accent-foreground">
-            {capabilityDisplay}
-          </span>
-        )}
-        <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">
-          {specialistFeedback.content}
+    <section aria-labelledby={headingId} className="space-y-4">
+      <h2 id={headingId} tabIndex={-1} className="text-2xl font-light text-foreground outline-none">
+        {step.heading}
+      </h2>
+      {projectComplete && (
+        <p className="border border-border bg-surface-muted px-3 py-2 text-sm text-foreground">
+          <span aria-hidden="true">✓ </span>
+          {PROJECT_COMPLETE_MESSAGE} Downloads are still available.
         </p>
-      </div>
-      <div>
-        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Output — Deliverables + Services Document
-        </h3>
-        {deliverablesServicesDocument ? (
-          <DeliverablesServicesDocumentView
-            projectId={projectId}
-            document={deliverablesServicesDocument}
-          />
-        ) : (
-          <p className="text-sm text-muted-foreground">Not generated yet.</p>
-        )}
-      </div>
-    </div>
+      )}
+      {prerequisiteNote && !projectComplete && (
+        <p id={prerequisiteNoteId(stepId)} className="text-sm text-muted-foreground">
+          {prerequisiteNote}
+        </p>
+      )}
+      {readiness}
+      {children}
+    </section>
   );
 }
 
-export interface ProjectWorkflowProps {
-  /** What's changed since the latest SOW was generated (getSowChangeStatus). */
-  sowChange?: SowChangeStatus;
-  clarificationEmailDraft?: ClarificationEmailDraftMeta | null;
-  projectId: string;
-  projectName: string;
-  stages: WorkflowStep[];
-  clarificationEmail: ClarificationEmail | null;
+function Readiness({ stepId, common }: { stepId: StepId; common: StepCommonProps }) {
+  return (
+    <EditableChecklist
+      projectId={common.projectId}
+      step={stepId}
+      items={common.checklistItems.filter((item) => (item.step ?? "brief") === stepId)}
+      systemChecks={common.systemChecks}
+      readOnly={common.projectComplete}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Brief
+// ---------------------------------------------------------------------------
+
+export interface BriefStepProps extends StepCommonProps {
   positionDocument: PositionDocumentFields | null;
   clientUpdates: ClientUpdateLogEntry[];
-  checklistItems: ChecklistItemView[];
-  specialistFeedback: SpecialistFeedbackView | null;
-  deliverablesServicesDocument: DeliverablesServicesDocument | null;
-  versions: VersionView[];
+  clarificationEmail: ClarificationEmail | null;
+  clarificationEmailDraft: ClarificationEmailDraftMeta | null;
+  briefCompleteness: BriefCompleteness;
+  pmPerspective: PmPerspectiveFieldView[];
+  scopeConfirmedAt: string | null;
+  scopeConfirmedByName: string | null;
+  estimateApproved: boolean;
+}
+
+export function BriefStep(props: BriefStepProps) {
+  const outstanding = [
+    ...props.systemChecks.filter((c) => !c.met).map((c) => c.label),
+    ...props.checklistItems
+      .filter((i) => (i.step ?? "brief") === "brief" && !i.isComplete)
+      .map((i) => i.label),
+  ];
+  return (
+    <StepSection
+      stepId="brief"
+      projectComplete={props.projectComplete}
+      readiness={<Readiness stepId="brief" common={props} />}
+    >
+      <BriefReadinessIndicator completeness={props.briefCompleteness} />
+      <BriefCompletenessWarning completeness={props.briefCompleteness} />
+      <Phase1Workspace
+        projectId={props.projectId}
+        positionDocument={props.positionDocument}
+        clientUpdates={props.clientUpdates}
+        clarificationEmail={props.clarificationEmail}
+        clarificationEmailDraft={props.clarificationEmailDraft}
+        briefCompleteness={props.briefCompleteness}
+        pmPerspective={props.pmPerspective}
+        readOnly={props.projectComplete}
+      />
+      <ScopeGate
+        projectId={props.projectId}
+        scopeConfirmedAt={props.scopeConfirmedAt}
+        scopeConfirmedByName={props.scopeConfirmedByName}
+        outstanding={outstanding}
+        estimateApproved={props.estimateApproved}
+        projectComplete={props.projectComplete}
+      />
+    </StepSection>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Estimate
+// ---------------------------------------------------------------------------
+
+export interface EstimateStepProps extends StepCommonProps {
+  scopeConfirmed: boolean;
+  confirmedCapabilities: Capability[];
+  estimateBriefVersion: EstimateBriefVersionMeta | null;
+  specialistRows: SpecialistRow[];
+  estimates: EstimateListItem[];
+  rateCardOptions: RateCardOption[];
+  estimateLock: EstimateLock | null;
+  approvalPermissions: ApprovalPermissions;
+}
+
+export function EstimateStep(props: EstimateStepProps) {
+  const prerequisiteNote = props.scopeConfirmed ? null : STEP_PREREQUISITE_NOTE.estimate;
+  return (
+    <StepSection
+      stepId="estimate"
+      prerequisiteNote={prerequisiteNote}
+      projectComplete={props.projectComplete}
+      readiness={<Readiness stepId="estimate" common={props} />}
+    >
+      <fieldset disabled={props.projectComplete} className="min-w-0">
+        <legend className="sr-only">Capabilities and estimate brief</legend>
+        <CapabilitiesAndEstimateBriefPanel
+          projectId={props.projectId}
+          confirmedCapabilities={props.confirmedCapabilities}
+          estimateBriefVersion={props.estimateBriefVersion}
+        />
+      </fieldset>
+      <SpecialistInputTracker
+        projectId={props.projectId}
+        rows={props.specialistRows}
+        readOnly={props.projectComplete}
+      />
+      <section
+        aria-labelledby="build-estimate-heading"
+        className="space-y-3 border border-border bg-surface px-4 py-3"
+      >
+        <h3 id="build-estimate-heading" className="text-base font-medium text-foreground">
+          Build The Estimate
+        </h3>
+        <EstimatesListPanel
+          projectId={props.projectId}
+          estimates={props.estimates}
+          rateCardOptions={props.rateCardOptions}
+          lock={props.estimateLock}
+          permissions={props.approvalPermissions}
+          prerequisiteNoteId={
+            prerequisiteNote && !props.projectComplete ? prerequisiteNoteId("estimate") : null
+          }
+        />
+      </section>
+    </StepSection>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Statement of Work
+// ---------------------------------------------------------------------------
+
+export interface SowStepProps extends StepCommonProps {
+  estimateApproved: boolean;
+  sowChange?: SowChangeStatus;
   currentSowTemplate: { id: string; name: string } | null;
   currentSowTemplateVersion: { id: string } | null;
   sowTemplateOptions: SowTemplateSelectOption[];
   sowVersions: SowVersionMeta[];
   briefCompleteness: BriefCompleteness;
-  pmPerspective: PmPerspectiveFieldView[];
-  confirmedCapabilities: Capability[];
-  estimateBriefVersion: EstimateBriefVersionMeta | null;
-  estimates: EstimateListItem[];
-  rateCardOptions: RateCardOption[];
-  /** Client-approved estimate/SOW (FB-005). Absent = nothing approved, nobody may approve. */
-  approvedDocuments?: ApprovedDocumentsSummary;
-  approvalPermissions?: ApprovalPermissions;
-  estimateLock?: EstimateLock | null;
-  sowLock?: SowLock | null;
+  sowLock: SowLock | null;
+  approvalPermissions: ApprovalPermissions;
 }
 
-const NOTHING_APPROVED: ApprovedDocumentsSummary = { estimate: null, sow: null };
-const NO_APPROVAL_PERMISSIONS: ApprovalPermissions = { canApprove: false, canRevert: false };
-
-/**
- * Derives Phase 1's simplified badge status. Phase 1 no longer has 4
- * discrete completable stages — it's "not started" only in the brief moment
- * before Intake has run, "in progress" for as long as the brief is still
- * being shaped by client updates, and flips to "ready for specialist
- * review" once Phase 1 has been completed (Stage 4 COMPLETE — set when the
- * first Estimate Brief is prepared; older projects got there by generating
- * the since-removed Draft Scope Document).
- */
-function derivePhase1Status(stages: WorkflowStep[]): Phase1Status {
-  const statusOf = (n: number) => stages.find((s) => s.stageNumber === n)?.status;
-  if (statusOf(1) !== "COMPLETE") {
-    return "NOT_STARTED";
-  }
-  if (statusOf(4) === "COMPLETE") {
-    return "READY_FOR_SPECIALIST_REVIEW";
-  }
-  return "IN_PROGRESS";
-}
-
-/**
- * Discover's content (the left column): Clarifying the brief and scope,
- * Estimation and team planning, Statement of work and delivery setup, plus the
- * Delivery Monitoring card. The project-wide sidebar is ProjectSidebar.
- */
-export function DiscoverPhaseContent({
-  projectId,
-  stages,
-  clarificationEmail,
-  positionDocument,
-  clientUpdates,
-  checklistItems,
-  specialistFeedback,
-  deliverablesServicesDocument,
-  currentSowTemplate,
-  currentSowTemplateVersion,
-  sowTemplateOptions,
-  sowVersions,
-  briefCompleteness,
-  pmPerspective,
-  confirmedCapabilities,
-  estimateBriefVersion,
-  estimates,
-  rateCardOptions,
-  clarificationEmailDraft = null,
-  sowChange,
-  approvalPermissions = NO_APPROVAL_PERMISSIONS,
-  estimateLock = null,
-  sowLock = null,
-}: ProjectWorkflowProps) {
-  const contentByStage: Record<number, ReactNode> = {
-    5: (
-      <SpecialistReviewStepContent
-        projectId={projectId}
-        specialistFeedback={specialistFeedback}
-        deliverablesServicesDocument={deliverablesServicesDocument}
-      />
-    ),
-    6: (
-      <EstimatesListPanel
-        projectId={projectId}
-        estimates={estimates}
-        rateCardOptions={rateCardOptions}
-        lock={estimateLock}
-        permissions={approvalPermissions}
-      />
-    ),
-    8: (
-      <StartSowDevelopmentPanel
-        projectId={projectId}
-        sowChange={sowChange}
-        currentTemplate={currentSowTemplate}
-        currentTemplateVersion={currentSowTemplateVersion}
-        templateOptions={sowTemplateOptions}
-        sowVersions={sowVersions}
-        briefCompleteness={briefCompleteness}
-        lock={sowLock}
-        permissions={approvalPermissions}
-      />
-    ),
-    9: <PlaceholderStepContent taskRef="Level 3 (post-MVP)" actionLabel="Run Agent" />,
-    10: <PlaceholderStepContent taskRef="Level 3 (post-MVP)" actionLabel="Run Agent" />,
-  };
-
-  const steps: WorkflowStepData[] = stages.map((stage) => ({
-    ...stage,
-    content: contentByStage[stage.stageNumber] ?? null,
-  }));
-
-  const phase1Content = (
-    <Phase1Workspace
-      projectId={projectId}
-      clarificationEmailDraft={clarificationEmailDraft}
-      positionDocument={positionDocument}
-      clientUpdates={clientUpdates}
-      clarificationEmail={clarificationEmail}
-      checklistItems={checklistItems}
-      briefCompleteness={briefCompleteness}
-      pmPerspective={pmPerspective}
-      confirmedCapabilities={confirmedCapabilities}
-      estimateBriefVersion={estimateBriefVersion}
-    />
-  );
-
-  // Shown in Phase 1's step header itself (always visible, expanded or not)
-  // rather than inside Phase1Workspace's body — see StageTracker's
-  // headerExtraByPhaseKey. Phase 1 is Foundation-Details-driven so it must be
-  // supplied explicitly; Phase 2/3 have no entry here and fall back to
-  // StageTracker's own auto-built per-stage strip, keeping all three uniform.
-  const headerExtraByPhaseKey = {
-    clarifying: <BriefReadinessIndicator completeness={briefCompleteness} />,
-  };
-
+export function SowStep(props: SowStepProps) {
+  const prerequisiteNote = props.estimateApproved ? null : STEP_PREREQUISITE_NOTE.sow;
   return (
-    <div className="min-w-0 space-y-4">
-      <BriefCompletenessWarning completeness={briefCompleteness} />
-      <StageTracker
-        steps={steps}
-        phase1Status={derivePhase1Status(stages)}
-        phase1Content={phase1Content}
-        headerExtraByPhaseKey={headerExtraByPhaseKey}
-        attentionByPhaseKey={
-          sowChange?.status === "changed_since_generation" ? { sow: SOW_PHASE_INDICATOR_TEXT } : undefined
-        }
-      />
-    </div>
-  );
-}
-
-/** Discover beside the project sidebar — the pre-5D page body, kept for composing both in one place. */
-export function ProjectWorkflow(props: ProjectWorkflowProps) {
-  return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
-      <DiscoverPhaseContent {...props} />
-      <ProjectSidebar
-        projectId={props.projectId}
-        projectName={props.projectName}
-        versions={props.versions}
-        checklistItems={props.checklistItems}
-        approvedDocuments={props.approvedDocuments ?? NOTHING_APPROVED}
-      />
-    </div>
+    <StepSection
+      stepId="sow"
+      prerequisiteNote={prerequisiteNote}
+      projectComplete={props.projectComplete}
+      readiness={<Readiness stepId="sow" common={props} />}
+    >
+      <div className="border border-border bg-surface px-4 py-3">
+        <StartSowDevelopmentPanel
+          projectId={props.projectId}
+          sowChange={props.sowChange}
+          currentTemplate={props.currentSowTemplate}
+          currentTemplateVersion={props.currentSowTemplateVersion}
+          templateOptions={props.sowTemplateOptions}
+          sowVersions={props.sowVersions}
+          briefCompleteness={props.briefCompleteness}
+          lock={props.sowLock}
+          permissions={props.approvalPermissions}
+          prerequisiteNoteId={
+            prerequisiteNote && !props.projectComplete ? prerequisiteNoteId("sow") : null
+          }
+        />
+      </div>
+    </StepSection>
   );
 }

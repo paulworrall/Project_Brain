@@ -173,10 +173,16 @@ export function ProjectSummaryBar({
         <div className="flex flex-wrap items-center gap-6">
           <span
             className={`px-2.5 py-1 text-xs font-medium ${
-              status === "COMPLETE" ? "bg-success-bg text-success" : "bg-accent text-accent-foreground"
+              status === "COMPLETE" ? "bg-primary text-primary-foreground" : "bg-accent text-accent-foreground"
             }`}
           >
-            {status === "COMPLETE" ? "Complete" : "Active"}
+            {status === "COMPLETE" ? (
+              <>
+                <span aria-hidden="true">✓ </span>Complete — SOW approved
+              </>
+            ) : (
+              "Active"
+            )}
           </span>
           <SummaryField label="Job #" value={jobCode ?? NOT_SET} />
           <SummaryField label="Kick-off" value={formatDate(kickOffDate)} />

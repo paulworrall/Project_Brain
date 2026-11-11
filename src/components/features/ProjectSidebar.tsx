@@ -1,36 +1,20 @@
-import type { ApprovedDocumentsSummary } from "@/types/approvals";
-import { ChatPanel } from "./ChatPanel";
-import { KnowledgeUpload, type VersionView } from "./KnowledgeUpload";
-import type { ChecklistItemView } from "./ChecklistView";
-import { EditableChecklist } from "./EditableChecklist";
-import { ApprovedDocumentsPanel } from "./ApprovedDocumentsPanel";
+import { ProjectAssistant } from "./ProjectAssistant";
+import type { VersionView } from "./VersionHistoryDrawer";
 
 /**
- * The project-wide tools — Ask me anything, Keep This Project Up to Date, the
- * Project Set-Up Checklist and the approved documents. Phase-independent: the
- * project layout renders one instance and it stays mounted across phase tabs
- * (and inside the narrow-screen drawer), so draft text and checklist state
- * survive a tab switch.
+ * The project sidebar. Since FB-008 its only panel is the Project assistant
+ * (Ask me anything and Keep This Project Up to Date merged). Step-independent:
+ * the project layout renders one instance and it stays mounted across step
+ * switches (and inside the narrow-screen drawer), so a draft message survives.
  */
 export function ProjectSidebar({
   projectId,
   projectName,
   versions,
-  checklistItems,
-  approvedDocuments,
 }: {
   projectId: string;
   projectName: string;
   versions: VersionView[];
-  checklistItems: ChecklistItemView[];
-  approvedDocuments: ApprovedDocumentsSummary;
 }) {
-  return (
-    <div className="space-y-4">
-      <ChatPanel projectId={projectId} projectName={projectName} />
-      <KnowledgeUpload projectId={projectId} versions={versions} />
-      <EditableChecklist projectId={projectId} items={checklistItems} />
-      <ApprovedDocumentsPanel summary={approvedDocuments} />
-    </div>
-  );
+  return <ProjectAssistant projectId={projectId} projectName={projectName} versions={versions} />;
 }
