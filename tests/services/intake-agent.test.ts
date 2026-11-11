@@ -160,7 +160,12 @@ describe("runIntakeAgent", () => {
   it("runs classify -> key details -> Scope summary -> email, and returns the key details and the Scope summary", async () => {
     queueIntake({
       facts: [
-        { field: "objective.objective", value: "Drive more frequent purchases", date: null, evidence: null },
+        {
+          field: "objective.objective",
+          value: "Drive more frequent purchases",
+          date: null,
+          evidence: null,
+        },
         { field: "clientContact.name", value: "Jamie Chen", date: null, evidence: null },
       ],
     });
@@ -170,6 +175,9 @@ describe("runIntakeAgent", () => {
     expect(mockParse).toHaveBeenCalledTimes(4);
     const prompts = mockParse.mock.calls.map((call) => call[0].messages[0].content as string);
     expect(prompts[0]).toMatch(/Classify this client brief/);
+    // FB-009 D: the same call assesses how complete the brief is.
+    expect(prompts[0]).toContain('"complete"');
+    expect(prompts[0]).toContain('"thin"');
     expect(prompts[1]).toMatch(/key details/);
     expect(prompts[2]).toMatch(/Write the scope summary/);
     expect(prompts[2]).toMatch(/tracked separately/);
@@ -177,7 +185,9 @@ describe("runIntakeAgent", () => {
     expect(prompts[3]).toContain("Address it to Jamie Chen");
     // Its questions are the fixed required key details: what the brief gave is
     // there to confirm, what it didn't is asked for — never free-form gaps.
-    expect(prompts[3]).toContain("Objective — we understood: Objective: Drive more frequent purchases");
+    expect(prompts[3]).toContain(
+      "Objective — we understood: Objective: Drive more frequent purchases"
+    );
     expect(prompts[3]).toContain("Objective — still need: Success measures (OKRs/KPIs)");
     expect(prompts[3]).toContain("Budget — What is the budget for the project?");
     expect(prompts[3]).toContain("Client Contact — still need: Email");
@@ -203,7 +213,9 @@ describe("runIntakeAgent", () => {
     expect(result.keyAttributes).toBeNull();
     expect(result.keyAttributesError).toMatch(/key details/i);
     expect(result.clarificationEmail.subject).toBe("Hi");
-    expect(mockParse.mock.calls[3][0].messages[0].content).toContain("Address it to the client contact");
+    expect(mockParse.mock.calls[3][0].messages[0].content).toContain(
+      "Address it to the client contact"
+    );
   });
 });
 

@@ -67,7 +67,7 @@ export async function classifyBrief(briefText: string): Promise<BriefClassificat
       messages: [
         {
           role: "user",
-          content: `Classify this client brief and summarize it in one or two sentences.\n\n<brief>\n${briefText}\n</brief>`,
+          content: `Classify this client brief and summarize it in one or two sentences. Then assess how ready it is to scope and estimate: "complete" if objective, deliverables, timeline and budget are clear enough to confirm the scope now; "thin" if there is too little to scope without a conversation with the client; otherwise "partial". Give up to 3 short reasons (what is missing or unclear).\n\n<brief>\n${briefText}\n</brief>`,
         },
       ],
     });

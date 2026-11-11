@@ -58,6 +58,8 @@ let msaId: string;
 const briefClassification = {
   briefType: "WORD_DOC" as const,
   summary: "A loyalty app refresh brief with a confirmed budget and one open gap.",
+  // FB-009 D: the classify call also judges how complete the brief is.
+  assessment: { level: "partial", reasons: ["Referral feature scope unclear"] },
 };
 
 const positionFieldsV1 = {
@@ -292,6 +294,10 @@ describe("Stage 1-5 happy path", () => {
     expect(documentsByType.get("CLARIFICATION_EMAIL")?.versions[0]?.builtFromVersion).toBe(1);
     expect(documentsByType.get("SCOPE_SUMMARY")?.versions[0]?.builtFromVersion).toBe(2);
     expect(documentsByType.get("CHECKLIST")).toBeDefined();
+    // FB-009 D: the brief assessment is stored on the project.
+    expect(
+      (await prisma.project.findUniqueOrThrow({ where: { id: project.id } })).briefAssessment
+    ).toEqual({ level: "partial", reasons: ["Referral feature scope unclear"] });
     // The Draft Scope Document has been removed from the flow.
     expect(documentsByType.has("DRAFT_SCOPE_DOCUMENT")).toBe(false);
     const estimateBriefRecord = await prisma.estimateBrief.findUniqueOrThrow({

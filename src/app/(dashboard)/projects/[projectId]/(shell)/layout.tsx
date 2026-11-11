@@ -44,6 +44,7 @@ export default async function ProjectLayout({
     openQuestions,
     estimateScopeSync,
     nextAction,
+    briefAssessment,
     earlierDocuments,
     clarificationEmailVersion,
     permissions,
@@ -145,6 +146,7 @@ export default async function ProjectLayout({
               {...common}
               systemChecks={systemChecks.brief}
               scopeSummary={scopeSummary}
+              briefAssessment={briefAssessment}
               earlierDocuments={earlierDocuments}
               openQuestions={openQuestions}
               clarificationSentAt={project.clarificationSentAt?.toISOString() ?? null}

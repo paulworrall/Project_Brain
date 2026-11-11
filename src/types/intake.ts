@@ -12,11 +12,49 @@ export const BriefTypeEnum = z.enum([
 ]);
 export type BriefType = z.infer<typeof BriefTypeEnum>;
 
+/**
+ * FB-009 D: the Intake Agent's judgement of how ready the brief is to scope
+ * and estimate. Named "assessment" to keep it apart from key-detail
+ * completeness (getBriefCompleteness). `level` is a plain string because the
+ * structured-output format doesn't enforce enums: normaliseBriefAssessment
+ * checks it.
+ */
+export const BriefAssessmentSchema = z.object({
+  level: z
+    .string()
+    .describe(
+      'Exactly one of "complete" (clear enough to confirm the scope and estimate now), "partial" (some gaps the client should clarify), or "thin" (too little to scope without a conversation).'
+    ),
+  reasons: z
+    .array(z.string())
+    .describe("Up to 3 short reasons for the level, e.g. what is missing or unclear. Empty if complete."),
+});
+export type BriefAssessmentOutput = z.infer<typeof BriefAssessmentSchema>;
+
+export interface BriefAssessment {
+  level: "complete" | "partial" | "thin";
+  reasons: string[];
+}
+
+/** A valid assessment (unknown level -> "partial"; at most 3 reasons), or null if there's none. */
+export function normaliseBriefAssessment(raw: unknown): BriefAssessment | null {
+  const parsed = BriefAssessmentSchema.safeParse(raw);
+  if (!parsed.success) return null;
+  const level = parsed.data.level.trim().toLowerCase();
+  return {
+    level: level === "complete" || level === "thin" ? level : "partial",
+    reasons: parsed.data.reasons.map((r) => r.trim()).filter(Boolean).slice(0, 3),
+  };
+}
+
 export const BriefClassificationSchema = z.object({
   briefType: BriefTypeEnum,
   summary: z
     .string()
     .describe("One or two sentences summarizing what this brief is about."),
+  assessment: BriefAssessmentSchema.optional().describe(
+    "How ready this brief is to scope and estimate (FB-009 fast path)."
+  ),
 });
 export type BriefClassification = z.infer<typeof BriefClassificationSchema>;
 

@@ -29,7 +29,8 @@ import { buildSpecialistRows, buildSystemChecks } from "@/lib/project/readiness"
 import { latestScopeSummary, scopeSummaryVersion } from "@/lib/scopeSummary";
 import { buildScopeView, openQuestionCount } from "@/lib/scopeSummaryView";
 import { getEstimateScopeSyncStatus } from "@/lib/estimateScopeSync";
-import { deriveNextAction, type BriefAssessmentLevel } from "@/lib/nextAction";
+import { deriveNextAction } from "@/lib/nextAction";
+import { normaliseBriefAssessment } from "@/types/intake";
 import { DraftScopeDocumentSchema } from "@/types/triage";
 
 async function fetchProjectPageData(projectId: string) {
@@ -269,7 +270,7 @@ async function fetchProjectPageData(projectId: string) {
     draftScopeDocument: draftScopeDocument.success ? draftScopeDocument.data : null,
   };
 
-  const assessment = project.briefAssessment as { level?: string } | null;
+  const briefAssessment = normaliseBriefAssessment(project.briefAssessment);
   const nextAction = deriveNextAction({
     projectId: project.id,
     projectComplete,
@@ -278,9 +279,7 @@ async function fetchProjectPageData(projectId: string) {
     hasEarlierDocuments: earlierDocuments.positionDocument !== null || earlierDocuments.draftScopeDocument !== null,
     openQuestions,
     clarificationSent: project.clarificationSentAt !== null,
-    briefAssessment: (["complete", "partial", "thin"] as const).includes(assessment?.level as BriefAssessmentLevel)
-      ? (assessment!.level as BriefAssessmentLevel)
-      : null,
+    briefAssessment: briefAssessment?.level ?? null,
     scopeConfirmed: project.scopeConfirmedAt !== null,
     scopeNewerThanConfirmed:
       scopeLatest !== null && scopeConfirmed !== null && scopeLatest.versionNumber > scopeConfirmed.versionNumber,
@@ -297,6 +296,7 @@ async function fetchProjectPageData(projectId: string) {
   });
 
   return {
+    briefAssessment,
     nextAction,
     estimateScopeSync,
     scopeSummary,

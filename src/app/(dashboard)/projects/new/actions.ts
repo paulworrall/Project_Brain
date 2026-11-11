@@ -10,6 +10,8 @@ import {
   runIntakeAgent,
 } from "@/services/agents/intake-agent";
 import { saveCapturedKeyAttributes } from "@/lib/briefAttributeCapture";
+import { normaliseBriefAssessment } from "@/types/intake";
+import type { Prisma } from "@/generated/prisma/client";
 import { recordKeyAttributeExtractionOutcome } from "@/lib/keyAttributeSources";
 import { auth } from "@/lib/auth";
 import { pmPerspectiveValuesFromFormData } from "@/lib/pmPerspective";
@@ -363,6 +365,8 @@ export async function createProjectAction(
         rateCardId,
         rateCardVersionId,
         masterServiceAgreementId: validMsa.id,
+        // FB-009 D: the Intake Agent's judgement of the brief (null if it gave none).
+        briefAssessment: (normaliseBriefAssessment(intakeResult.classification.assessment) ?? undefined) as Prisma.InputJsonValue | undefined,
       },
     });
 
