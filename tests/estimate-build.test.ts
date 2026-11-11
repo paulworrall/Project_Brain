@@ -424,6 +424,28 @@ describe("addEstimateRoleInputAction", () => {
     expect(Buffer.from(v1.fileBytes).subarray(0, 2).toString("utf-8")).toBe("PK");
     const v1LineItemIds = v1.lineItems.map((li) => li.id).sort();
 
+    // FB-009 B: v1 was saved with no confirmed scope, so it has no scope source.
+    expect(v1.sourceScopeVersionId).toBeNull();
+    // Confirm a Scope summary version; the next save records it.
+    const scopeDoc = await prisma.document.create({
+      data: {
+        projectId: estimate.projectId,
+        type: "SCOPE_SUMMARY",
+        versions: {
+          create: {
+            versionNumber: 1,
+            stageNumber: 1,
+            content: { context: "c", outOfScope: [], deliverables: [], constraints: [], assumptions: [], openQuestions: [] },
+          },
+        },
+      },
+      include: { versions: true },
+    });
+    await prisma.project.update({
+      where: { id: estimate.projectId },
+      data: { confirmedScopeVersionId: scopeDoc.versions[0].id },
+    });
+
     // Saving again (nothing changed) is append-only — a new version,
     // version 1's own line items are untouched.
     const secondSave = await saveEstimateVersionAction(estimate.id, undefined, new FormData());
@@ -432,6 +454,7 @@ describe("addEstimateRoleInputAction", () => {
       include: { lineItems: true },
     });
     expect(v2.versionNumber).toBe(2);
+    expect(v2.sourceScopeVersionId).toBe(scopeDoc.versions[0].id);
     expect(Number(v2.totalValue)).toBe(4100);
 
     const v1Reloaded = await prisma.estimateVersion.findUniqueOrThrow({

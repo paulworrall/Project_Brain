@@ -18,10 +18,20 @@ const VISIBLE_LINES = 3;
 export function SowChangeNotice({
   changes,
   onReview,
+  reviewHref,
+  headline = SOW_CHANGE_HEADLINE,
+  reviewLabel = "Review and update the SOW",
+  note,
 }: {
   changes: SowChange[];
   /** Opens the SOW review step (the same entry point as "Regenerate SOW"). */
-  onReview: () => void;
+  onReview?: () => void;
+  /** FB-009: a link instead of a button (e.g. "Review estimate" opens the estimate). */
+  reviewHref?: string;
+  headline?: string;
+  reviewLabel?: string;
+  /** Shown instead of the action (e.g. the change-request note on an approved estimate). */
+  note?: string;
 }) {
   const [showAll, setShowAll] = useState(false);
   const listId = useId();
@@ -35,7 +45,7 @@ export function SowChangeNotice({
       role="status"
       className="space-y-1.5 border-l-4 border-warning bg-warning-bg px-3 py-2 text-xs text-foreground"
     >
-      <p className="font-medium">{SOW_CHANGE_HEADLINE}</p>
+      <p className="font-medium">{headline}</p>
       <ul id={listId} className="space-y-0.5">
         {visible.map((change, index) => (
           <li key={`${change.versionLabel}-${index}`}>{formatSowChangeLine(change)}</li>
@@ -53,9 +63,17 @@ export function SowChangeNotice({
             {showAll ? "Show fewer" : `Show all (${changes.length})`}
           </button>
         )}
-        <button type="button" className="font-medium text-primary hover:underline" onClick={onReview}>
-          Review and update the SOW
-        </button>
+        {note ? (
+          <span>{note}</span>
+        ) : reviewHref ? (
+          <a href={reviewHref} className="font-medium text-primary hover:underline">
+            {reviewLabel}
+          </a>
+        ) : onReview ? (
+          <button type="button" className="font-medium text-primary hover:underline" onClick={onReview}>
+            {reviewLabel}
+          </button>
+        ) : null}
       </div>
     </div>
   );

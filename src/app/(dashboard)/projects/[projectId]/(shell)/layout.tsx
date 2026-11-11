@@ -7,7 +7,7 @@ import { ProjectShell } from "@/components/features/ProjectShell";
 import { loadProjectPageData } from "@/lib/projectPageData";
 import { approvalViewFor } from "@/lib/commercial/approvalViewData";
 import { sowApprovalBlockedReason } from "@/lib/commercial/sowApprovalGate";
-import { SOW_PHASE_INDICATOR_TEXT } from "@/lib/sowChangeView";
+import { NEEDS_REVIEW_TEXT } from "@/lib/estimateScopeSyncView";
 
 /**
  * The persistent project shell: breadcrumb, title, header box, the Brief →
@@ -42,6 +42,7 @@ export default async function ProjectLayout({
     clarificationEmail,
     scopeSummary,
     openQuestions,
+    estimateScopeSync,
     earlierDocuments,
     clarificationEmailVersion,
     permissions,
@@ -131,11 +132,11 @@ export default async function ProjectLayout({
         projectId={project.id}
         stepStatuses={stepStatuses}
         stepSummaries={stepSummaries}
-        attention={
-          sowChange?.status === "changed_since_generation"
-            ? { sow: SOW_PHASE_INDICATOR_TEXT }
-            : undefined
-        }
+        // FB-009 B: a step whose document is stale against what it was built from.
+        attention={{
+          ...(estimateScopeSync.needsReview ? { estimate: NEEDS_REVIEW_TEXT } : {}),
+          ...(sowChange?.status === "changed_since_generation" ? { sow: NEEDS_REVIEW_TEXT } : {}),
+        }}
         steps={{
           brief: (
             <BriefStep
@@ -174,6 +175,7 @@ export default async function ProjectLayout({
               estimates={estimates.map((estimate) => ({
                 id: estimate.id,
                 label: estimate.label,
+                scopeSync: estimateScopeSync.estimates.find((e) => e.estimateId === estimate.id),
                 versions: estimate.versions.map((version, index) => ({
                   id: version.id,
                   versionNumber: version.versionNumber,

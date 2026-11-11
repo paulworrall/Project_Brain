@@ -547,6 +547,11 @@ export async function saveEstimateVersionAction(
   try {
     version = await prisma.$transaction(async (tx) => {
       await assertEstimateEditable(estimate.projectId, tx);
+      // FB-009 B: the confirmed Scope summary version this version is built against.
+      const { confirmedScopeVersionId } = await tx.project.findUniqueOrThrow({
+        where: { id: estimate.projectId },
+        select: { confirmedScopeVersionId: true },
+      });
       const created = await tx.estimateVersion.create({
         data: {
           estimateId,
@@ -562,6 +567,7 @@ export async function saveEstimateVersionAction(
           fileName,
           fileBytes,
           content,
+          sourceScopeVersionId: confirmedScopeVersionId,
           createdById: session?.user?.id,
         },
       });

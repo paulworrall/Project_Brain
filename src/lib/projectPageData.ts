@@ -28,6 +28,7 @@ import {
 import { buildSpecialistRows, buildSystemChecks } from "@/lib/project/readiness";
 import { latestScopeSummary, scopeSummaryVersion } from "@/lib/scopeSummary";
 import { buildScopeView, openQuestionCount } from "@/lib/scopeSummaryView";
+import { getEstimateScopeSyncStatus } from "@/lib/estimateScopeSync";
 import { DraftScopeDocumentSchema } from "@/types/triage";
 
 async function fetchProjectPageData(projectId: string) {
@@ -189,7 +190,10 @@ async function fetchProjectPageData(projectId: string) {
     getPmPerspective(project.id),
     getVersionHistory(project.id),
   ]);
-  const sowChange = await getSowChangeStatus(project.id);
+  const [sowChange, estimateScopeSync] = await Promise.all([
+    getSowChangeStatus(project.id),
+    getEstimateScopeSyncStatus(project.id),
+  ]);
   // Every update since the brief (v2 onwards), for Phase 1's progress count.
   const clientUpdates = versionHistory.slice(1).map((v) => ({
     id: v.id,
@@ -265,6 +269,7 @@ async function fetchProjectPageData(projectId: string) {
   };
 
   return {
+    estimateScopeSync,
     scopeSummary,
     openQuestions,
     earlierDocuments,
