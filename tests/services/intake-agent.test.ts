@@ -138,18 +138,26 @@ describe("generateSetupChecklist", () => {
   });
 });
 
-const emptyPosition = { whatWeKnow: [], clientFlaggedOpenItems: [] };
+// FB-009: intake drafts a Scope summary instead of a Position Document.
+const emptyScope = {
+  context: "A brief.",
+  outOfScope: [],
+  deliverables: [],
+  constraints: [],
+  assumptions: [],
+  openQuestions: [],
+};
 
 function queueIntake(keyFacts: unknown = { facts: [] }) {
   mockParse
     .mockResolvedValueOnce({ parsed_output: { briefType: "PDF", summary: "A brief." } })
     .mockResolvedValueOnce({ parsed_output: keyFacts })
-    .mockResolvedValueOnce({ parsed_output: emptyPosition })
+    .mockResolvedValueOnce({ parsed_output: emptyScope })
     .mockResolvedValueOnce({ parsed_output: { subject: "Hi", bodyText: "Hello," } });
 }
 
 describe("runIntakeAgent", () => {
-  it("runs classify -> key details -> Position Document -> email, and returns the key details", async () => {
+  it("runs classify -> key details -> Scope summary -> email, and returns the key details and the Scope summary", async () => {
     queueIntake({
       facts: [
         { field: "objective.objective", value: "Drive more frequent purchases", date: null, evidence: null },
@@ -163,7 +171,8 @@ describe("runIntakeAgent", () => {
     const prompts = mockParse.mock.calls.map((call) => call[0].messages[0].content as string);
     expect(prompts[0]).toMatch(/Classify this client brief/);
     expect(prompts[1]).toMatch(/key details/);
-    expect(prompts[2]).toMatch(/captured separately/);
+    expect(prompts[2]).toMatch(/Write the scope summary/);
+    expect(prompts[2]).toMatch(/tracked separately/);
     // The email is addressed to the contact the key details found.
     expect(prompts[3]).toContain("Address it to Jamie Chen");
     // Its questions are the fixed required key details: what the brief gave is
@@ -179,13 +188,14 @@ describe("runIntakeAgent", () => {
     expect(result.keyAttributes?.objective.values.objective).toBe("Drive more frequent purchases");
     expect(result.keyAttributesError).toBeNull();
     expect(result.checklist.items).toEqual([...DEFAULT_SETUP_CHECKLIST_ITEMS]);
+    expect(result.scopeSummary.context).toBe("A brief.");
   });
 
   it("never lets a key-detail failure block intake — it's returned for the caller to record", async () => {
     mockParse
       .mockResolvedValueOnce({ parsed_output: { briefType: "PDF", summary: "A brief." } })
       .mockRejectedValueOnce(new Error("400 compiled grammar is too large"))
-      .mockResolvedValueOnce({ parsed_output: emptyPosition })
+      .mockResolvedValueOnce({ parsed_output: emptyScope })
       .mockResolvedValueOnce({ parsed_output: { subject: "Hi", bodyText: "Hello," } });
 
     const result = await runIntakeAgent("brief text");
@@ -203,11 +213,11 @@ describe("runIntakeAgent — PM perspective", () => {
     proposedSolution: "PM_SOLUTION_MARKER: a phased rollout",
   };
 
-  it("gives the Position Document and clarification email the PM perspective as its own labelled block, separate from the brief", async () => {
+  it("gives the Scope summary and clarification email the PM perspective as its own labelled block, separate from the brief", async () => {
     queueIntake();
     await runIntakeAgent("CLIENT_BRIEF_MARKER", pmPerspective);
 
-    const [classifyPrompt, keyDetailsPrompt, positionPrompt, emailPrompt] = mockParse.mock.calls.map(
+    const [classifyPrompt, keyDetailsPrompt, scopePrompt, emailPrompt] = mockParse.mock.calls.map(
       (call) => call[0].messages[0].content as string
     );
 
@@ -216,20 +226,20 @@ describe("runIntakeAgent — PM perspective", () => {
     expect(keyDetailsPrompt).toContain("CLIENT_BRIEF_MARKER");
     expect(keyDetailsPrompt).not.toContain("PM_CONTEXT_MARKER");
 
-    for (const prompt of [positionPrompt, emailPrompt]) {
+    for (const prompt of [scopePrompt, emailPrompt]) {
       expect(prompt).toContain("<pm_perspective>");
       expect(prompt).toContain("PM_CONTEXT_MARKER");
       expect(prompt).toMatch(/never present anything in it as something the client said/i);
     }
     // The PM's words sit in their own block, never inside the brief.
-    const briefBlock = positionPrompt.slice(
-      positionPrompt.indexOf("<brief>"),
-      positionPrompt.indexOf("</brief>")
+    const briefBlock = scopePrompt.slice(
+      scopePrompt.indexOf("<brief>"),
+      scopePrompt.indexOf("</brief>")
     );
     expect(briefBlock).toContain("CLIENT_BRIEF_MARKER");
     expect(briefBlock).not.toContain("PM_CONTEXT_MARKER");
-    // "What we know" must stay limited to what the client said.
-    expect(positionPrompt).toMatch(/whatWeKnow.*only what the brief itself states/i);
+    // The summary must reflect what the client said, not the PM's views.
+    expect(scopePrompt).toMatch(/never present the PM's views as the client's/i);
   });
 
   it("sends no PM block at all when the PM perspective is empty", async () => {

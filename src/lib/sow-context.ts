@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { CLIENT_CONTACT_FIELDS } from "@/lib/briefAttributes";
 import { currentText } from "@/lib/keyDetailsContext";
 import { getProjectContext } from "@/lib/projectContext";
-import { latestPositionDocumentContent } from "@/lib/positionDocument";
+import { scopeInputSection } from "@/lib/scopeSummary";
 import { capabilityLabel } from "@/lib/mapCapabilities";
 import type { SowCoverDetails } from "@/types/sow";
 import type { Capability } from "@/generated/prisma/enums";
@@ -64,7 +64,8 @@ async function findSourceEstimateVersion(projectId: string) {
 /**
  * Everything captured about a project that a SOW draft needs — the shared
  * project context (brief, every update, key details, the PM's view; see
- * getProjectContext) plus the Position Document, the Deliverables &
+ * getProjectContext) plus the scope input (the confirmed Scope summary, or a
+ * legacy project's Position Document), the Deliverables &
  * Services Document, confirmed capabilities and the latest saved pricing —
  * and deterministic cover-details fields the agent never touches (see
  * src/types/sow.ts). Every query here is scoped to projectId at the query
@@ -74,7 +75,7 @@ export async function assembleSowContext(projectId: string): Promise<SowContext>
   const [
     project,
     context,
-    positionContent,
+    scopeSection,
     deliverablesServicesDocument,
     confirmedCapabilities,
     latestEstimateVersion,
@@ -92,7 +93,8 @@ export async function assembleSowContext(projectId: string): Promise<SowContext>
     // The brief, every update, key details and the PM's view — the same
     // context every agent works from.
     getProjectContext(projectId),
-    latestPositionDocumentContent(projectId),
+    // FB-009: the confirmed Scope summary (or the legacy Position Document).
+    scopeInputSection(projectId),
     prisma.document.findUnique({
       where: { projectId_type: { projectId, type: "DELIVERABLES_SERVICES_DOCUMENT" } },
       include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
@@ -106,8 +108,8 @@ export async function assembleSowContext(projectId: string): Promise<SowContext>
   // (SOW-specific rules for which values may appear are to be decided later.)
   const sections: string[] = [context.text];
 
-  if (positionContent) {
-    sections.push(`## Position Document\n${JSON.stringify(positionContent)}`);
+  if (scopeSection) {
+    sections.push(scopeSection);
   }
 
   const deliverablesServicesContent = deliverablesServicesDocument?.versions[0]?.content;

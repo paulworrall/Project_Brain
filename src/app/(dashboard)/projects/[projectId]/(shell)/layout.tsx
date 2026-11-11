@@ -40,7 +40,9 @@ export default async function ProjectLayout({
     sowTemplateOptions,
     rateCardOptions,
     clarificationEmail,
-    positionDocument,
+    scopeSummary,
+    openQuestions,
+    earlierDocuments,
     clarificationEmailVersion,
     permissions,
     approvals,
@@ -139,7 +141,10 @@ export default async function ProjectLayout({
             <BriefStep
               {...common}
               systemChecks={systemChecks.brief}
-              positionDocument={positionDocument.success ? positionDocument.data : null}
+              scopeSummary={scopeSummary}
+              earlierDocuments={earlierDocuments}
+              openQuestions={openQuestions}
+              clarificationSentAt={project.clarificationSentAt?.toISOString() ?? null}
               clientUpdates={clientUpdates}
               clarificationEmail={clarificationEmail.success ? clarificationEmail.data : null}
               clarificationEmailDraft={

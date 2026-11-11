@@ -74,10 +74,10 @@ function briefProps(overrides: Partial<Parameters<typeof BriefStep>[0]> = {}) {
   return {
     ...common(),
     systemChecks: checks.brief,
-    positionDocument: {
-      whatWeKnow: [{ topic: "Objective", detail: "Refresh." }],
-      clientFlaggedOpenItems: [],
-    },
+    scopeSummary: null,
+    earlierDocuments: { positionDocument: null, draftScopeDocument: null },
+    openQuestions: 2,
+    clarificationSentAt: null,
     clientUpdates: [],
     clarificationEmail: { subject: "Quick questions", bodyText: "Hi," },
     clarificationEmailDraft: null,
@@ -158,7 +158,7 @@ describe("Brief step", () => {
 
   it("keeps the Clarification Email and Position Document, and ends with the confirm-scope gate", () => {
     render(<BriefStep {...briefProps()} />);
-    expect(screen.getByText("Current position — from the client")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Scope summary" })).toBeInTheDocument();
     expect(screen.getByText(/Quick questions/)).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Confirm scope is ready to estimate" })

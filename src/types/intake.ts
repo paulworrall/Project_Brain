@@ -1,5 +1,6 @@
 import * as z from "zod";
 import type { KeyAttributeExtraction } from "@/services/agents/key-attribute-extraction";
+import type { ScopeSummaryContent } from "@/types/scope";
 
 export const BriefTypeEnum = z.enum([
   "DECK",
@@ -104,7 +105,8 @@ export const DEFAULT_SETUP_CHECKLIST_ITEMS: readonly SetupChecklistItem[] = [
 
 export interface IntakeAgentResult {
   classification: BriefClassification;
-  positionDocument: PositionDocumentExtraction;
+  /** FB-009: replaces the Position Document as intake's scope output. */
+  scopeSummary: ScopeSummaryContent;
   clarificationEmail: ClarificationEmail;
   checklist: IntakeSetupChecklist;
   /** Key details read from the brief (stored as suggestions), or null if that step failed. */

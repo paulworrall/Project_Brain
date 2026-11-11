@@ -117,8 +117,20 @@ model Project {
 
   // FB-008: the PM confirmed the scope is ready to estimate (the Brief step's
   // gate). Cleared by "Reopen scope". Both null until confirmed.
-  scopeConfirmedAt       DateTime?
-  scopeConfirmedByUserId String?
+  scopeConfirmedAt        DateTime?
+  scopeConfirmedByUserId  String?
+  // FB-009: the scope summary version the PM confirmed (set by confirm scope,
+  // cleared by reopen). Estimates and the SOW read this version as their scope.
+  confirmedScopeVersionId String?
+
+  // FB-009: when the PM marked the clarification email as sent (drafts stop
+  // being rewritten automatically after that). Null = not sent.
+  clarificationSentAt DateTime?
+
+  // FB-009: the Intake Agent's judgement of how complete the brief is:
+  // { level: "complete" | "partial" | "thin", reasons: string[] }. Null for
+  // projects created before FB-009. Separate from key-detail completeness.
+  briefAssessment Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -131,6 +143,7 @@ model Project {
   sowTemplateVersion     SOWTemplateVersion?     @relation(fields: [sowTemplateVersionId], references: [id], onDelete: SetNull)
   masterServiceAgreement MasterServiceAgreement? @relation(fields: [masterServiceAgreementId], references: [id], onDelete: SetNull)
   scopeConfirmedBy       User?                   @relation("ScopeConfirmedBy", fields: [scopeConfirmedByUserId], references: [id], onDelete: SetNull)
+  confirmedScopeVersion  DocumentVersion?        @relation("ConfirmedScopeVersion", fields: [confirmedScopeVersionId], references: [id], onDelete: SetNull)
   stageStatuses          ProjectStageStatus[]
   documents              Document[]
   checklistItems         ChecklistItem[]
@@ -342,6 +355,8 @@ enum DocumentType {
   CHECKLIST
   DRAFT_SCOPE_DOCUMENT
   DELIVERABLES_SERVICES_DOCUMENT
+  // FB-009: the one scope document (replaces the Position Document for new work).
+  SCOPE_SUMMARY
 }
 
 model Document {
@@ -377,6 +392,10 @@ model DocumentVersion {
 
   document  Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
   createdBy User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  // FB-009: scope summary versions confirmed on a project / used by estimates.
+  confirmedForProjects Project[]         @relation("ConfirmedScopeVersion")
+  estimateVersions     EstimateVersion[] @relation("EstimateSourceScope")
 
   @@unique([documentId, versionNumber])
 }
@@ -798,15 +817,19 @@ model EstimateVersion {
   // Structured content behind the .docx, same rationale as
   // EstimateBriefVersion.content.
   content              Json
+  // FB-009: the confirmed scope summary version this estimate was built
+  // against. Null for versions saved before FB-009 (or with no confirmed scope).
+  sourceScopeVersionId String?
   createdById          String?
   createdAt            DateTime     @default(now())
 
-  estimate        Estimate             @relation(fields: [estimateId], references: [id], onDelete: Cascade)
-  rateCardVersion RateCardVersion      @relation(fields: [rateCardVersionId], references: [id], onDelete: Restrict)
-  createdBy       User?                @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  lineItems       EstimateLineItem[]
-  sowVersions     SOWVersion[]
-  approvals       CommercialApproval[]
+  estimate           Estimate             @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  sourceScopeVersion DocumentVersion?     @relation("EstimateSourceScope", fields: [sourceScopeVersionId], references: [id], onDelete: SetNull)
+  rateCardVersion    RateCardVersion      @relation(fields: [rateCardVersionId], references: [id], onDelete: Restrict)
+  createdBy          User?                @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  lineItems          EstimateLineItem[]
+  sowVersions        SOWVersion[]
+  approvals          CommercialApproval[]
 
   @@unique([estimateId, versionNumber])
 }

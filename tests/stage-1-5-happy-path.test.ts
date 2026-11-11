@@ -71,6 +71,21 @@ const positionFieldsV1 = {
   clientFlaggedOpenItems: [] as string[],
 };
 
+// FB-009: intake drafts a Scope summary (replacing the Position Document).
+const scopeV1 = {
+  context: "Acme wants its loyalty app refreshed before the holidays.",
+  outOfScope: [] as string[],
+  deliverables: ["Refreshed loyalty app"],
+  constraints: [] as string[],
+  assumptions: [] as string[],
+  openQuestions: ["Whether the referral feature is in scope"],
+};
+const scopeV2 = {
+  ...scopeV1,
+  deliverables: ["Refreshed loyalty app", "Referral feature"],
+  openQuestions: [] as string[],
+};
+
 const clarificationEmail = {
   subject: "Quick questions on the Acme loyalty app refresh",
   bodyText: "Hi Jamie, following up on one open item...",
@@ -184,8 +199,8 @@ function keyAttributes(attributes: Record<string, Record<string, unknown> | null
 
 describe("Stage 1-5 happy path", () => {
   it("carries a project from brief upload through the Deliverables + Services Document", async () => {
-    // Stage 1 — Intake: classify, key details, Position Document, the check
-    // removing anything key details already cover, draft email (5 Claude calls).
+    // Stage 1 — Intake: classify, key details, Scope summary, draft email
+    // (4 Claude calls).
     mockParse
       .mockResolvedValueOnce({ parsed_output: briefClassification })
       .mockResolvedValueOnce({
@@ -193,8 +208,7 @@ describe("Stage 1-5 happy path", () => {
           budget: { amount: "50,000", currency: "GBP", evidence: "budget of £50,000" },
         }),
       })
-      .mockResolvedValueOnce({ parsed_output: positionFieldsV1 })
-      .mockResolvedValueOnce({ parsed_output: { coveredIndexes: [] } })
+      .mockResolvedValueOnce({ parsed_output: scopeV1 })
       .mockResolvedValueOnce({ parsed_output: clarificationEmail });
 
     await expect(createProjectAction(undefined, briefFormData())).rejects.toThrow(
@@ -206,11 +220,9 @@ describe("Stage 1-5 happy path", () => {
     });
 
     // Stage 3 — Get Clarifications: add a client update via the merged
-    // Additional Inputs action — Position Document update, key attributes,
-    // then the key-detail de-duplication check (3 Claude calls).
-    mockParse.mockResolvedValueOnce({ parsed_output: positionFieldsV2 });
+    // update action — Scope summary update, then key attributes (2 Claude calls).
+    mockParse.mockResolvedValueOnce({ parsed_output: scopeV2 });
     mockParse.mockResolvedValueOnce({ parsed_output: keyAttributes() });
-    mockParse.mockResolvedValueOnce({ parsed_output: { coveredIndexes: [] } });
     await uploadKnowledgeItemAction(
       project.id,
       undefined,
@@ -235,10 +247,10 @@ describe("Stage 1-5 happy path", () => {
       feedbackFormData("Design and Tech & Data are needed; no dedicated architecture work.")
     );
 
-    // Final state: all 10 Claude calls consumed in order, nothing left over.
-    expect(mockParse).toHaveBeenCalledTimes(10);
+    // Final state: all 8 Claude calls consumed in order, nothing left over (FB-009: intake and the update each lost a de-dup call).
+    expect(mockParse).toHaveBeenCalledTimes(8);
     // Specialist review read the Estimate Brief.
-    const reviewPrompt = mockParse.mock.calls[9][0].messages[0].content as string;
+    const reviewPrompt = mockParse.mock.calls[7][0].messages[0].content as string;
     expect(reviewPrompt).toContain("Estimate the referral feature build");
 
     // The brief's budget was captured as a suggestion only — never confirmed.
@@ -271,14 +283,14 @@ describe("Stage 1-5 happy path", () => {
     expect(documentsByType.get("CLARIFICATION_EMAIL")?.versions[0]?.content).toEqual(
       clarificationEmail
     );
-    expect(documentsByType.get("POSITION_DOCUMENT")?.versions[0]?.content).toEqual(
-      positionFieldsV2
-    );
-    expect(documentsByType.get("POSITION_DOCUMENT")?.versions[0]?.versionNumber).toBe(2);
+    expect(documentsByType.get("SCOPE_SUMMARY")?.versions[0]?.content).toEqual(scopeV2);
+    expect(documentsByType.get("SCOPE_SUMMARY")?.versions[0]?.versionNumber).toBe(2);
+    // No Position Document for a project created after FB-009.
+    expect(documentsByType.has("POSITION_DOCUMENT")).toBe(false);
     // Each output records the brief version it was built from: the email at
-    // intake (v1, the brief), the Position Document refreshed by update v2.
+    // intake (v1, the brief), the Scope summary updated by update v2.
     expect(documentsByType.get("CLARIFICATION_EMAIL")?.versions[0]?.builtFromVersion).toBe(1);
-    expect(documentsByType.get("POSITION_DOCUMENT")?.versions[0]?.builtFromVersion).toBe(2);
+    expect(documentsByType.get("SCOPE_SUMMARY")?.versions[0]?.builtFromVersion).toBe(2);
     expect(documentsByType.get("CHECKLIST")).toBeDefined();
     // The Draft Scope Document has been removed from the flow.
     expect(documentsByType.has("DRAFT_SCOPE_DOCUMENT")).toBe(false);

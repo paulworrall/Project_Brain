@@ -12,8 +12,8 @@ import {
   extractKeyAttributes,
   type KeyAttributeExtraction,
 } from "@/services/agents/key-attribute-extraction";
-import { removeItemsCoveredByKeyDetails } from "@/services/agents/position-key-detail-filter";
-import { describeKnownKeyDetails } from "@/lib/keyDetailsContext";
+import { generateScopeSummary } from "@/services/agents/scope-summary-agent";
+import type { ScopeSummaryContent } from "@/types/scope";
 import {
   clarificationQuestionsFrom,
   completenessFromExtraction,
@@ -153,17 +153,32 @@ export function generateSetupChecklist(): IntakeSetupChecklist {
 }
 
 /**
+ * The email generator's view of a Scope summary: its context and deliverables
+ * as "what we know", and its open questions as the client's still-deciding
+ * items. (The required key details still missing are asked separately.)
+ */
+export function emailFieldsFromScopeSummary(scope: ScopeSummaryContent): PositionDocumentExtraction {
+  return {
+    whatWeKnow: [
+      ...(scope.context ? [{ topic: "Context", detail: scope.context }] : []),
+      ...scope.deliverables.map((detail) => ({ topic: "Deliverable", detail })),
+    ],
+    clientFlaggedOpenItems: scope.openQuestions,
+  };
+}
+
+/**
  * Intake, in order: classify the brief; read its key details (the one
- * record for budget, objective, timeline, contact… — stored as suggestions);
- * then the Position Document, which is told to leave those key details out
- * — and then checked, removing anything the key details already cover — so
- * nothing is recorded twice; then the clarification email, addressed to
- * the contact the key details found and asking about the required key
- * details still outstanding. A key-detail failure never blocks
- * intake — it's returned so the caller can record it on the project.
+ * record for budget, objective, timeline, contact… — captured straight away);
+ * then the Scope summary (FB-009 — replaces the Position Document), which is
+ * told to leave those key details out; then the clarification email,
+ * addressed to the contact the key details found and asking about the
+ * required key details still outstanding and the Scope summary's open
+ * questions. A key-detail failure never blocks intake — it's returned so the
+ * caller can record it on the project.
  *
- * The PM perspective, if any, goes to the Position Document and the email as
- * its own labelled block — never into the brief text, and not into
+ * The PM perspective, if any, goes to the Scope summary and the email as its
+ * own labelled block — never into the brief text, and not into
  * classification or key-detail extraction (key details must come from the
  * client).
  */
@@ -185,24 +200,23 @@ export async function runIntakeAgent(
     console.error("Key attribute extraction failed:", error.cause ?? error);
   }
 
-  const extractedPosition = await extractPositionFields(briefText, classification.briefType, pmPerspective);
-  // The guarantee: anything the key details already cover is removed from
-  // "whatWeKnow", so each key detail is recorded once.
-  const positionDocument = {
-    ...extractedPosition,
-    whatWeKnow: await removeItemsCoveredByKeyDetails(
-      extractedPosition.whatWeKnow,
-      describeKnownKeyDetails(null, keyAttributes)
-    ),
-  };
+  let scopeSummary: ScopeSummaryContent;
+  try {
+    scopeSummary = await generateScopeSummary(
+      `This client brief was classified as ${classification.briefType}.\n\n<brief>\n${briefText}\n</brief>`,
+      pmPerspective
+    );
+  } catch (error) {
+    throw friendlyErrorFrom("drafting the scope summary", error);
+  }
   const contactName = keyAttributes?.[CLIENT_CONTACT_FIELDS.attributeId]?.values[CLIENT_CONTACT_FIELDS.name];
   const clarificationEmail = await generateClarificationEmail(
-    positionDocument,
+    emailFieldsFromScopeSummary(scopeSummary),
     clarificationQuestionsFrom(completenessFromExtraction(keyAttributes)),
     pmPerspective,
     typeof contactName === "string" ? contactName : null
   );
   const checklist = generateSetupChecklist();
 
-  return { classification, positionDocument, clarificationEmail, checklist, keyAttributes, keyAttributesError };
+  return { classification, scopeSummary, clarificationEmail, checklist, keyAttributes, keyAttributesError };
 }

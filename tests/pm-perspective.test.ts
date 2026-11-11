@@ -58,12 +58,22 @@ const positionFields = {
 
 const noKeyAttributes = { facts: [] };
 
-/** Intake order: classify, key details, Position Document, email. */
+// FB-009: intake drafts a Scope summary instead of a Position Document.
+const scopeFields = {
+  context: "Relaunch the loyalty app.",
+  outOfScope: [],
+  deliverables: [],
+  constraints: [],
+  assumptions: [],
+  openQuestions: [],
+};
+
+/** Intake order: classify, key details, Scope summary, email. */
 function queueIntakeCalls() {
   mockParse
     .mockResolvedValueOnce({ parsed_output: { briefType: "WORD_DOC", summary: "A brief." } })
     .mockResolvedValueOnce({ parsed_output: noKeyAttributes })
-    .mockResolvedValueOnce({ parsed_output: positionFields })
+    .mockResolvedValueOnce({ parsed_output: scopeFields })
     .mockResolvedValueOnce({ parsed_output: { subject: "Questions", bodyText: "Hi," } });
 }
 
@@ -172,7 +182,7 @@ describe("PM perspective at intake", () => {
     expect(thoughts.content).toContain("PM_THOUGHTS_MARKER");
   });
 
-  it("passes the PM perspective to the Position Document and email as a labelled block — but never to key-attribute extraction", async () => {
+  it("passes the PM perspective to the Scope summary and email as a labelled block — but never to key-attribute extraction", async () => {
     await createProject("Prompt PM Perspective Project", {
       initialThoughts: "PM_CONTEXT_MARKER: known client",
     });
@@ -282,13 +292,13 @@ describe("editing the PM perspective after intake", () => {
 });
 
 describe("the PM perspective in later agent prompts", () => {
-  it("is given to the Position Document update on each Additional Input as its own block", async () => {
+  it("is given to the Scope summary update on each update as its own block", async () => {
     const project = await createProject("Upload Context Project", {
       initialThoughts: "PM_CONTEXT_MARKER",
     });
     mockParse.mockReset();
     mockParse
-      .mockResolvedValueOnce({ parsed_output: positionFields })
+      .mockResolvedValueOnce({ parsed_output: scopeFields })
       .mockResolvedValueOnce({ parsed_output: noKeyAttributes });
 
     const formData = new FormData();

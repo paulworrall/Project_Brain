@@ -11,6 +11,9 @@ import { PositionDocumentView } from "./PositionDocumentView";
 import { ChecklistView } from "./ChecklistView";
 import { DraftScopeDocumentView } from "./DraftScopeDocumentView";
 import { DeliverablesServicesDocumentView } from "./DeliverablesServicesDocumentView";
+import { ScopeSummaryContentSchema } from "@/types/scope";
+import { buildScopeView } from "@/lib/scopeSummaryView";
+import { ScopeSummarySections } from "./ScopeSummarySections";
 
 /** Renders a single DocumentVersion's content read-only, for the Outputs Library / Version History views. */
 export function DocumentVersionContent({
@@ -57,6 +60,19 @@ export function DocumentVersionContent({
     case "DRAFT_SCOPE_DOCUMENT": {
       const parsed = DraftScopeDocumentSchema.safeParse(content);
       return parsed.success ? <DraftScopeDocumentView scope={parsed.data} /> : <UnreadableContent />;
+    }
+    case "SCOPE_SUMMARY": {
+      // History shows what this version stored; key details are shown live on the project.
+      const parsed = ScopeSummaryContentSchema.safeParse(content);
+      return parsed.success ? (
+        <ScopeSummarySections
+          sections={buildScopeView(parsed.data, { attributes: [], requiredOutstanding: [] }).filter(
+            (section) => section.editable
+          )}
+        />
+      ) : (
+        <UnreadableContent />
+      );
     }
     case "DELIVERABLES_SERVICES_DOCUMENT": {
       const parsed = DeliverablesServicesDocumentSchema.safeParse(content);

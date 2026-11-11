@@ -73,6 +73,9 @@ import { getPmPerspectiveField } from "@/lib/pmPerspective";
 import { savePmPerspective } from "@/lib/pmPerspectiveStore";
 import { isProjectCompleteInDb, projectCompleteMessage } from "@/lib/project/projectGuards";
 import { canEditProject, CANNOT_EDIT_PROJECT_MESSAGE } from "@/lib/permissions";
+import { appendScopeSummaryVersion, latestScopeSummary, scopeInputSection } from "@/lib/scopeSummary";
+import { ScopeSummaryAgentError, updateScopeSummary } from "@/services/agents/scope-summary-agent";
+import type { ScopeSummaryContent } from "@/types/scope";
 import { PROJECT_COMPLETE_MESSAGE } from "@/lib/projectSteps";
 import {
   AssistantClassifierError,
@@ -813,7 +816,24 @@ interface SavedProjectUpdate {
  */
 async function saveProjectUpdate(projectId: string, input: ProjectUpdateInput): Promise<SavedProjectUpdate> {
   const { content } = input;
-  const positionDocument = await prisma.document.findUnique({
+  // FB-009: a project with a Scope summary gets a new Scope summary version
+  // from the update instead of a new Position Document version.
+  const scopeSummary = await latestScopeSummary(projectId);
+  let scopeUpdate: { content: ScopeSummaryContent; changedSections: string[] } | null = null;
+  let scopeNotice: string | undefined;
+  if (scopeSummary) {
+    try {
+      const context = await getProjectContext(projectId);
+      scopeUpdate = await updateScopeSummary(scopeSummary.content, content, context.text, context.pmPerspective);
+    } catch (error) {
+      if (!(error instanceof ScopeSummaryAgentError)) throw error;
+      console.error("Scope summary update failed:", error);
+      scopeNotice = `Update saved, but the scope summary couldn't be updated from it this time (${error.message}).`;
+    }
+  }
+  const positionDocument = scopeSummary
+    ? null
+    : await prisma.document.findUnique({
     where: { projectId_type: { projectId, type: "POSITION_DOCUMENT" } },
     include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
   });
@@ -874,6 +894,15 @@ async function saveProjectUpdate(projectId: string, input: ProjectUpdateInput): 
       },
     });
 
+    if (scopeUpdate && scopeUpdate.changedSections.length > 0) {
+      await appendScopeSummaryVersion(
+        projectId,
+        scopeUpdate.content,
+        { builtFromVersion: item.versionNumber, userId: input.userId ?? null, triggeredByUpdateVersion: item.versionNumber },
+        tx
+      );
+    }
+
     // The update itself is the record; no separate client-reply copy is kept.
     if (updatedFields && positionDocument && latestVersion) {
       await tx.documentVersion.create({
@@ -915,24 +944,37 @@ async function saveProjectUpdate(projectId: string, input: ProjectUpdateInput): 
 
   // A fresh draft of the client email from the latest context, as a new
   // version (earlier drafts are kept). Only ever a draft — nothing is sent.
-  // If it fails the email stays flagged stale, with a Regenerate button.
-  runAfterResponse(async () => {
-    try {
-      await redraftClarificationEmail(projectId, null, knowledgeItem.versionNumber);
-    } catch (error) {
-      console.error("Clarification email redraft after an update failed:", error);
-    }
+  // FB-009: once the PM has marked the email as sent, drafts stop being
+  // rewritten automatically (they can still redraft it by hand).
+  const { clarificationSentAt } = await prisma.project.findUniqueOrThrow({
+    where: { id: projectId },
+    select: { clarificationSentAt: true },
   });
+  if (!clarificationSentAt) {
+    runAfterResponse(async () => {
+      try {
+        await redraftClarificationEmail(projectId, null, knowledgeItem.versionNumber);
+      } catch (error) {
+        console.error("Clarification email redraft after an update failed:", error);
+      }
+    });
+  }
 
+  const changedScope = scopeUpdate?.changedSections ?? [];
   const changed = [
     ...Object.keys(keyAttributes ?? {}).map((id) => (getBriefAttribute(id)?.label ?? id).toLowerCase()),
     ...(updatedFields ? ["position document"] : []),
+    ...(changedScope.length > 0 ? [`scope summary (${changedScope.join(", ")})`] : []),
   ];
-  const draftNotice = `Saved as v${knowledgeItem.versionNumber}. A fresh client email draft is being written from it — refresh in a moment to see it.`;
+  const savedNotice = `Saved as v${knowledgeItem.versionNumber}.`;
+  const draftNotice = clarificationSentAt
+    ? savedNotice
+    : `${savedNotice} A fresh client email draft is being written from it — refresh in a moment to see it.`;
+  const problem = scopeNotice ?? positionDocumentNotice;
   return {
     versionNumber: knowledgeItem.versionNumber!,
     changed,
-    notice: positionDocumentNotice ? `${positionDocumentNotice} ${draftNotice}` : draftNotice,
+    notice: problem ? `${problem} ${draftNotice}` : draftNotice,
   };
 }
 
@@ -1207,22 +1249,16 @@ export async function sendAssistantMessageAction(
 /**
  * What the capability-assessment and estimate-brief agents reason from: the
  * shared project context (brief, every update, key details, PM perspective —
- * see getProjectContext) plus the Position Document's other details. Returns
- * the brief version it reflects, for the output to record.
+ * see getProjectContext) plus the scope input (FB-009: the confirmed Scope
+ * summary; else the latest one; else a legacy project's Position Document —
+ * see scopeInputSection). Returns the brief version it reflects.
  */
 async function assembleCapabilityBriefContext(
   projectId: string
 ): Promise<{ text: string; builtFromVersion: number }> {
-  const [context, positionDocument] = await Promise.all([
-    getProjectContext(projectId),
-    latestPositionDocumentContent(projectId),
-  ]);
+  const [context, scope] = await Promise.all([getProjectContext(projectId), scopeInputSection(projectId)]);
   const sections = [context.text];
-  if (positionDocument) {
-    sections.push(
-      `## Position Document (other details from the brief)\n${JSON.stringify(positionDocument)}`
-    );
-  }
+  if (scope) sections.push(scope);
   return { text: sections.join("\n\n"), builtFromVersion: context.latestVersion };
 }
 

@@ -26,6 +26,9 @@ import {
   isProjectComplete,
 } from "@/lib/projectSteps";
 import { buildSpecialistRows, buildSystemChecks } from "@/lib/project/readiness";
+import { latestScopeSummary, scopeSummaryVersion } from "@/lib/scopeSummary";
+import { buildScopeView, openQuestionCount } from "@/lib/scopeSummaryView";
+import { DraftScopeDocumentSchema } from "@/types/triage";
 
 async function fetchProjectPageData(projectId: string) {
   const project = await prisma.project.findUnique({
@@ -171,6 +174,16 @@ async function fetchProjectPageData(projectId: string) {
     )
   );
 
+  // FB-009: the Scope summary (latest + the confirmed version's number) and,
+  // for projects created before it, their earlier documents (read-only).
+  const [scopeLatest, scopeConfirmed] = await Promise.all([
+    latestScopeSummary(project.id),
+    project.confirmedScopeVersionId ? scopeSummaryVersion(project.id, project.confirmedScopeVersionId) : null,
+  ]);
+  const draftScopeDocument = DraftScopeDocumentSchema.safeParse(
+    documents.find((d) => d.type === "DRAFT_SCOPE_DOCUMENT")?.versions[0]?.content
+  );
+
   const [briefCompleteness, pmPerspective, versionHistory] = await Promise.all([
     getBriefCompleteness(project.id),
     getPmPerspective(project.id),
@@ -235,7 +248,26 @@ async function fetchProjectPageData(projectId: string) {
     project.specialistInputs.map((i) => ({ capability: i.capability, status: i.status, note: i.note }))
   );
 
+  const scopeSummary = scopeLatest
+    ? {
+        versionId: scopeLatest.id,
+        versionNumber: scopeLatest.versionNumber,
+        createdAt: scopeLatest.createdAt,
+        content: scopeLatest.content,
+        sections: buildScopeView(scopeLatest.content, briefCompleteness),
+        confirmedVersionNumber: scopeConfirmed?.versionNumber ?? null,
+      }
+    : null;
+  const openQuestions = openQuestionCount(scopeLatest?.content ?? null, briefCompleteness);
+  const earlierDocuments = {
+    positionDocument: positionDocument.success ? positionDocument.data : null,
+    draftScopeDocument: draftScopeDocument.success ? draftScopeDocument.data : null,
+  };
+
   return {
+    scopeSummary,
+    openQuestions,
+    earlierDocuments,
     project,
     workstream,
     client,

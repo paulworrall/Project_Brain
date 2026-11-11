@@ -421,12 +421,12 @@ export async function createProjectAction(
     await tx.document.create({
       data: {
         projectId: project.id,
-        type: "POSITION_DOCUMENT",
+        type: "SCOPE_SUMMARY",
         versions: {
           create: {
             versionNumber: 1,
             stageNumber: 1,
-            content: intakeResult.positionDocument,
+            content: intakeResult.scopeSummary,
             builtFromVersion: INITIAL_BRIEF_VERSION,
           },
         },
