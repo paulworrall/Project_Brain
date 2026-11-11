@@ -54,7 +54,7 @@ export function RevertApprovalDialog({
         <div>
           <label
             htmlFor={id}
-            className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+            className="block text-xs font-medium uppercase tracking-wide text-muted-foreground"
           >
             Reason
           </label>
@@ -67,7 +67,7 @@ export function RevertApprovalDialog({
             aria-describedby={touched && reasonError ? `${id}-err` : undefined}
             onChange={(e) => setReason(e.target.value)}
             onBlur={() => setTouched(true)}
-            className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+            className="mt-1 w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground"
           />
           {touched && reasonError && (
             <p id={`${id}-err`} className="mt-1 text-xs text-danger" role="alert">

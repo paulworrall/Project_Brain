@@ -233,7 +233,7 @@ describe("ApprovedDocumentsPanel", () => {
       expect(badge).toHaveAttribute("aria-hidden", "true");
       expect(badge?.querySelector("svg")).not.toBeNull();
       // Same card treatment as the other sidebar panels.
-      expect(container.firstElementChild).toHaveClass("border-2", "p-5");
+      expect(container.firstElementChild).toHaveClass("border-t-navy", "p-5");
     };
     check();
     rerender(<ApprovedDocumentsPanel summary={{ estimate: estimateDoc, sow: null }} />);

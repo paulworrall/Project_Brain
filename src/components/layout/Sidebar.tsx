@@ -18,7 +18,7 @@ export function Sidebar() {
           <li key={item.href}>
             <Link
               href={item.href}
-              className="block rounded-md px-3 py-2 text-sm font-medium text-foreground hover:bg-surface-muted"
+              className="block border-l-[3px] border-transparent px-3 py-2 text-sm font-medium text-foreground hover:border-orange hover:bg-cream"
             >
               {item.label}
             </Link>

@@ -34,7 +34,7 @@ export function EditableOtherLabel({
           type="text"
           aria-label="Other service label"
           defaultValue={label}
-          className="rounded-md border border-border bg-surface px-2 py-1 text-sm font-semibold text-foreground"
+          className="border border-border bg-surface px-2 py-1 text-sm font-medium text-foreground"
         />
         <button type="submit" disabled={pending} className="text-xs font-medium text-primary">
           {pending ? "Saving…" : "Save"}
@@ -56,7 +56,7 @@ export function EditableOtherLabel({
     <button
       type="button"
       onClick={() => setIsEditing(true)}
-      className="text-sm font-semibold text-foreground underline decoration-dotted"
+      className="text-sm font-medium text-foreground underline decoration-dotted"
       title="Edit label"
     >
       {label}

@@ -28,13 +28,13 @@ function VersionRow({ version }: { version: VersionView }) {
     <li className="py-3 text-xs text-foreground">
       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
         <p>
-          <span className="font-semibold text-primary">
+          <span className="font-medium text-primary">
             {version.versionNumber ? `v${version.versionNumber}` : "—"}
           </span>{" "}
           {version.label}
           {showDate && <span className="text-muted-foreground"> · {formatUkDateTime(version.createdAt)}</span>}
         </p>
-        <span className="shrink-0 rounded-full bg-surface-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+        <span className="shrink-0 rounded-full border border-border bg-surface-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
           {SOURCE_LABEL[version.source]}
         </span>
       </div>
@@ -99,7 +99,7 @@ export function VersionHistoryDrawer({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex justify-end bg-foreground/40 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex justify-end bg-foreground/50"
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -110,17 +110,17 @@ export function VersionHistoryDrawer({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="flex h-full w-full max-w-md flex-col overflow-y-auto border-l border-border bg-surface p-5 shadow-lg outline-none"
+        className="flex h-full w-full max-w-md flex-col overflow-y-auto border-l border-border bg-surface p-5 outline-none"
       >
         <div className="flex items-start justify-between gap-4">
-          <h2 id={titleId} className="text-base font-semibold text-foreground">
+          <h2 id={titleId} className="text-base font-medium text-foreground">
             Version history
           </h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="rounded-md p-1 text-muted-foreground hover:bg-surface-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="p-1 text-muted-foreground hover:bg-surface-muted hover:text-foreground"
           >
             <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
               <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />

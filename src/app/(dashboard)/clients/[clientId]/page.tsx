@@ -75,7 +75,7 @@ export default async function ClientDetailPage({
           {" / "}
           <span>{client.name}</span>
         </nav>
-        <h1 className="mt-1 text-xl font-semibold text-foreground">{client.name}</h1>
+        <h1 className="mt-1 text-3xl leading-tight font-light text-foreground sm:text-4xl">{client.name}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {workstreams.length} workstream{workstreams.length === 1 ? "" : "s"}
         </p>
@@ -85,7 +85,7 @@ export default async function ClientDetailPage({
         {workstreams.map((workstream) => (
           <Link key={workstream.id} href={`/workstreams/${workstream.id}`} className="block">
             <Card className="p-4 transition-colors hover:border-primary">
-              <h3 className="font-semibold text-foreground">{workstream.name}</h3>
+              <h3 className="font-medium text-foreground">{workstream.name}</h3>
               <p className="mt-1 text-sm text-muted-foreground">
                 {workstream._count.projects} project
                 {workstream._count.projects === 1 ? "" : "s"}
@@ -100,7 +100,7 @@ export default async function ClientDetailPage({
       )}
 
       <div>
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
           Contracts & Rates
         </h2>
         <div className="mt-3 grid gap-4 sm:grid-cols-2">

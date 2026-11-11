@@ -39,7 +39,7 @@ export function Modal({ isOpen, title, onClose, children }: ModalProps) {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/50 p-4"
       onClick={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
@@ -52,17 +52,17 @@ export function Modal({ isOpen, title, onClose, children }: ModalProps) {
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-border bg-surface p-6 shadow-lg outline-none"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto border border-border bg-surface p-6 outline-none"
       >
         <div className="flex items-start justify-between gap-4">
-          <h2 id={titleId} className="text-lg font-semibold text-foreground">
+          <h2 id={titleId} className="text-xl font-light text-foreground">
             {title}
           </h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="rounded-md p-1 text-muted-foreground hover:bg-surface-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="p-1 text-muted-foreground hover:bg-surface-muted hover:text-foreground"
           >
             <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
               <path

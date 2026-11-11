@@ -52,7 +52,7 @@ const MAX_VISIBLE_ESTIMATES = 3;
 
 /** Matches Button's secondary variant, sized down for an inline link. */
 const OPEN_LINK_CLASS =
-  "inline-flex shrink-0 items-center gap-1 rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
+  "inline-flex shrink-0 items-center gap-1 border border-border bg-surface px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-surface-muted";
 
 function formatDate(date: Date): string {
   return new Intl.DateTimeFormat("en-GB", {
@@ -167,7 +167,7 @@ function NewEstimateForm({
             <div>
               <label
                 htmlFor="estimate-label"
-                className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                className="block text-xs font-medium uppercase tracking-wide text-muted-foreground"
               >
                 Label
               </label>
@@ -176,13 +176,13 @@ function NewEstimateForm({
                 name="label"
                 required
                 placeholder="e.g. Initial estimate"
-                className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+                className="mt-1 w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
               />
             </div>
             <div>
               <label
                 htmlFor="estimate-rate-card"
-                className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                className="block text-xs font-medium uppercase tracking-wide text-muted-foreground"
               >
                 Rate card
               </label>
@@ -191,7 +191,7 @@ function NewEstimateForm({
                 name="rateCardVersionId"
                 required
                 defaultValue=""
-                className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+                className="mt-1 w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground"
               >
                 <option value="" disabled>
                   Choose a rate card version…
@@ -262,7 +262,7 @@ function EstimateTrackCard({
         className="flex items-center justify-between gap-3 outline-none"
       >
         <div className="min-w-0 flex-1">
-          <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">
+          <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground">
             <span className="truncate">
               {estimate.label}
               {latest ? ` · v${latest.versionNumber}` : ""}
@@ -280,7 +280,7 @@ function EstimateTrackCard({
               : "No version saved yet"}
           </p>
           {latest?.needsRecalculation && (
-            <p className="mt-0.5 text-xs font-medium text-warning">
+            <p className="mt-0.5 text-xs font-medium text-foreground">
               Needs recalculation — open and save a new version
             </p>
           )}
@@ -327,7 +327,7 @@ function EstimateTrackCard({
                   v{version.versionNumber} — {formatDate(version.createdAt)} ·{" "}
                   {formatMoney(version.totalValue, version.currency)}
                   {version.needsRecalculation && (
-                    <span className="ml-1 font-medium text-warning">· needs recalculation</span>
+                    <span className="ml-1 font-medium text-foreground">· needs recalculation</span>
                   )}
                   <DocumentStatusBadge
                     state={version.approvalState ?? "draft"}

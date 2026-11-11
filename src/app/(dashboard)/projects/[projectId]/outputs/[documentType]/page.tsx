@@ -79,7 +79,7 @@ export default async function DocumentVersionHistoryPage({
           {" / "}
           <span>{DOCUMENT_TYPE_LABELS[documentType]}</span>
         </nav>
-        <h1 className="mt-1 text-xl font-semibold text-foreground">
+        <h1 className="mt-1 text-3xl leading-tight font-light text-foreground sm:text-4xl">
           {DOCUMENT_TYPE_LABELS[documentType]}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -91,7 +91,7 @@ export default async function DocumentVersionHistoryPage({
         {versions.map((version, index) => (
           <Card key={version.id} className="p-5">
             <details open={index === 0}>
-              <summary className="cursor-pointer text-sm font-semibold text-foreground">
+              <summary className="cursor-pointer text-sm font-medium text-foreground">
                 Version {version.versionNumber} — Stage {version.stageNumber} ·{" "}
                 {formatDateTime(version.createdAt)}
                 {version.createdBy ? ` · ${version.createdBy.name}` : ""}

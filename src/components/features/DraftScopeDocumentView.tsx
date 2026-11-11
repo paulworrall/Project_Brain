@@ -5,11 +5,11 @@ export function DraftScopeDocumentView({ scope }: { scope: DraftScopeDocument })
   return (
     <div className="space-y-4">
       {scope.flaggedGaps.length > 0 && (
-        <Card className="border-warning bg-warning-bg p-5">
-          <h3 className="text-sm font-semibold text-warning">
+        <Card className="border-warning border-l-4 bg-warning-bg p-5">
+          <h3 className="text-sm font-medium text-foreground">
             ⚠ Gaps Carried Forward for Specialists
           </h3>
-          <p className="mt-1 text-xs text-warning">
+          <p className="mt-1 text-xs text-foreground">
             This draft proceeds despite these open items — review before committing to scope.
           </p>
           <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-foreground">
@@ -21,7 +21,7 @@ export function DraftScopeDocumentView({ scope }: { scope: DraftScopeDocument })
       )}
 
       <Card className="p-5">
-        <h3 className="text-sm font-semibold text-foreground">Objectives</h3>
+        <h3 className="text-sm font-medium text-foreground">Objectives</h3>
         <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-foreground">
           {scope.objectives.map((o, i) => (
             <li key={i}>{o}</li>
@@ -30,7 +30,7 @@ export function DraftScopeDocumentView({ scope }: { scope: DraftScopeDocument })
       </Card>
 
       <Card className="p-5">
-        <h3 className="text-sm font-semibold text-foreground">Deliverables</h3>
+        <h3 className="text-sm font-medium text-foreground">Deliverables</h3>
         <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-foreground">
           {scope.deliverables.map((d, i) => (
             <li key={i}>{d}</li>
@@ -39,7 +39,7 @@ export function DraftScopeDocumentView({ scope }: { scope: DraftScopeDocument })
       </Card>
 
       <Card className="p-5">
-        <h3 className="text-sm font-semibold text-foreground">Milestones</h3>
+        <h3 className="text-sm font-medium text-foreground">Milestones</h3>
         <ul className="mt-2 space-y-1 text-sm text-foreground">
           {scope.milestones.map((m, i) => (
             <li key={i} className="flex justify-between gap-4">
@@ -51,7 +51,7 @@ export function DraftScopeDocumentView({ scope }: { scope: DraftScopeDocument })
       </Card>
 
       <Card className="p-5">
-        <h3 className="text-sm font-semibold text-foreground">Roles &amp; Responsibilities</h3>
+        <h3 className="text-sm font-medium text-foreground">Roles &amp; Responsibilities</h3>
         <div className="mt-2 space-y-3">
           <div>
             <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -79,7 +79,7 @@ export function DraftScopeDocumentView({ scope }: { scope: DraftScopeDocument })
       </Card>
 
       <Card className="p-5">
-        <h3 className="text-sm font-semibold text-foreground">Budget</h3>
+        <h3 className="text-sm font-medium text-foreground">Budget</h3>
         <p className="mt-1 text-sm text-foreground">{scope.budget.summary}</p>
         <p className="mt-1 text-xs text-muted-foreground">
           {scope.budget.isConfirmed ? "Confirmed" : "Not yet confirmed"}
@@ -87,7 +87,7 @@ export function DraftScopeDocumentView({ scope }: { scope: DraftScopeDocument })
       </Card>
 
       <Card className="p-5">
-        <h3 className="text-sm font-semibold text-foreground">Assumptions &amp; Constraints</h3>
+        <h3 className="text-sm font-medium text-foreground">Assumptions &amp; Constraints</h3>
         <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-foreground">
           {scope.assumptionsAndConstraints.map((a, i) => (
             <li key={i}>{a}</li>

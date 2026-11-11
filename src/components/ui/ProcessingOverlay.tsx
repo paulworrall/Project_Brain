@@ -84,10 +84,10 @@ export function ProcessingOverlay({
       tabIndex={-1}
       data-testid="processing-overlay"
       data-reduced-motion={prefersReducedMotion}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4 backdrop-blur-sm outline-none"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/50 p-4 outline-none"
     >
-      <div className="w-full max-w-md rounded-lg border border-border bg-surface p-8 shadow-lg">
-        <h2 id={titleId} className="text-lg font-semibold text-foreground">
+      <div className="w-full max-w-md border border-border bg-surface p-8">
+        <h2 id={titleId} className="text-xl font-light text-foreground">
           {title}
         </h2>
 
@@ -122,13 +122,13 @@ export function ProcessingOverlay({
           <>
             <div className="mt-6 flex justify-center" aria-hidden="true">
               {prefersReducedMotion ? (
-                <div className="h-2.5 w-2.5 rounded-full bg-primary" />
+                <div className="h-2.5 w-2.5 rounded-full bg-orange" />
               ) : (
                 <div className="flex gap-1.5">
                   {[0, 1, 2].map((dot) => (
                     <span
                       key={dot}
-                      className="thinking-dot h-2.5 w-2.5 rounded-full bg-primary"
+                      className="thinking-dot h-2.5 w-2.5 rounded-full bg-orange"
                       style={{ animationDelay: `${dot * 160}ms` }}
                     />
                   ))}
@@ -150,7 +150,7 @@ export function ProcessingOverlay({
                 >
                   <span
                     className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${
-                      index <= clampedIndex ? "bg-primary" : "bg-border"
+                      index <= clampedIndex ? "bg-orange" : "bg-border"
                     }`}
                   />
                   {stage}

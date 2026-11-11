@@ -69,7 +69,7 @@ export default async function OutputsLibraryPage({
           {" / "}
           <span>Outputs Library</span>
         </nav>
-        <h1 className="mt-1 text-xl font-semibold text-foreground">Outputs Library</h1>
+        <h1 className="mt-1 text-3xl leading-tight font-light text-foreground sm:text-4xl">Outputs Library</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Every artifact this project has produced, versioned at each stage transition.
         </p>
@@ -83,7 +83,7 @@ export default async function OutputsLibraryPage({
           return (
             <Card key={type} className="flex items-center justify-between gap-4 p-4">
               <div>
-                <p className="text-sm font-semibold text-foreground">{DOCUMENT_TYPE_LABELS[type]}</p>
+                <p className="text-sm font-medium text-foreground">{DOCUMENT_TYPE_LABELS[type]}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Version {latestVersion.versionNumber} · Stage {latestVersion.stageNumber} ·{" "}
                   {formatDateTime(latestVersion.createdAt)}

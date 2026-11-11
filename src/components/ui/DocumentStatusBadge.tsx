@@ -26,7 +26,7 @@ function PencilIcon() {
 function LockIcon() {
   return (
     <svg {...ICON_PROPS}>
-      <rect x="4" y="11" width="16" height="10" rx="2" />
+      <rect x="4" y="11" width="16" height="10" />
       <path d="M8 11V7a4 4 0 0 1 8 0v4" />
     </svg>
   );
@@ -42,10 +42,10 @@ function MinusIcon() {
 }
 
 const STYLES: Record<ApprovalState, string> = {
-  draft: "bg-warning-bg text-foreground border-warning",
-  approved: "bg-success-bg text-foreground border-success",
-  superseded: "bg-surface-muted text-muted-foreground border-border",
-  not_approved: "bg-surface-muted text-muted-foreground border-border",
+  draft: "bg-rag-amber text-navy border-rag-amber",
+  approved: "bg-rag-green text-navy border-rag-green",
+  superseded: "bg-surface text-muted-foreground border-border-strong",
+  not_approved: "bg-surface text-muted-foreground border-border-strong",
 };
 
 /**
@@ -94,7 +94,7 @@ export function DocumentStatusBadge({
       aria-label={`Document status: ${text}`}
       title={title}
       data-state={state}
-      className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 align-middle text-xs font-medium ${STYLES[state]} ${className}`}
+      className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap border px-2 py-0.5 align-middle text-xs font-medium ${STYLES[state]} ${className}`}
     >
       {icon}
       <span aria-hidden="true">{text}</span>

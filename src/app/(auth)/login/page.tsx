@@ -5,7 +5,7 @@ import { LoginForm } from "./LoginForm";
 export default function LoginPage() {
   return (
     <Card className="p-6">
-      <h2 className="mb-4 text-lg font-semibold text-foreground">Sign in</h2>
+      <h2 className="mb-4 text-lg font-medium text-foreground">Sign in</h2>
       <LoginForm />
       <p className="mt-4 text-center text-sm text-muted-foreground">
         Need an account?{" "}

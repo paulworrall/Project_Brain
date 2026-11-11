@@ -47,25 +47,25 @@ describe("PhaseTabs", () => {
     it("gives the active tab the selected fill, indicator, weight and thicker accent bar", () => {
       render5("define");
       const active = screen.getByRole("link", { name: "Define, not started" });
-      expect(active).toHaveClass("bg-accent", "border-primary!");
-      expect(within(active).getByText("Define")).toHaveClass("font-semibold", "text-primary");
+      expect(active).toHaveClass("bg-surface", "border-orange");
+      expect(within(active).getByText("Define")).toHaveClass("font-medium", "text-foreground");
       expect(active.querySelector("span[aria-hidden]")).toHaveClass("h-1");
-      // Secondary text is darkened for AA on the tint.
       expect(within(active).getByText(/Ideate/)).toHaveClass("text-muted-foreground-strong");
     });
 
     it("keeps inactive tabs free of the selected styling, with hover, press and focus variants", () => {
       render5("define");
       const inactive = screen.getByRole("link", { name: "Discover, in progress" });
-      expect(inactive).not.toHaveClass("bg-accent");
-      expect(inactive).not.toHaveClass("border-primary!");
-      expect(within(inactive).getByText("Discover")).not.toHaveClass("text-primary");
-      expect(inactive.className).toContain("hover:bg-surface-muted");
-      expect(inactive.className).toContain("active:bg-border");
-      expect(inactive.className).toContain("focus-visible:outline-2");
+      expect(inactive).not.toHaveClass("bg-surface");
+      expect(inactive).not.toHaveClass("border-orange");
+      expect(within(inactive).getByText("Discover")).not.toHaveClass("font-medium");
+      expect(inactive.className).toContain("hover:bg-line-soft");
+      expect(inactive.className).toContain("active:bg-line");
+      // The global MAP focus ring, inset so the scrolling tab bar can't clip it.
+      expect(inactive.className).toContain("focus-inset");
       expect(inactive).toHaveClass("cursor-pointer", "min-h-11");
       // hover must not borrow the selected look
-      expect(inactive.className).not.toMatch(/hover:(bg-accent|border-primary|text-primary)/);
+      expect(inactive.className).not.toMatch(/hover:(bg-surface|border-orange)\b/);
     });
 
     it("makes every tab one link, with the connectors outside the links", () => {

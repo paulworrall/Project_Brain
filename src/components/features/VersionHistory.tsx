@@ -68,7 +68,7 @@ function VersionRow({
   const isCurrent = version.status === "ENABLED";
 
   return (
-    <li className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm">
+    <li className="flex flex-wrap items-center justify-between gap-2 border border-border px-3 py-2 text-sm">
       <div>
         <p className="font-medium text-foreground">
           Version {version.versionNumber} — {version.fileName}
@@ -81,7 +81,7 @@ function VersionRow({
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <span
-          className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+          className={`px-2.5 py-1 text-xs font-medium ${
             isCurrent ? "bg-success-bg text-success" : "bg-surface-muted text-muted-foreground"
           }`}
         >
@@ -158,7 +158,7 @@ export function VersionHistory({
   return (
     <Card className="p-5">
       <div className="flex items-center justify-between gap-4">
-        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        <h3 className="text-sm font-medium text-foreground">{title}</h3>
         {canManage && (
           <Button type="button" variant="secondary" onClick={() => setIsUploading((prev) => !prev)}>
             {isUploading ? "Cancel" : current ? "Upload new version" : "Upload"}
@@ -167,10 +167,10 @@ export function VersionHistory({
       </div>
 
       {current ? (
-        <div className="mt-3 rounded-md border border-border bg-surface-muted px-3 py-2">
+        <div className="mt-3 border border-border bg-surface-muted px-3 py-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-medium text-foreground">{current.fileName}</p>
-            <span className="shrink-0 rounded-full bg-success-bg px-2.5 py-1 text-xs font-medium text-success">
+            <span className="shrink-0 bg-success-bg px-2.5 py-1 text-xs font-medium text-success">
               Current
             </span>
           </div>
@@ -218,7 +218,7 @@ export function VersionHistory({
               type="file"
               accept={fileAccept}
               required
-              className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground"
+              className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground"
             />
           </div>
           {children}

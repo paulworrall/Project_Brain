@@ -22,7 +22,7 @@ export function SpecialistFeedbackForm({ projectId }: { projectId: string }) {
       <div>
         <label
           htmlFor="capability"
-          className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+          className="block text-xs font-medium uppercase tracking-wide text-muted-foreground"
         >
           Capability team
         </label>
@@ -32,7 +32,7 @@ export function SpecialistFeedbackForm({ projectId }: { projectId: string }) {
           value={capability}
           onChange={(e) => setCapability(e.target.value)}
           required
-          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+          className="mt-1 w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground"
         >
           <option value="" disabled>
             Which capability is this feedback from?
@@ -50,7 +50,7 @@ export function SpecialistFeedbackForm({ projectId }: { projectId: string }) {
         <div>
           <label
             htmlFor="otherLabel"
-            className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+            className="block text-xs font-medium uppercase tracking-wide text-muted-foreground"
           >
             Name the capability team
           </label>
@@ -66,7 +66,7 @@ export function SpecialistFeedbackForm({ projectId }: { projectId: string }) {
 
       <label
         htmlFor="feedback"
-        className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+        className="block text-xs font-medium uppercase tracking-wide text-muted-foreground"
       >
         Capability Feedback
       </label>
@@ -75,7 +75,7 @@ export function SpecialistFeedbackForm({ projectId }: { projectId: string }) {
         name="feedback"
         rows={6}
         placeholder="Paste the specialist leads' feedback on the Estimate Brief here…"
-        className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+        className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
       />
       {state?.message && (
         <p className="text-sm text-danger" role="alert">

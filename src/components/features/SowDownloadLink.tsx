@@ -47,7 +47,7 @@ export function SowDownloadLink({
           <a
             href={href}
             onClick={() => setOpen(false)}
-            className="inline-flex items-center rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-muted"
+            className="inline-flex items-center border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-muted"
           >
             Download anyway
           </a>

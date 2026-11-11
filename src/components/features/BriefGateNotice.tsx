@@ -18,10 +18,10 @@ export function BriefGateAlert({
   onDismiss?: () => void;
 }) {
   return (
-    <div role="alert" className="space-y-3 rounded-md border border-warning bg-warning-bg p-4">
+    <div role="alert" className="space-y-3 border border-warning border-l-4 bg-warning-bg p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h4 className="text-sm font-semibold text-foreground">
+          <h4 className="text-sm font-medium text-foreground">
             We can&apos;t generate the SOW yet
           </h4>
           <p className="text-xs text-muted-foreground">
@@ -45,7 +45,7 @@ export function BriefGateAlert({
           </button>
         )}
       </div>
-      <ul className="rounded-md bg-surface p-3">
+      <ul className="bg-surface p-3">
         {outstanding.map((attribute) => (
           <KeyAttributeRow
             key={attribute.id}
@@ -71,9 +71,9 @@ export function BriefCompletenessWarning({ completeness }: { completeness: Brief
   return (
     <div
       role="status"
-      className="rounded-md border border-warning bg-warning-bg p-3 text-xs text-foreground"
+      className="border border-warning border-l-4 bg-warning-bg p-3 text-xs text-foreground"
     >
-      <p className="font-semibold">Some key details for this project are still missing</p>
+      <p className="font-medium">Some key details for this project are still missing</p>
       <ul className="mt-1 list-inside list-disc text-muted-foreground">
         {completeness.warnings.map((warning) => (
           <li key={warning}>{warning}</li>

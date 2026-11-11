@@ -84,7 +84,7 @@ export function ProjectShell({
           type="button"
           onClick={() => setToolsOpen(true)}
           aria-expanded={toolsOpen}
-          className="mb-1 shrink-0 rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring lg:hidden"
+          className="mb-1 shrink-0 border border-border bg-surface px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-muted lg:hidden"
         >
           Project tools
         </button>
@@ -103,7 +103,7 @@ export function ProjectShell({
               <h2
                 id={discoverActive ? "phase-heading" : undefined}
                 tabIndex={-1}
-                className="text-lg font-semibold text-foreground outline-none"
+                className="text-lg font-medium text-foreground outline-none"
               >
                 {discoverPhase.label} — {discoverPhase.verbs[0]} · {discoverPhase.verbs[1]}
               </h2>
@@ -118,7 +118,7 @@ export function ProjectShell({
         {toolsOpen && (
           <div
             aria-hidden="true"
-            className="fixed inset-0 z-40 bg-foreground/40 backdrop-blur-sm lg:hidden"
+            className="fixed inset-0 z-40 bg-foreground/50 lg:hidden"
             onClick={() => setToolsOpen(false)}
           />
         )}
@@ -131,18 +131,18 @@ export function ProjectShell({
           tabIndex={-1}
           className={`outline-none lg:sticky lg:top-6 lg:block lg:max-h-[calc(100vh-3rem)] lg:self-start lg:overflow-y-auto ${
             toolsOpen
-              ? "max-lg:fixed max-lg:inset-y-0 max-lg:right-0 max-lg:z-50 max-lg:block max-lg:w-full max-lg:max-w-md max-lg:overflow-y-auto max-lg:border-l max-lg:border-border max-lg:bg-surface max-lg:p-5 max-lg:shadow-lg"
+              ? "max-lg:fixed max-lg:inset-y-0 max-lg:right-0 max-lg:z-50 max-lg:block max-lg:w-full max-lg:max-w-md max-lg:overflow-y-auto max-lg:border-l max-lg:border-border max-lg:bg-surface max-lg:p-5 max-lg:"
               : "hidden"
           }`}
         >
           <div className="mb-3 flex items-center justify-between lg:hidden">
-            <h2 id={toolsTitleId} className="text-base font-semibold text-foreground">
+            <h2 id={toolsTitleId} className="text-base font-medium text-foreground">
               Project tools
             </h2>
             <button
               type="button"
               onClick={() => setToolsOpen(false)}
-              className="rounded-md px-2 py-1 text-sm font-medium text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              className="px-2 py-1 text-sm font-medium text-primary hover:underline"
             >
               Close
             </button>

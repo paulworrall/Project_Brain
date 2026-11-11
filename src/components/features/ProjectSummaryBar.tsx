@@ -84,7 +84,7 @@ export function ProjectSummaryBar({
               name="jobCode"
               type="text"
               defaultValue={jobCode ?? ""}
-              className="mt-1 rounded-md border border-border bg-surface px-2 py-1 text-sm text-foreground"
+              className="mt-1 border border-border-strong bg-surface px-2 py-1 text-sm text-foreground"
             />
           </div>
           <div>
@@ -96,7 +96,7 @@ export function ProjectSummaryBar({
               name="kickOffDate"
               type="date"
               defaultValue={toDateInputValue(kickOffDate)}
-              className="mt-1 rounded-md border border-border bg-surface px-2 py-1 text-sm text-foreground"
+              className="mt-1 border border-border-strong bg-surface px-2 py-1 text-sm text-foreground"
             />
           </div>
           <div>
@@ -111,7 +111,7 @@ export function ProjectSummaryBar({
               name="targetCompletionDate"
               type="date"
               defaultValue={toDateInputValue(targetCompletionDate)}
-              className="mt-1 rounded-md border border-border bg-surface px-2 py-1 text-sm text-foreground"
+              className="mt-1 border border-border-strong bg-surface px-2 py-1 text-sm text-foreground"
             />
           </div>
           <div>
@@ -125,7 +125,7 @@ export function ProjectSummaryBar({
               id="projectManagerId"
               name="projectManagerId"
               defaultValue={projectManager?.id ?? ""}
-              className="mt-1 rounded-md border border-border bg-surface px-2 py-1 text-sm text-foreground"
+              className="mt-1 border border-border-strong bg-surface px-2 py-1 text-sm text-foreground"
             >
               <option value="">Unassigned</option>
               {projectManagerOptions.map((pm) => (
@@ -143,7 +143,7 @@ export function ProjectSummaryBar({
               id="rateCardId"
               name="rateCardId"
               defaultValue={rateCard?.id ?? ""}
-              className="mt-1 rounded-md border border-border bg-surface px-2 py-1 text-sm text-foreground"
+              className="mt-1 border border-border-strong bg-surface px-2 py-1 text-sm text-foreground"
             >
               <option value="">No rate card</option>
               {rateCardOptions.map((rc) => (
@@ -172,7 +172,7 @@ export function ProjectSummaryBar({
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-6">
           <span
-            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+            className={`px-2.5 py-1 text-xs font-medium ${
               status === "COMPLETE" ? "bg-success-bg text-success" : "bg-accent text-accent-foreground"
             }`}
           >

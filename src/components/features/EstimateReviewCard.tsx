@@ -85,13 +85,13 @@ function EstimateReviewLineRow({
               min="0.01"
               defaultValue={row.quantity}
               aria-label={`Quantity for ${row.role}`}
-              className="w-16 rounded-md border border-border bg-surface px-1.5 py-0.5 text-xs text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+              className="w-16 border border-border bg-surface px-1.5 py-0.5 text-xs text-foreground"
             />
             <select
               name="unit"
               defaultValue={row.unit}
               aria-label={`Unit for ${row.role}`}
-              className="rounded-md border border-border bg-surface px-1 py-0.5 text-xs text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+              className="border border-border bg-surface px-1 py-0.5 text-xs text-foreground"
             >
               {ESTIMATE_UNIT_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -190,7 +190,7 @@ export function EstimateReviewCard({
   return (
     <Card className="space-y-4 p-5">
       <div>
-        <h4 className="text-sm font-semibold text-foreground">Review</h4>
+        <h4 className="text-sm font-medium text-foreground">Review</h4>
         <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-foreground sm:grid-cols-2">
           <div>
             <dt className="text-muted-foreground">Client</dt>
@@ -220,7 +220,7 @@ export function EstimateReviewCard({
       <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] text-left text-xs">
           <thead>
-            <tr className="border-b border-border text-muted-foreground">
+            <tr className="border-b border-navy text-xs uppercase tracking-[0.1em] text-muted-foreground">
               <th className="py-1.5 pr-2 font-medium">Capability</th>
               <th className="py-1.5 pr-2 font-medium">Role</th>
               <th className="py-1.5 pr-2 font-medium">Level</th>
@@ -244,7 +244,7 @@ export function EstimateReviewCard({
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
         <div>
-          <p className="text-sm font-semibold text-foreground">
+          <p className="text-sm font-medium text-foreground">
             Total: {moneyFormat.format(content.totalValue)} {content.currency}
           </p>
           {content.hoursPerDay != null && (
@@ -266,7 +266,7 @@ export function EstimateReviewCard({
       {sowNotice && (
         <p
           role="note"
-          className="rounded-md border border-warning bg-warning-bg px-3 py-2 text-xs text-foreground"
+          className="border border-warning border-l-4 bg-warning-bg px-3 py-2 text-xs text-foreground"
         >
           Your SOW is based on Estimate v{sowNotice.estimateVersionNumber} (
           {formatMoney(sowNotice.total, sowNotice.currency)}) — saving this version will put it out

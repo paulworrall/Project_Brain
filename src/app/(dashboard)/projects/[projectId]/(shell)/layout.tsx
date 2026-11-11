@@ -84,7 +84,7 @@ export default async function ProjectLayout({
               {workstream.name}
             </Link>
           </nav>
-          <h1 className="mt-1 text-xl font-semibold text-foreground">{project.name}</h1>
+          <h1 className="mt-1 text-3xl leading-tight font-light text-foreground sm:text-4xl">{project.name}</h1>
         </div>
         <Link
           href={`/projects/${project.id}/outputs`}

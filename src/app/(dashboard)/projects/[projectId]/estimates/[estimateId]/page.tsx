@@ -67,7 +67,7 @@ export default async function EstimateDetailPage({
         </nav>
         <div className="mt-1 flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-xl font-semibold text-foreground">{estimate.label}</h1>
+            <h1 className="text-3xl leading-tight font-light text-foreground sm:text-4xl">{estimate.label}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Locked to {rateCardVersion.rateCard.name} (version {rateCardVersion.versionNumber})
             </p>

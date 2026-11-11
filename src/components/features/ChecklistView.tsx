@@ -10,7 +10,7 @@ export interface ChecklistItemView {
 export function ChecklistView({ items }: { items: ChecklistItemView[] }) {
   return (
     <Card className="p-5">
-      <h3 className="text-sm font-semibold text-foreground">Project Set-Up Checklist</h3>
+      <h3 className="text-sm font-medium text-foreground">Project Set-Up Checklist</h3>
       <p className="mt-1 text-xs text-muted-foreground">
         Generated at Stage 1 — see the project page for the live, tickable checklist.
       </p>

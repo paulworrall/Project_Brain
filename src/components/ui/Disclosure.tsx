@@ -25,7 +25,7 @@ export function Disclosure({ summary, children, defaultOpen = false, className =
     <details open={open} onToggle={handleToggle} className={className}>
       <summary
         aria-expanded={open}
-        className="cursor-pointer list-none text-sm font-medium text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="cursor-pointer list-none text-sm font-medium text-primary"
       >
         {summary}
       </summary>

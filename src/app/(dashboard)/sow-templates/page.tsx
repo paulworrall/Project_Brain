@@ -82,7 +82,7 @@ export default async function SowTemplatesLibraryPage() {
           {" / "}
           <span>SOW Templates</span>
         </nav>
-        <h1 className="mt-1 text-xl font-semibold text-foreground">SOW Templates</h1>
+        <h1 className="mt-1 text-3xl leading-tight font-light text-foreground sm:text-4xl">SOW Templates</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           The baseline template every Client can use for SOW development, plus client-specific
           variants.
@@ -90,7 +90,7 @@ export default async function SowTemplatesLibraryPage() {
       </div>
 
       <div>
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
           Baseline
         </h2>
         <div className="mt-3">
@@ -109,7 +109,7 @@ export default async function SowTemplatesLibraryPage() {
       </div>
 
       <div>
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
           Client-specific variants
         </h2>
         {variantsByClient.size === 0 ? (
@@ -120,7 +120,7 @@ export default async function SowTemplatesLibraryPage() {
           <div className="mt-3 space-y-6">
             {Array.from(variantsByClient.entries()).map(([clientId, { clientName, templates }]) => (
               <div key={clientId}>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   {clientName}
                 </h3>
                 <div className="mt-2 space-y-3">

@@ -3,6 +3,8 @@
 ## Architecture Overview
 Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (Postgres/Neon, driver-adapter-based), and NextAuth v5 (beta) for email/password auth. All Level 1 MVP scope (Stages 1-5, Knowledge Upload, Chatbot, polish/QA/deploy) is complete, plus post-MVP additions: a Phase-grouped Stage Tracker (`src/lib/phases.ts`), Client/Workstream taxonomy navigation + global search, Phase 1 as a fluid workspace, commercial documents in one shared "document has many Versions, exactly one current" pattern (MSA, Rate Cards, SOW Template Library), the "Capabilities & Estimate Brief" panel, "Build The Estimate" (Stage 6), "Generate SOW" (Stage 8), brief key attributes, and the PM perspective.
 
+**WPP ES | MAP design system (Nov 2026)**: the whole UI uses the WPP Enterprise Solutions | MAP design system, matching the sister app Reporting Hub: Navy/Cream/White/Orange tokens in `src/app/globals.css` (semantic names kept — `foreground`, `primary`, `surface`, `accent`, `success`/`warning`/`danger` — with MAP values, plus MAP names `navy`, `cream`, `orange`, `tint`, `line-strong`, `rag-*`), WPP Sans via `next/font/local` (`public/fonts/WPP-*.woff2`), square corners (only tags/pills and dots round), no shadows/gradients, and one global `:focus-visible` ring (Orange outline + Navy inner ring; `focus-inset` in scroll containers). Rules are in CLAUDE.md "Styling conventions". App-specific adaptations vs Reporting Hub: two-tone focus ring, Navy eyebrow, Orange 900 error text, Rule border on cards, `border-strong` on inputs, ReadinessStrip fill+outline segments, Toast with Navy frame.
+
 **5D phase tabs (FB-007, Oct 2026)**: the project page is now a persistent shell (`projects/[projectId]/(shell)/layout.tsx`: header box, `PhaseTabs` nav of five links with derived status, sticky sidebar / mobile "Project tools" dialog) over phase routes `/projects/[id]/{discover,define,develop,deliver,dialogue}`; `/projects/[id]` redirects to the first non-Complete phase. Config and status rules: `src/lib/projectPhases.ts` (not `phases.ts`, which groups Stages into Discover's three Steps). Discover is rendered by the layout and kept mounted (hidden) on other tabs so unsaved card state survives; other phases render `PhaseComingSoon` until built. Shared cached loader: `src/lib/projectPageData.ts`. `revalidatePath` on the project route must use `"layout"`.
 
 **Client approval of estimates/SOWs (FB-005, Oct 2026)**: a version is Draft until a PM records that the client approved it outside the app. `CommercialApproval` is append-only (one table, `documentType` + an estimate-or-SOW version FK; undo/revert set `revokedAt`/`revokeKind`, never delete) with partial unique indexes: one active approval per project per document type and per version. Status is derived (`deriveApprovalState`, `src/lib/commercial/approvalState.ts`), never stored. Rules live in `approvalService.ts` (approve/undo/revert; SOW must come from the approved estimate version; 10s undo + 2s grace on the server clock); every mutating estimate/SOW action calls `assertEstimateEditable`/`assertSowEditable` (`approvalGuards.ts`), re-checked inside the writing transaction for slow work. All permission decisions are in `src/lib/permissions.ts` (`canApprove` = any signed-in user; `canRevertApproval` = `ADMIN_ROLES`, empty until FB-006 defines an Admin role, so revert UI is hidden). Stage 6/8 read Complete from approvals (computed in `stageStatusWithApprovals`, not stored). `assembleSowContext` uses the approved estimate version when one exists. One money formatter (`src/lib/formatMoney.ts`).
@@ -18,6 +20,15 @@ Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (P
 **Generate SOW**: pick a SOW Template, click "Generate SOW"/"Regenerate SOW" (gated as above). That first runs extraction (`sow-extraction-agent.ts`, behind ProcessingOverlay) and opens a full-screen stepped review (`SowReviewOverlay`: Deliverables, Services, Assumptions, Out of Scope, Risks, Review & generate) where the PM validates the items; items persist per project (`SowSectionItem`) and respect a pure merge on regeneration (`src/lib/sowItemsMerge.ts`). Generate then composes the `.docx` (`sow-agent.ts`) from only the included items, guided by the template, and snapshots them on the version (`SOWVersion.itemsSnapshot`). Regenerating appends a version.
 
 ## File Inventory
+
+### Source Files — MAP design system restyle
+| File | Purpose | Last Modified Task |
+|------|---------|-------------------|
+| `src/app/globals.css` | MAP tokens, `@theme inline`, base layer, focus ring, `.lbl`/`.eyebrow`/`.focus-inset` | MAP restyle |
+| `src/app/layout.tsx` | WPP Sans via `next/font/local` (Geist removed) | MAP restyle |
+| `src/components/layout/Logo.tsx`, `Header.tsx` | MAP lockup placeholder (as Reporting Hub) + "PROJECT BRAIN" app bar | MAP restyle |
+| `src/components/ui/{Button,Card,Input,FormError,DocumentStatusBadge,ReadinessStrip,Toast,Modal,ProcessingOverlay}.tsx` | Primitives restyled to Reporting Hub's; Button gains `onNavy`/`onNavyOutline` | MAP restyle |
+| All `src/components/features/*`, `src/app/**` pages | Class sweep: square corners, no shadows, Medium not semibold, Light page titles, square status chips | MAP restyle |
 
 ### Source Files — 5D phase tabs (FB-007)
 | File | Purpose | Last Modified Task |
@@ -108,6 +119,7 @@ Unchanged recently — see `progress.md`. Auth (`src/lib/{auth,permissions}.ts`,
 | `next.config.ts` | `serverExternalPackages` incl. `officeparser` |
 | `.prettierrc.json`, `eslint.config.mjs`, `vitest.config.mts`, `.claude/launch.json` | Formatting (printWidth 100), lint, tests, dev/prod preview servers |
 | `.gitignore` | Includes `.env.local` |
+| `public/fonts/WPP-*.woff2` | WPP Sans (Thin, Light, Regular, Medium, Bold), copied from Reporting Hub |
 
 ### Test Files (108 files, 869 tests, all passing)
 | File | Tests | Status |
@@ -151,7 +163,7 @@ Unchanged recently — see `progress.md`. Auth (`src/lib/{auth,permissions}.ts`,
 - **Scripted edits**: no Python on this machine; use Node. Many files are CRLF — normalize to LF while editing and restore on write. The shell tool mangles apostrophes and backslashes in heredocs, so write edit scripts to the scratchpad with the Write tool first.
 
 ## Current State Summary
-Latest: **5D phase tabs (FB-007)** on branch `feat/fb-007-phase-tabs` (not yet merged/deployed); Define-Dialogue are coming-soon panels.
+Latest: **MAP design system restyle** on branch `feat/map-design-system` (visual only; not yet merged). The WPP font files' licence for this (public) repo is unconfirmed — see `progress.md`. 5D phase tabs (FB-007) are merged; Define-Dialogue are coming-soon panels.
 
 All MVP scope plus Build The Estimate, Generate SOW, brief key attributes, the PM perspective and (latest) **client approval of estimates/SOWs** are built and deployed (FB-005 merged to main, migration applied).
 

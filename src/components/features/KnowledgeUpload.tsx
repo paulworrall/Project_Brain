@@ -90,7 +90,7 @@ export function KnowledgeUpload({
             aria-label="Notes"
             rows={3}
             placeholder="Paste meeting notes or other context…"
-            className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+            className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
           />
         ) : (
           <input
@@ -98,7 +98,7 @@ export function KnowledgeUpload({
             type="file"
             aria-label="File"
             accept=".docx,.pdf,.pptx,.txt"
-            className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground"
+            className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground"
           />
         )}
 
@@ -121,7 +121,7 @@ export function KnowledgeUpload({
       {latest && (
         <p className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">
           Latest:{" "}
-          <span className="font-semibold text-foreground">
+          <span className="font-medium text-foreground">
             {latest.versionNumber ? `v${latest.versionNumber}` : "—"}
           </span>{" "}
           · {formatUkDateTime(latest.createdAt)} ·{" "}

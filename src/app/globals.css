@@ -1,43 +1,93 @@
 @import "tailwindcss";
 
+/*
+ * WPP Enterprise Solutions | MAP design system — the same system as Reporting Hub.
+ * Navy carries the brand, Cream is the page, White is surfaces, Orange is the accent.
+ * Square corners everywhere; only pills/tags and dots are rounded. No shadows, no gradients.
+ *
+ * The semantic names below (foreground, primary, surface…) are what components use;
+ * their values are MAP colours. The MAP names (navy, cream, orange…) are also exposed
+ * so new code can match Reporting Hub directly. Don't reintroduce indigo/slate.
+ */
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  /* MAP palette */
+  --navy: #000050;
+  --navy-hover: #1a1a6b;
+  --cream: #fafaf0;
+  --white: #ffffff;
+  --orange: #ff7800; /* orange-700: accent, dots, focus ring. Never text on light grounds. */
+  --orange-dark: #d94e0e; /* orange-800: large text (24px+) and non-text accents only — 3.96:1 on Cream */
+  --orange-deep: #6a290a; /* orange-900: error text (10.3:1 on Cream) — app-specific adaptation */
+  --amber: #f9bd5d; /* orange-600 */
+  --tint: #fff5cd; /* orange-500: the one sanctioned tint background */
+  --muted: #59598d;
+  --line: #d9d9e5;
+  --line-strong: #666696;
+  --line-soft: #e6e6ee;
+  --disabled: #8a8ab0;
 
-  --surface: #ffffff;
-  --surface-muted: #f1f5f9;
+  /* Status fills — always Navy text, always with a word or icon */
+  --rag-red: #ffb4b4;
+  --rag-amber: #f9bd5d;
+  --rag-green: #b4ff64;
 
-  --border: #e2e8f0;
+  /* Semantic tokens (Project Brain names, MAP values) */
+  --background: var(--cream);
+  --foreground: var(--navy);
 
-  --muted-foreground: #64748b;
-  /* Secondary text on the indigo tint (active phase tab): ~7:1 where muted-foreground is ~4.4:1. */
-  --muted-foreground-strong: #475569;
+  --surface: var(--white);
+  --surface-muted: var(--cream);
 
-  --primary: #4338ca;
-  --primary-hover: #3730a3;
-  --primary-foreground: #ffffff;
+  --border: var(--line);
+  --border-strong: var(--line-strong);
 
-  --accent: #eef2ff;
-  --accent-foreground: #4338ca;
+  --muted-foreground: var(--muted);
+  --muted-foreground-strong: var(--muted);
 
-  --success: #15803d;
-  --success-bg: #f0fdf4;
-  --warning: #b45309;
-  --warning-bg: #fffbeb;
-  --danger: #b91c1c;
-  --danger-bg: #fef2f2;
+  --primary: var(--navy);
+  --primary-hover: var(--navy-hover);
+  --primary-foreground: var(--white);
 
-  --ring: #6366f1;
+  --accent: var(--tint);
+  --accent-foreground: var(--navy);
 
-  /* 5D phase accents — small accents only; text never relies on them. */
-  --phase-discover: #5b3a29;
-  --phase-define: #ea580c;
-  --phase-develop: #fb923c;
-  --phase-deliver: #f59e0b;
-  --phase-dialogue: #fde68a;
+  /* "Done" is Navy (as Reporting Hub's Complete chip); the fill is MAP Green */
+  --success: var(--navy);
+  --success-bg: var(--rag-green);
+  /* Amber is a fill/border colour — warning text is Navy with its word or icon */
+  --warning: var(--amber);
+  --warning-bg: var(--tint);
+  --danger: var(--orange-deep);
+  --danger-bg: var(--rag-red);
+
+  --ring: var(--orange);
+
+  /* 5D phase accents — decorative bars only; text never relies on them */
+  --phase-discover: var(--navy);
+  --phase-define: var(--orange-deep);
+  --phase-develop: var(--orange-dark);
+  --phase-deliver: var(--orange);
+  --phase-dialogue: var(--amber);
 }
 
 @theme inline {
+  --color-navy: var(--navy);
+  --color-navy-hover: var(--navy-hover);
+  --color-cream: var(--cream);
+  --color-orange: var(--orange);
+  --color-orange-dark: var(--orange-dark);
+  --color-orange-deep: var(--orange-deep);
+  --color-amber: var(--amber);
+  --color-tint: var(--tint);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-line-soft: var(--line-soft);
+  --color-disabled: var(--disabled);
+  --color-rag-red: var(--rag-red);
+  --color-rag-amber: var(--rag-amber);
+  --color-rag-green: var(--rag-green);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
 
@@ -45,6 +95,7 @@
   --color-surface-muted: var(--surface-muted);
 
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
 
   --color-muted-foreground: var(--muted-foreground);
   --color-muted-foreground-strong: var(--muted-foreground-strong);
@@ -71,17 +122,82 @@
   --color-phase-deliver: var(--phase-deliver);
   --color-phase-dialogue: var(--phase-dialogue);
 
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-wpp), "Poppins", "Century Gothic", system-ui, sans-serif;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
+/* Element defaults live in the base layer so Tailwind utilities always win over them. */
+@layer base {
+  html {
+    background: var(--cream);
+  }
+
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "salt" 1;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  *,
+  ::before,
+  ::after {
+    border-color: var(--border);
+  }
+
+  /*
+   * Focus ring: Orange outline with a Navy inner ring. Reporting Hub uses Orange alone,
+   * which is 2.52:1 on Cream (fails WCAG 1.4.11). Navy passes on Cream/White (17.9:1),
+   * Orange passes on Navy (7.1:1), so the pair is visible on every MAP ground.
+   */
+  :focus-visible {
+    outline: 3px solid var(--orange);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px var(--navy);
+  }
 }
 
-* {
-  border-color: var(--border);
+/* Containers focused programmatically (tabIndex={-1}, outline-none) show no ring. */
+.outline-none:focus-visible {
+  box-shadow: none;
+}
+
+/* Inset variant for focusable items inside a scroll container that would clip the ring. */
+.focus-inset:focus-visible {
+  outline-offset: -5px;
+  box-shadow: inset 0 0 0 2px var(--navy);
+}
+
+/* Small uppercase section label (as Reporting Hub) */
+.lbl {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/*
+ * Eyebrow label. Reporting Hub sets it in Orange 800 at 15px, which is 3.96:1 on Cream
+ * (fails AA for small text), so here it is Navy with an Orange dot — app-specific adaptation.
+ */
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--navy);
+}
+
+.eyebrow::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: var(--orange);
 }
 
 @keyframes thinking-pulse {

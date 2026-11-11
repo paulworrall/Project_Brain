@@ -44,7 +44,7 @@ export interface SowReviewOverlayProps {
   generating?: boolean;
 }
 
-const BADGE_BASE = "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium";
+const BADGE_BASE = "inline-flex items-center px-2 py-0.5 text-xs font-medium";
 
 function ProvenanceBadges({ item }: { item: SowItemDto }) {
   return (
@@ -98,7 +98,7 @@ function AutoGrowTextarea({
       aria-label={label}
       onChange={(event) => onChange(event.target.value)}
       onBlur={onBlur}
-      className={`block w-full resize-none overflow-hidden rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring ${className ?? ""}`}
+      className={`block w-full resize-none overflow-hidden border border-border-strong bg-surface px-3 py-2 text-sm text-foreground ${className ?? ""}`}
     />
   );
 }
@@ -416,14 +416,14 @@ export function SowReviewOverlay({
     >
       <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-4 py-3 sm:px-6">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground" data-testid="step-indicator">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground" data-testid="step-indicator">
             {stepIndicator(step)}
           </p>
           <h2
             id={titleId}
             ref={headingRef}
             tabIndex={-1}
-            className="mt-0.5 text-lg font-semibold text-foreground outline-none"
+            className="mt-0.5 text-lg font-medium text-foreground outline-none"
           >
             {isFinal ? "Review & generate" : `Review the ${section!.label.toLowerCase()}`}
           </h2>
@@ -433,7 +433,7 @@ export function SowReviewOverlay({
           onClick={() => void handleClose()}
           disabled={disabled}
           aria-label="Save and close"
-          className="rounded-md p-1 text-muted-foreground hover:bg-surface-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50"
+          className="p-1 text-muted-foreground hover:bg-surface-muted hover:text-foreground disabled:opacity-50"
         >
           <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden="true">
             <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -448,7 +448,7 @@ export function SowReviewOverlay({
               <p className="text-sm text-muted-foreground">{section.hint}</p>
 
               {sectionItems.length === 0 && (
-                <p className="rounded-md border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
+                <p className="border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
                   No {section.emptyNoun} yet.
                 </p>
               )}
@@ -459,7 +459,7 @@ export function SowReviewOverlay({
                     key={item.id}
                     data-testid="sow-item"
                     data-source={item.source}
-                    className={`rounded-md border border-border p-3 motion-safe:transition-opacity ${
+                    className={`border border-border p-3 motion-safe:transition-opacity ${
                       item.included ? "bg-surface" : "bg-surface-muted opacity-60"
                     }`}
                   >
@@ -470,7 +470,7 @@ export function SowReviewOverlay({
                         onChange={(event) => handleToggle(item.id, event.target.checked)}
                         aria-label={includeLabel(item.section, index, item.text)}
                         disabled={generating}
-                        className="mt-2.5 h-4 w-4 shrink-0 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                        className="mt-2.5 h-4 w-4 shrink-0 accent-primary"
                       />
                       <div className="min-w-0 flex-1 space-y-2">
                         <AutoGrowTextarea
@@ -505,7 +505,7 @@ export function SowReviewOverlay({
                                     "Reverted to the suggested wording."
                                   )
                                 }
-                                className="text-xs font-medium text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                                className="text-xs font-medium text-primary hover:underline"
                               >
                                 Revert to suggestion
                               </button>
@@ -516,7 +516,7 @@ export function SowReviewOverlay({
                                 disabled={generating}
                                 onClick={() => void handleDelete(item.id)}
                                 aria-label={`Delete ${section.noun} ${index + 1}`}
-                                className="text-xs font-medium text-danger hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                                className="text-xs font-medium text-danger hover:underline"
                               >
                                 Delete
                               </button>
@@ -526,9 +526,9 @@ export function SowReviewOverlay({
                         {item.pendingAgentSuggestion && (
                           <div
                             data-testid="pending-suggestion"
-                            className="rounded-md border border-warning bg-warning-bg px-3 py-2 text-sm"
+                            className="border border-warning border-l-4 bg-warning-bg px-3 py-2 text-sm"
                           >
-                            <p className="text-xs font-semibold text-foreground">Suggested change</p>
+                            <p className="text-xs font-medium text-foreground">Suggested change</p>
                             <p className="mt-0.5 whitespace-pre-wrap text-foreground">{item.pendingAgentSuggestion}</p>
                             <div className="mt-2 flex gap-2">
                               <Button
@@ -582,12 +582,12 @@ export function SowReviewOverlay({
               <table className="w-full text-left text-sm">
                 <caption className="sr-only">Items per section</caption>
                 <thead>
-                  <tr className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
-                    <th scope="col" className="py-2 pr-3 font-semibold">Section</th>
-                    <th scope="col" className="px-2 py-2 font-semibold">Included</th>
-                    <th scope="col" className="px-2 py-2 font-semibold">Excluded</th>
-                    <th scope="col" className="px-2 py-2 font-semibold">Added</th>
-                    <th scope="col" className="px-2 py-2 font-semibold">Edited</th>
+                  <tr className="border-b border-navy text-xs uppercase tracking-[0.1em] text-muted-foreground">
+                    <th scope="col" className="py-2 pr-3 font-medium">Section</th>
+                    <th scope="col" className="px-2 py-2 font-medium">Included</th>
+                    <th scope="col" className="px-2 py-2 font-medium">Excluded</th>
+                    <th scope="col" className="px-2 py-2 font-medium">Added</th>
+                    <th scope="col" className="px-2 py-2 font-medium">Edited</th>
                     <th scope="col" className="py-2 pl-2"><span className="sr-only">Go to step</span></th>
                   </tr>
                 </thead>
@@ -607,7 +607,7 @@ export function SowReviewOverlay({
                             disabled={disabled}
                             onClick={() => void handleJump(index)}
                             aria-label={`Go to step ${index + 1}: ${s.label}`}
-                            className="text-xs font-medium text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                            className="text-xs font-medium text-primary hover:underline"
                           >
                             Edit
                           </button>
@@ -618,7 +618,7 @@ export function SowReviewOverlay({
                 </tbody>
               </table>
               {pendingSuggestions > 0 && (
-                <p className="text-sm text-warning">
+                <p className="text-sm text-foreground">
                   {pendingSuggestions} suggested {pendingSuggestions === 1 ? "change is" : "changes are"} still waiting
                   for you to accept or dismiss. They won&apos;t be applied unless you accept them.
                 </p>
@@ -630,7 +630,7 @@ export function SowReviewOverlay({
             <div
               role="alertdialog"
               aria-label={confirmMessage}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-warning bg-warning-bg px-3 py-2 text-sm"
+              className="flex flex-wrap items-center justify-between gap-3 border border-warning border-l-4 bg-warning-bg px-3 py-2 text-sm"
             >
               <span className="font-medium text-foreground">{confirmMessage}</span>
               <span className="flex gap-2">
@@ -644,7 +644,7 @@ export function SowReviewOverlay({
             </div>
           )}
           {blockedMessage && (
-            <p role="alert" className="rounded-md border border-danger px-3 py-2 text-sm text-danger">
+            <p role="alert" className="border border-danger px-3 py-2 text-sm text-danger">
               {blockedMessage}
             </p>
           )}

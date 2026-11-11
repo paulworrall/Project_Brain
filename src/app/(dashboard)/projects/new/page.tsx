@@ -15,7 +15,7 @@ export default async function NewProjectPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <h1 className="text-xl font-semibold text-foreground">New Project</h1>
+      <h1 className="text-3xl leading-tight font-light text-foreground sm:text-4xl">New Project</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Paste or upload the client brief — the Intake Agent will classify it and draft the
         Clarification Email, Position Document, and Set-Up Checklist.

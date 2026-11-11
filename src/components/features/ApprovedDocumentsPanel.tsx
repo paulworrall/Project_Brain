@@ -5,12 +5,12 @@ import { formatMoney } from "@/lib/formatMoney";
 import type { ApprovedDocSummary, ApprovedDocumentsSummary } from "@/types/approvals";
 
 const LINK_CLASS =
-  "font-medium text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
+  "font-medium text-primary hover:underline";
 
 function Slot({ heading, doc }: { heading: string; doc: ApprovedDocSummary | null }) {
   return (
     <section aria-label={heading} className="space-y-1">
-      <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         {heading}
       </h4>
       {doc ? (

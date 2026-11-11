@@ -20,7 +20,7 @@ const STATUS_LABEL: Record<StepStatus, string> = {
 };
 
 const STATUS_BADGE_CLASS: Record<StepStatus, string> = {
-  NOT_STARTED: "bg-surface-muted text-muted-foreground",
+  NOT_STARTED: "border border-border bg-surface text-muted-foreground",
   IN_PROGRESS: "bg-accent text-accent-foreground",
   COMPLETE: "bg-success-bg text-success",
 };
@@ -30,7 +30,7 @@ function StepIcon({ status, label }: { status: StepStatus; label: string }) {
     return (
       <span
         aria-hidden
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-success text-sm font-semibold text-white"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-success text-sm font-medium text-white"
       >
         ✓
       </span>
@@ -40,7 +40,7 @@ function StepIcon({ status, label }: { status: StepStatus; label: string }) {
     return (
       <span
         aria-hidden
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-primary bg-accent text-sm font-semibold text-primary"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-primary bg-accent text-sm font-medium text-primary"
       >
         {label}
       </span>
@@ -106,7 +106,7 @@ export function WorkflowStepList({
                   </p>
                 </div>
                 <span
-                  className={`rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_BADGE_CLASS[step.status]}`}
+                  className={`px-2.5 py-1 text-xs font-medium ${STATUS_BADGE_CLASS[step.status]}`}
                 >
                   {STATUS_LABEL[step.status]}
                 </span>

@@ -75,9 +75,9 @@ function RoleResolutionRow({
     : `${resolution.extractedQuantity} ${resolution.extractedUnit!.toLowerCase()}`;
 
   return (
-    <li className="rounded-md border border-border bg-surface p-3">
+    <li className="border border-border bg-surface p-3">
       <div className="flex flex-wrap items-center gap-2 text-xs">
-        <span className="rounded-full bg-surface-muted px-2 py-0.5 font-medium text-foreground">
+        <span className="rounded-full border border-border bg-surface-muted px-2 py-0.5 font-medium text-foreground">
           {capabilityLabel(resolution.capability)}
         </span>
         <span className="text-muted-foreground">&quot;{resolution.rawRoleText}&quot;</span>
@@ -88,7 +88,7 @@ function RoleResolutionRow({
         {quantityLabel}
       </p>
       {unitMissing && (
-        <p className="mt-1 text-xs font-medium text-warning">
+        <p className="mt-1 text-xs font-medium text-foreground">
           Unit missing or unclear — choose hours, days or weeks. It isn&apos;t assumed to be hours.
         </p>
       )}
@@ -112,7 +112,7 @@ function RoleResolutionRow({
             name="rateCardLineItemId"
             defaultValue={resolution.resolvedLineId ?? resolution.suggestedLine?.id ?? ""}
             required
-            className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+            className="mt-1 w-full border border-border-strong bg-surface px-2 py-1.5 text-sm text-foreground"
           >
             <option value="" disabled>
               Choose a line…
@@ -137,7 +137,7 @@ function RoleResolutionRow({
             defaultValue={resolution.extractedUnit ?? ""}
             required
             aria-invalid={unitMissing || undefined}
-            className={`mt-1 rounded-md border bg-surface px-2 py-1.5 text-sm text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring ${
+            className={`mt-1 border bg-surface px-2 py-1.5 text-sm text-foreground ${
               unitMissing ? "border-warning" : "border-border"
             }`}
           >
@@ -185,9 +185,9 @@ export function RoleResolutionReview({
   }
 
   return (
-    <div className="space-y-3 rounded-md border border-warning bg-warning-bg p-4">
+    <div className="space-y-3 border border-warning border-l-4 bg-warning-bg p-4">
       <div>
-        <h4 className="text-sm font-semibold text-foreground">
+        <h4 className="text-sm font-medium text-foreground">
           {pendingResolutions.length} role{pendingResolutions.length === 1 ? "" : "s"} need
           {pendingResolutions.length === 1 ? "s" : ""} your review
         </h4>

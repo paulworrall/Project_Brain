@@ -10,7 +10,7 @@ Project Brain is an internal platform that makes the delivery, management, and c
 
 ## Technical Stack
 - **Framework:** Next.js (App Router) + TypeScript
-- **Styling:** Tailwind CSS (no existing design system — build clean/efficient/professional from scratch)
+- **Styling:** Tailwind CSS v4 with the **WPP Enterprise Solutions | MAP design system** (shared with Reporting Hub) — see "Styling conventions" below. Not indigo, not Geist.
 - **State Management:** React state / Server Components where possible; introduce a client store only if a specific screen genuinely needs one
 - **Authentication:** NextAuth, email/password credentials provider (upgradeable to SSO later — do not build anything that blocks that)
 - **Database/Backend:** PostgreSQL (hosted on Neon), Prisma ORM
@@ -195,7 +195,14 @@ When starting a new session:
 - ⚠️ Never auto-send the Clarification Email or any client-facing artifact — always a draft
 - ⚠️ Every chatbot query MUST include a `project_id` filter in its database query — this is not optional, and should be checked in every PR/task touching the chatbot
 
-### Styling
+### Styling conventions (WPP ES | MAP design system)
+- ⚠️ Project Brain uses the **WPP Enterprise Solutions | MAP** design system, the same as Reporting Hub. Do not drift back to the old indigo/slate palette, Geist fonts or rounded cards.
+- Tokens live in `src/app/globals.css` (`:root` + `@theme inline`). Components use the semantic names (`foreground`, `primary`, `surface`, `border`, `muted-foreground`, `accent`, `success`/`warning`/`danger`), whose values are MAP colours; the MAP names (`navy`, `cream`, `orange`, `tint`, `line-strong`, `rag-*`) are also available. Never hard-code hex or Tailwind palette classes (`indigo-*`, `slate-*`…).
+- Colours: Navy `#000050` text/primary/emphasis · Cream `#FAFAF0` page · White surfaces · Orange `#FF7800` accent and non-text highlights only · Orange 800 `#D94E0E` only for text 24px+ or non-text accents (3.96:1 on Cream) · Orange 900 `#6A290A` error text · Muted `#59598D` secondary text · Rule `#D9D9E5` dividers · `#666696` (`border-strong`) for input/control borders.
+- Status fills: Red `#FFB4B4`, Amber `#F9BD5D`, Green `#B4FF64`, always with Navy text and always with a word or icon — never colour alone. "Done" is Navy with a tick.
+- Type: WPP Sans via `next/font/local` (`public/fonts/WPP-*.woff2`). Page titles Light (300), labels/emphasis Medium (500), body Regular (400). No semibold; Bold only for the footer brand lockup.
+- Shape: square corners everywhere. Only tags/pills (`rounded-full`) and dots/step circles are round. Status chips are square, as in Reporting Hub. No shadows, gradients or blur.
+- Focus: the global `:focus-visible` ring in `globals.css` (Orange outline + Navy inner ring, AA on Cream and on Navy). Don't add per-element `focus:outline-*` classes; use `focus-inset` inside scroll containers.
 - ⚠️ Desktop-first, but test at mobile/tablet breakpoints (`sm:`, `md:`, `lg:` in Tailwind) before marking a UI task complete
 
 ### Security

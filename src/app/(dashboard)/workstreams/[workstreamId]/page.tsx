@@ -59,7 +59,7 @@ export default async function WorkstreamDetailPage({
           {" / "}
           <span>{workstream.name}</span>
         </nav>
-        <h1 className="mt-1 text-xl font-semibold text-foreground">{workstream.name}</h1>
+        <h1 className="mt-1 text-3xl leading-tight font-light text-foreground sm:text-4xl">{workstream.name}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {projects.length} project{projects.length === 1 ? "" : "s"}
         </p>
