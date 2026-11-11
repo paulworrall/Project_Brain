@@ -48,7 +48,7 @@ export function ClarificationEmailCard({
   return (
     <div>
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-foreground">Clarification email</h3>
+        <h3 className="text-sm font-medium text-foreground">Clarification email</h3>
         {email && (
           <Button
             type="button"

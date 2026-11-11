@@ -38,7 +38,7 @@ export default async function MasterServiceAgreementsLibraryPage() {
           {" / "}
           <span>Master Service Agreements</span>
         </nav>
-        <h1 className="mt-1 text-xl font-semibold text-foreground">Master Service Agreements</h1>
+        <h1 className="mt-1 text-3xl leading-tight font-light text-foreground sm:text-4xl">Master Service Agreements</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Every Client&apos;s MSA — one document per Client, with a full version history.
         </p>
@@ -50,7 +50,7 @@ export default async function MasterServiceAgreementsLibraryPage() {
         <div className="space-y-6">
           {clients.map((client) => (
             <div key={client.id}>
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 <Link href={`/clients/${client.id}`} className="hover:underline">
                   {client.name}
                 </Link>

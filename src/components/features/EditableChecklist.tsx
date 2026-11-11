@@ -29,7 +29,7 @@ function ChecklistItemDetailField({
         placeholder="Add detail (e.g. job code, folder URL)…"
         aria-label={`${item.label} detail`}
         onBlur={() => formRef.current?.requestSubmit()}
-        className="w-full rounded-md border border-border bg-surface px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+        className="w-full border border-border-strong bg-surface px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground"
       />
       {state?.message && <p className="mt-1 text-xs text-danger">{state.message}</p>}
     </form>

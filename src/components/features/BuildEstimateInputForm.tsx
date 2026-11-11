@@ -140,7 +140,7 @@ export function BuildEstimateInputForm({
           aria-label="Estimate"
           rows={6}
           placeholder="Paste the estimate content here…"
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+          className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
         />
       ) : (
         <input
@@ -148,7 +148,7 @@ export function BuildEstimateInputForm({
           type="file"
           aria-label="Estimate file"
           accept=".docx,.pdf,.pptx,.xlsx,.txt"
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground"
+          className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground"
         />
       )}
 

@@ -42,7 +42,7 @@ function PmPerspectiveFieldEditor({
         rows={3}
         defaultValue={field.content}
         aria-describedby={`${inputId}-helper`}
-        className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+        className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground"
       />
       <p id={`${inputId}-helper`} className="text-xs text-muted-foreground">
         {field.helper}
@@ -76,11 +76,11 @@ export function PmPerspectivePanel({
   return (
     <section
       aria-labelledby="pm-perspective-heading"
-      className="space-y-3 rounded-lg border border-accent-foreground/30 bg-accent p-5"
+      className="space-y-3 border border-accent-foreground/30 bg-accent p-5"
     >
       <div>
         <div className="flex flex-wrap items-center gap-2">
-          <h3 id="pm-perspective-heading" className="text-sm font-semibold text-accent-foreground">
+          <h3 id="pm-perspective-heading" className="text-sm font-medium text-accent-foreground">
             PM perspective
           </h3>
           <span className="rounded-full border border-accent-foreground/40 px-2 py-0.5 text-[11px] font-medium text-accent-foreground">
@@ -100,7 +100,7 @@ export function PmPerspectivePanel({
             key={field.id}
             className="border-t border-accent-foreground/20 pt-2 first:border-t-0 first:pt-0"
           >
-            <dt className="text-xs font-semibold uppercase tracking-wide text-accent-foreground">
+            <dt className="text-xs font-medium uppercase tracking-wide text-accent-foreground">
               {field.label}
             </dt>
             <dd className="mt-1 space-y-1">

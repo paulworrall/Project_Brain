@@ -39,7 +39,7 @@ export function SignupForm() {
           id="role"
           name="role"
           defaultValue="DELIVERY"
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+          className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground"
         >
           <option value="DELIVERY">Delivery</option>
           <option value="CLIENT_ENGAGEMENT">Client Engagement</option>

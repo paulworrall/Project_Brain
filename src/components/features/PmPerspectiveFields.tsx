@@ -25,9 +25,9 @@ export function PmPerspectiveFields({
       role="group"
       aria-labelledby="pm-perspective-title"
       aria-describedby="pm-perspective-intro"
-      className="space-y-3 rounded-md border border-accent-foreground/30 bg-accent p-4"
+      className="space-y-3 border border-accent-foreground/30 bg-accent p-4"
     >
-      <h3 id="pm-perspective-title" className="text-sm font-semibold text-accent-foreground">
+      <h3 id="pm-perspective-title" className="text-sm font-medium text-accent-foreground">
         PM perspective <span className="font-normal">(optional)</span>
       </h3>
       <p id="pm-perspective-intro" className="text-xs text-muted-foreground">
@@ -48,7 +48,7 @@ export function PmPerspectiveFields({
               value={values[field.id] ?? ""}
               onChange={(e) => onChange(field.id, e.target.value)}
               aria-describedby={`${inputId}-helper`}
-              className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+              className="mt-1 w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
             />
             <p id={`${inputId}-helper`} className="mt-0.5 text-xs text-muted-foreground">
               {field.helper}

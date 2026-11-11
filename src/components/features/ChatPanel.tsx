@@ -60,7 +60,7 @@ export function ChatPanel({ projectId, projectName }: { projectId: string; proje
     >
       <div
         aria-live="polite"
-        className="mt-4 flex-1 space-y-3 overflow-y-auto rounded-md bg-surface-muted p-3 text-sm"
+        className="mt-4 flex-1 space-y-3 overflow-y-auto bg-surface-muted p-3 text-sm"
       >
         {messages.length === 0 ? (
           <p className="text-muted-foreground">
@@ -70,10 +70,11 @@ export function ChatPanel({ projectId, projectName }: { projectId: string; proje
           messages.map((message, i) => (
             <p
               key={i}
+              // Square message blocks: the user's question on Navy, the answer on White.
               className={
                 message.role === "user"
-                  ? "font-medium text-foreground"
-                  : "whitespace-pre-wrap text-foreground"
+                  ? "bg-navy px-3 py-2 font-medium text-white"
+                  : "whitespace-pre-wrap border border-border bg-surface px-3 py-2 text-foreground"
               }
             >
               {message.role === "user" ? "You: " : ""}
@@ -102,7 +103,7 @@ export function ChatPanel({ projectId, projectName }: { projectId: string; proje
           aria-label="Question"
           disabled={pending}
           placeholder="Ask about scope, risks, estimates, documents…"
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+          className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
         />
         <Button type="submit" disabled={pending} className="mt-2 w-full">
           {pending ? "Asking…" : "Ask"}

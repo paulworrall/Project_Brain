@@ -5,7 +5,7 @@ import { ReadinessStrip, type ReadinessState } from "@/components/ui/ReadinessSt
 import { WorkflowStepList, type WorkflowStepData } from "./WorkflowStepList";
 
 const PHASE_BADGE_CLASS: Record<StepStatus, string> = {
-  NOT_STARTED: "bg-surface-muted text-muted-foreground",
+  NOT_STARTED: "border border-border bg-surface text-muted-foreground",
   IN_PROGRESS: "bg-accent text-primary",
   COMPLETE: "bg-success text-white",
 };
@@ -25,7 +25,7 @@ const PHASE_STATUS_LABEL: Record<StepStatus, string> = {
 export type Phase1Status = "NOT_STARTED" | "IN_PROGRESS" | "READY_FOR_SPECIALIST_REVIEW";
 
 const PHASE1_BADGE_CLASS: Record<Phase1Status, string> = {
-  NOT_STARTED: "bg-surface-muted text-muted-foreground",
+  NOT_STARTED: "border border-border bg-surface text-muted-foreground",
   IN_PROGRESS: "bg-accent text-primary",
   READY_FOR_SPECIALIST_REVIEW: "bg-success text-white",
 };
@@ -137,13 +137,13 @@ export function StageTracker({
           <details
             key={phase.key}
             open={phase.key === activePhaseKey}
-            className="rounded-lg border border-border bg-surface"
+            className="border border-border bg-surface"
           >
             <summary className="cursor-pointer list-none px-4 py-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <span
-                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${badgeClass}`}
+                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-medium ${badgeClass}`}
                   >
                     {isBadgeComplete ? "✓" : phaseIndex + 1}
                   </span>
@@ -151,7 +151,7 @@ export function StageTracker({
                 </div>
                 <span className="flex shrink-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
                   {attentionByPhaseKey?.[phase.key] && (
-                    <span className="rounded-full border border-warning bg-warning-bg px-2 py-0.5 font-semibold text-warning">
+                    <span className="rounded-full border border-warning bg-warning-bg px-2 py-0.5 font-medium text-foreground">
                       <span aria-hidden="true">● </span>
                       <span className="sr-only">Needs attention: </span>
                       {attentionByPhaseKey[phase.key]}
@@ -183,7 +183,7 @@ export function StageTracker({
         );
       })}
 
-      <div className="flex items-center justify-between rounded-lg border border-dashed border-border bg-surface-muted px-4 py-3 opacity-70">
+      <div className="flex items-center justify-between border border-dashed border-border bg-surface-muted px-4 py-3 opacity-70">
         <div>
           <p className="text-sm font-medium text-foreground">Delivery Monitoring</p>
           <p className="text-xs text-muted-foreground">

@@ -28,8 +28,8 @@ export interface ApproveDialogSummary {
 }
 
 const INPUT_CLASS =
-  "mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring";
-const LABEL_CLASS = "block text-xs font-semibold uppercase tracking-wide text-muted-foreground";
+  "mt-1 w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground";
+const LABEL_CLASS = "block text-xs font-medium uppercase tracking-wide text-muted-foreground";
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -107,7 +107,7 @@ export function ApproveVersionDialog({
   return (
     <Modal isOpen={isOpen} title={`Mark ${noun} as client approved`} onClose={onClose}>
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
-        <dl className="grid grid-cols-1 gap-x-4 gap-y-1 rounded-md bg-surface-muted p-3 text-xs sm:grid-cols-2">
+        <dl className="grid grid-cols-1 gap-x-4 gap-y-1 bg-surface-muted p-3 text-xs sm:grid-cols-2">
           <div>
             <dt className="text-muted-foreground">Name</dt>
             <dd className="font-medium text-foreground">{summary.name}</dd>

@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/Card";
 
 /**
  * The shared look of a project-sidebar panel: a featured card with a circular
- * indigo icon badge, a bold title and a grey subtitle, then the panel's own
+ * Navy icon badge, a Medium-weight title and a muted subtitle, then the panel's own
  * content. Pass the icon as an inline <svg> (24x24 viewBox, currentColor); it
  * is hidden from assistive tech, so the title carries the meaning.
  */
@@ -34,7 +34,7 @@ export function SidebarPanel({
           {icon}
         </span>
         <div>
-          <Heading className="text-base font-semibold text-foreground">{title}</Heading>
+          <Heading className="text-base font-medium text-foreground">{title}</Heading>
           <p className="text-xs text-muted-foreground">{subtitle}</p>
         </div>
       </div>

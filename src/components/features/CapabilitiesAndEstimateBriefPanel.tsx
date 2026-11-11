@@ -187,7 +187,7 @@ export function CapabilitiesAndEstimateBriefPanel({
 
   return (
     <Card className="space-y-5 p-5">
-      <h3 className="text-sm font-semibold text-foreground">Ready the Brief for Team Estimates</h3>
+      <h3 className="text-sm font-medium text-foreground">Ready the Brief for Team Estimates</h3>
 
       <div>
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -213,7 +213,7 @@ export function CapabilitiesAndEstimateBriefPanel({
               moving on.
             </p>
 
-            <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md bg-surface-muted p-3">
+            <div className="mt-3 flex flex-wrap items-center gap-3 bg-surface-muted p-3">
               <form action={suggestFormAction} onSubmit={handleSuggestSubmit}>
                 <Button
                   ref={suggestSubmitRef}
@@ -232,7 +232,7 @@ export function CapabilitiesAndEstimateBriefPanel({
 
             {lowConfidenceReason && (
               <p
-                className="mt-3 rounded-md bg-warning-bg px-3 py-2 text-xs text-warning"
+                className="mt-3 bg-warning-bg px-3 py-2 text-xs text-foreground"
                 role="status"
               >
                 Low confidence: {lowConfidenceReason} Treat these suggestions as a starting point,
@@ -286,8 +286,8 @@ export function CapabilitiesAndEstimateBriefPanel({
               </div>
 
               {checkedWithRationale.length > 0 && (
-                <div className="rounded-md bg-accent p-3 text-xs text-accent-foreground">
-                  <p className="font-semibold">Why these were suggested</p>
+                <div className="bg-accent p-3 text-xs text-accent-foreground">
+                  <p className="font-medium">Why these were suggested</p>
                   <ul className="mt-1 space-y-1">
                     {checkedWithRationale.map((c) => (
                       <li key={c.id}>
@@ -320,7 +320,7 @@ export function CapabilitiesAndEstimateBriefPanel({
 
       <div className="border-t border-border pt-4">
         <div className="flex items-center justify-between gap-2">
-          <h4 className="text-sm font-semibold text-foreground">Estimate brief</h4>
+          <h4 className="text-sm font-medium text-foreground">Estimate brief</h4>
           <form action={generateFormAction}>
             <Button
               type="submit"

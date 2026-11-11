@@ -2,6 +2,7 @@ import Link from "next/link";
 import { auth, signOut } from "@/lib/auth";
 import { Button } from "@/components/ui/Button";
 import { GlobalProjectSearch } from "@/components/features/GlobalProjectSearch";
+import { Logo } from "./Logo";
 
 const ROLE_LABELS: Record<string, string> = {
   CLIENT_ENGAGEMENT: "Client Engagement",
@@ -12,12 +13,18 @@ export async function Header() {
   const session = await auth();
 
   return (
-    <header className="flex h-16 items-center justify-between gap-3 border-b border-border bg-surface px-3 sm:px-6">
+    <header className="flex min-h-[72px] items-center justify-between gap-3 border-b border-border bg-surface px-3 py-3 sm:px-6">
       <Link
         href="/"
-        className="shrink-0 whitespace-nowrap text-lg font-semibold tracking-tight text-foreground"
+        aria-label="Project Brain home"
+        className="flex shrink-0 items-center gap-4 whitespace-nowrap text-foreground no-underline sm:gap-6"
       >
-        Project Brain
+        <span className="hidden lg:inline-flex">
+          <Logo />
+        </span>
+        <span className="text-[15px] font-medium tracking-[0.08em] uppercase lg:border-l lg:border-border lg:pl-6">
+          Project Brain
+        </span>
       </Link>
 
       {session?.user && <GlobalProjectSearch />}

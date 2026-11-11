@@ -126,11 +126,11 @@ export function RateCardUploadFlow({
                 setFile(e.target.files?.[0] ?? null);
                 setStep({ kind: "choose" });
               }}
-              className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground"
+              className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground"
             />
           </div>
           {step.kind === "errors" && (
-            <div role="alert" className="rounded-md border border-danger/40 p-3 text-sm text-danger">
+            <div role="alert" className="border border-danger/40 p-3 text-sm text-danger">
               <p className="font-medium">
                 {step.errors.length > 1 ? `${step.errors.length} problems to fix:` : "Problem:"}
               </p>
@@ -160,10 +160,10 @@ export function RateCardUploadFlow({
             Effective {preview.effectiveFrom}
             {preview.effectiveTo ? ` to ${preview.effectiveTo}` : ""}. Nothing is saved until you confirm.
           </p>
-          <div className="max-h-72 overflow-auto rounded-md border border-border">
+          <div className="max-h-72 overflow-auto border border-border">
             <table className="w-full text-left text-xs">
-              <thead className="sticky top-0 bg-surface-muted text-muted-foreground">
-                <tr>
+              <thead className="sticky top-0 bg-surface text-muted-foreground">
+                <tr className="border-b border-navy text-xs uppercase tracking-[0.1em]">
                   {["Role", "Grade/Level", "Currency", "Rate", "Unit", "From", "To", "Capability"].map((h) => (
                     <th key={h} className="px-2 py-1.5 font-medium">
                       {h}

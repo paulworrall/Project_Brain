@@ -60,7 +60,7 @@ function SortButton({
     <button
       type="button"
       onClick={() => onSort(sortKey)}
-      className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
+      className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:text-foreground"
     >
       {label}
       {isActive && <span aria-hidden>{dir === "asc" ? "↑" : "↓"}</span>}
@@ -116,13 +116,13 @@ export function WorkstreamProjectsTable({
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by project name or job code…"
           aria-label="Search projects"
-          className="w-full max-w-xs rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+          className="w-full max-w-xs border border-border-strong bg-surface px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground"
         />
         <select
           value={stageFilter}
           onChange={(e) => setStageFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
           aria-label="Filter by stage"
-          className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+          className="border border-border-strong bg-surface px-3 py-1.5 text-sm text-foreground"
         >
           <option value="all">All stages</option>
           {stageOptions.map((s) => (
@@ -136,7 +136,7 @@ export function WorkstreamProjectsTable({
       <Card className="overflow-x-auto">
         <table className="w-full min-w-max text-left text-sm">
           <thead>
-            <tr className="border-b border-border">
+            <tr className="border-b border-navy text-xs uppercase tracking-[0.1em] text-muted-foreground">
               <th className="px-4 py-2">
                 <SortButton label="Project" sortKey="name" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
               </th>

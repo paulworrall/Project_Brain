@@ -59,22 +59,23 @@ export function PhaseTabs({
                 href={`/projects/${projectId}/${phase.id}`}
                 aria-current={isActive ? "page" : undefined}
                 aria-label={`${phase.label}, ${PHASE_STATUS_LABEL[status].toLowerCase()}`}
-                className={`group relative flex min-h-11 cursor-pointer flex-col gap-0.5 rounded-t-md border-b-[3px] px-3 pb-2 pt-3 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring motion-safe:transition-colors motion-safe:duration-150 ${
-                  // The global `* { border-color }` rule is unlayered and would beat plain utilities, hence `!`.
+                // Active tab as Reporting Hub's active nav item: Navy Medium text over a
+                // 3px Orange bar (non-text accent, 2.5:1 alongside the White fill and the word).
+                className={`group relative flex min-h-11 cursor-pointer flex-col gap-0.5 border-b-[3px] px-3 pb-2 pt-3 text-left focus-inset motion-safe:transition-colors motion-safe:duration-150 ${
                   isActive
-                    ? "border-primary! bg-accent"
-                    : "border-transparent! hover:bg-surface-muted active:bg-border"
+                    ? "border-orange bg-surface"
+                    : "border-transparent hover:bg-line-soft active:bg-line"
                 }`}
               >
                 <span
                   aria-hidden="true"
-                  className={`absolute inset-x-3 top-0 rounded-full ${isActive ? "h-1" : "h-[3px]"} ${ACCENT_CLASS[phase.accentToken] ?? "bg-border"}`}
+                  className={`absolute inset-x-3 top-0 ${isActive ? "h-1" : "h-[3px]"} ${ACCENT_CLASS[phase.accentToken] ?? "bg-border"}`}
                 />
                 <span
                   className={`text-sm motion-safe:transition-colors motion-safe:duration-150 ${
                     isActive
-                      ? "font-semibold text-primary"
-                      : "font-medium text-foreground/75 group-hover:text-foreground"
+                      ? "font-medium text-foreground"
+                      : "font-normal text-foreground/75 group-hover:text-foreground"
                   }`}
                 >
                   {phase.label}

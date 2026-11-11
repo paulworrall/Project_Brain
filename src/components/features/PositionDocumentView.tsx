@@ -65,7 +65,7 @@ export function PositionDocumentView({ fields, showLegacyQuestions = false }: Po
       {/* Side by side from md up, "Other details" on the left; stacked on phones. */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card className="h-full p-5">
-          <h3 className="text-sm font-semibold text-foreground">Other details from the brief</h3>
+          <h3 className="text-sm font-medium text-foreground">Other details from the brief</h3>
           <p className="mt-1 text-xs text-muted-foreground">
             Everything else captured from the brief and later inputs.
           </p>
@@ -91,7 +91,7 @@ export function PositionDocumentView({ fields, showLegacyQuestions = false }: Po
         </Card>
 
         <Card className="h-full p-5">
-          <h3 className="text-sm font-semibold text-foreground">Client-Flagged Open Items</h3>
+          <h3 className="text-sm font-medium text-foreground">Client-Flagged Open Items</h3>
           <p className="mt-1 text-xs text-muted-foreground">
             The client themselves flagged these as still deciding.
           </p>
@@ -115,7 +115,7 @@ export function PositionDocumentView({ fields, showLegacyQuestions = false }: Po
 
       {showLegacyQuestions && legacyQuestions.length > 0 && (
         <Card className="p-5">
-          <h3 className="text-sm font-semibold text-foreground">Earlier open questions</h3>
+          <h3 className="text-sm font-medium text-foreground">Earlier open questions</h3>
           <p className="mt-1 text-xs text-muted-foreground">
             AI-generated when this version was saved — no longer produced or updated. What we
             need to find out is now the fixed key-details checklist.

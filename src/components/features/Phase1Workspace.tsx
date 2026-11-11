@@ -87,7 +87,7 @@ export function Phase1Workspace({
       <PmPerspectivePanel projectId={projectId} fields={pmPerspective} />
 
       <div>
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Current position — from the client
         </h3>
         {positionDocument ? (

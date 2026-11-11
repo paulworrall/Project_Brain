@@ -36,7 +36,7 @@ export const STATUS_LABEL: Record<BriefAttributeStatus, string> = {
 };
 export const STATUS_TEXT_CLASS: Record<BriefAttributeStatus, string> = {
   confirmed: "text-success",
-  partial: "text-warning",
+  partial: "text-foreground",
   missing: "text-muted-foreground",
 };
 
@@ -140,12 +140,12 @@ export function KeyAttributeRow({
             <span aria-hidden="true" className={`text-sm ${STATUS_TEXT_CLASS[status]}`}>
               {STATUS_ICON[status]}
             </span>
-            <h4 className="text-sm font-semibold text-foreground">{attribute.label}</h4>
+            <h4 className="text-sm font-medium text-foreground">{attribute.label}</h4>
             <span className={`text-xs font-medium ${STATUS_TEXT_CLASS[status]}`}>
               {STATUS_LABEL[status]}
             </span>
             {hasValue && current && (
-              <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs text-muted-foreground">
+              <span className="rounded-full border border-border bg-surface-muted px-2 py-0.5 text-xs text-muted-foreground">
                 {sourceTagText(current.origin)}
               </span>
             )}
@@ -158,7 +158,7 @@ export function KeyAttributeRow({
             !editing && <p className="mt-0.5 text-xs text-muted-foreground">{attribute.question}</p>
           )}
           {status === "partial" && attribute.missingSubFields.length > 0 && (
-            <p className="mt-0.5 text-xs text-warning">
+            <p className="mt-0.5 text-xs text-foreground">
               Still needed: {attribute.missingSubFields.map((f) => f.label).join(", ")}
             </p>
           )}
@@ -177,7 +177,7 @@ export function KeyAttributeRow({
       </div>
 
       {editing ? (
-        <div className="mt-2 rounded-md border border-border bg-surface-muted p-3">
+        <div className="mt-2 border border-border bg-surface-muted p-3">
           <KeyAttributeForm
             projectId={projectId}
             attributeId={attribute.id}
@@ -190,7 +190,7 @@ export function KeyAttributeRow({
         hasValue &&
         current && (
           <Disclosure className="mt-1" summary={<span className="text-xs">Show more</span>}>
-            <div className="space-y-2 rounded-md bg-surface-muted p-3">
+            <div className="space-y-2 bg-surface-muted p-3">
               <ValuesList attributeId={attribute.id} values={current.values} />
               {current.evidence && (
                 <p className="text-xs italic text-muted-foreground">&ldquo;{current.evidence}&rdquo;</p>

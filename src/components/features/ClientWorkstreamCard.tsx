@@ -28,7 +28,7 @@ export function ClientWorkstreamCard({ client }: { client: ClientWorkstreamCardC
       <div className="flex items-start justify-between gap-3">
         <Link
           href={`/clients/${client.id}`}
-          className="font-semibold text-foreground hover:underline"
+          className="font-medium text-foreground hover:underline"
         >
           {client.name}
         </Link>
@@ -40,7 +40,7 @@ export function ClientWorkstreamCard({ client }: { client: ClientWorkstreamCardC
           <li key={workstream.id}>
             <Link
               href={`/workstreams/${workstream.id}`}
-              className="block rounded-md px-2 py-1 text-sm text-foreground hover:bg-surface-muted hover:underline"
+              className="block px-2 py-1 text-sm text-foreground hover:bg-surface-muted hover:underline"
             >
               {workstream.name} · {workstream.projectCount} project
               {workstream.projectCount === 1 ? "" : "s"}

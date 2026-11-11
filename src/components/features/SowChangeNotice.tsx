@@ -33,9 +33,9 @@ export function SowChangeNotice({
   return (
     <div
       role="status"
-      className="space-y-1.5 rounded-md border-l-4 border-warning bg-warning-bg px-3 py-2 text-xs text-foreground"
+      className="space-y-1.5 border-l-4 border-warning bg-warning-bg px-3 py-2 text-xs text-foreground"
     >
-      <p className="font-semibold">{SOW_CHANGE_HEADLINE}</p>
+      <p className="font-medium">{SOW_CHANGE_HEADLINE}</p>
       <ul id={listId} className="space-y-0.5">
         {visible.map((change, index) => (
           <li key={`${change.versionLabel}-${index}`}>{formatSowChangeLine(change)}</li>

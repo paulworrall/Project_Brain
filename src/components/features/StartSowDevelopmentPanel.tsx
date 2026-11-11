@@ -275,7 +275,7 @@ export function StartSowDevelopmentPanel({
         <div>
           <label
             htmlFor="sowTemplateId"
-            className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+            className="block text-xs font-medium uppercase tracking-wide text-muted-foreground"
           >
             SOW Template
           </label>
@@ -285,7 +285,7 @@ export function StartSowDevelopmentPanel({
             value={selectedTemplateId}
             onChange={(e) => handleTemplateChange(e.target.value)}
             aria-disabled={locked ? true : undefined}
-            className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+            className="mt-1 w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground"
           >
             <option value="" disabled>
               Select a SOW Template…
@@ -303,7 +303,7 @@ export function StartSowDevelopmentPanel({
           <div>
             <label
               htmlFor="sowTemplateVersionId"
-              className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+              className="block text-xs font-medium uppercase tracking-wide text-muted-foreground"
             >
               Version
             </label>
@@ -315,7 +315,7 @@ export function StartSowDevelopmentPanel({
                 if (!locked) setSelectedVersionId(e.target.value);
               }}
               aria-disabled={locked ? true : undefined}
-              className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+              className="mt-1 w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground"
             >
               <option value="" disabled>
                 Select a version…
@@ -359,7 +359,7 @@ export function StartSowDevelopmentPanel({
 
       <div className="border-t border-border pt-3">
         <div className="flex items-center justify-between gap-2">
-          <h4 className="text-sm font-semibold text-foreground">Statement of Work</h4>
+          <h4 className="text-sm font-medium text-foreground">Statement of Work</h4>
           <Button
             type="button"
             onClick={handleGenerateClick}
@@ -377,7 +377,7 @@ export function StartSowDevelopmentPanel({
           </p>
         )}
         {currentTemplate && !briefCompleteness.canProceed && !showBriefGate && (
-          <p className="mt-1 text-xs text-warning">
+          <p className="mt-1 text-xs text-foreground">
             {outstanding.length} required key detail{outstanding.length === 1 ? "" : "s"} still need
             {outstanding.length === 1 ? "s" : ""} adding before a SOW can be generated.
           </p>

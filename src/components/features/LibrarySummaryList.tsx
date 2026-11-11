@@ -38,10 +38,10 @@ export function LibrarySummaryList({
   return (
     <Card className="p-5">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        <h3 className="text-sm font-medium text-foreground">{title}</h3>
         <Link
           href={manageHref}
-          className="shrink-0 rounded text-xs font-medium text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          className="shrink-0 text-xs font-medium text-primary hover:underline"
         >
           Manage in library →
         </Link>
@@ -54,7 +54,7 @@ export function LibrarySummaryList({
           {items.map((item) => (
             <li
               key={item.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm"
+              className="flex flex-wrap items-center justify-between gap-2 border border-border px-3 py-2 text-sm"
             >
               <p className="font-medium text-foreground">
                 {item.name}

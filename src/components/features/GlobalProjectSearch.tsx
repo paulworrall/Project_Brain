@@ -46,10 +46,10 @@ export function GlobalProjectSearch() {
         onChange={(e) => handleChange(e.target.value)}
         onFocus={() => query.trim().length >= MIN_QUERY_LENGTH && setIsOpen(true)}
         onBlur={() => setTimeout(() => setIsOpen(false), 150)}
-        className="w-full rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+        className="w-full border border-border-strong bg-surface px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground"
       />
       {isOpen && (
-        <ul className="absolute z-10 mt-1 w-full rounded-md border border-border bg-surface shadow-lg">
+        <ul className="absolute z-10 mt-1 w-full border border-navy bg-surface">
           {isPending ? (
             <li className="px-3 py-2 text-sm text-muted-foreground">Searching…</li>
           ) : results.length === 0 ? (

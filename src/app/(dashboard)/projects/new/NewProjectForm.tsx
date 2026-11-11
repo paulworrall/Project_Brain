@@ -245,7 +245,7 @@ export function NewProjectForm({
           value={workstreamId}
           onChange={(e) => handleWorkstreamChange(e.target.value)}
           required
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+          className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground"
         >
           <option value="" disabled>
             Select a workstream…
@@ -280,7 +280,7 @@ export function NewProjectForm({
           value={msaOption?.id ?? ""}
           disabled={!msaOption}
           required
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring disabled:opacity-60"
+          className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground disabled:opacity-60"
         >
           <option value="" disabled>
             {!workstreamId
@@ -314,7 +314,7 @@ export function NewProjectForm({
           value={rateCardId}
           onChange={(e) => handleRateCardChange(e.target.value)}
           disabled={rateCardOptions.length === 0}
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring disabled:opacity-60"
+          className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground disabled:opacity-60"
         >
           <option value="">
             {workstreamId
@@ -339,7 +339,7 @@ export function NewProjectForm({
             name="rateCardVersionId"
             value={rateCardVersionId}
             onChange={(e) => setRateCardVersionId(e.target.value)}
-            className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+            className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground"
           >
             <option value="" disabled>
               Select a version…
@@ -386,7 +386,7 @@ export function NewProjectForm({
             placeholder="Paste the client brief here…"
             value={briefText}
             onChange={(e) => setBriefText(e.target.value)}
-            className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-2 focus:outline-offset-2 focus:outline-ring"
+            className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
           />
         ) : (
           <div>
@@ -398,7 +398,7 @@ export function NewProjectForm({
               accept={BRIEF_ACCEPT_ATTRIBUTE}
               onChange={handleBriefFileChange}
               aria-describedby="brief-file-help"
-              className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground"
+              className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground"
             />
             <p id="brief-file-help" className="mt-1 text-xs text-muted-foreground">
               Word (.docx), PDF, or text file, up to 8 MB. Uploading replaces pasted text.
@@ -409,7 +409,7 @@ export function NewProjectForm({
               </p>
             )}
             {filePreview && (
-              <div className="mt-2 rounded-md border border-border bg-surface p-3 text-sm" data-testid="brief-file-preview">
+              <div className="mt-2 border border-border bg-surface p-3 text-sm" data-testid="brief-file-preview">
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-medium text-foreground">
                     {filePreview.fileName}{" "}

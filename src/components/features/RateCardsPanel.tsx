@@ -131,7 +131,7 @@ export function RateCardsPanel({
           <div key={rateCard.id} className={rateCard.archivedAt ? "opacity-70" : undefined}>
             <div className="mb-1 flex items-center justify-between gap-2 px-1">
               {rateCard.archivedAt ? (
-                <span className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                <span className="rounded-full border border-border bg-surface-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
                   Archived
                 </span>
               ) : (

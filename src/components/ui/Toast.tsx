@@ -13,14 +13,14 @@ export function Toast({ children, onDismiss }: { children: ReactNode; onDismiss:
       role="status"
       aria-live="polite"
       aria-label="Notification"
-      className="fixed inset-x-4 bottom-4 z-40 mx-auto flex max-w-md items-start justify-between gap-3 rounded-lg border border-border bg-surface p-3 text-sm text-foreground shadow-lg sm:inset-x-auto sm:right-4"
+      className="fixed inset-x-4 bottom-4 z-40 mx-auto flex max-w-md items-start justify-between gap-3 border-2 border-navy border-l-8 border-l-orange bg-surface p-3 text-sm text-foreground sm:inset-x-auto sm:right-4"
     >
       <div className="min-w-0">{children}</div>
       <button
         type="button"
         onClick={onDismiss}
         aria-label="Dismiss notification"
-        className="shrink-0 rounded-md px-1 text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="shrink-0 px-1 text-muted-foreground hover:text-foreground"
       >
         ×
       </button>

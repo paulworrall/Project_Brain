@@ -43,7 +43,7 @@ function PlaceholderStepContent({
       <button
         type="button"
         disabled
-        className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground opacity-50"
+        className="bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground opacity-50"
       >
         {actionLabel}
       </button>
@@ -77,11 +77,11 @@ function SpecialistReviewStepContent({
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Input
         </h3>
         {capabilityDisplay && (
-          <span className="mt-1 inline-block rounded-full bg-accent px-2.5 py-0.5 text-xs font-medium text-accent-foreground">
+          <span className="mt-1 inline-block bg-accent px-2.5 py-0.5 text-xs font-medium text-accent-foreground">
             {capabilityDisplay}
           </span>
         )}
@@ -90,7 +90,7 @@ function SpecialistReviewStepContent({
         </p>
       </div>
       <div>
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Output — Deliverables + Services Document
         </h3>
         {deliverablesServicesDocument ? (

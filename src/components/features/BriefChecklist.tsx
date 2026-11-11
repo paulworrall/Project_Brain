@@ -40,7 +40,7 @@ export function BriefChecklist({
     <Card className="space-y-3 p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold text-foreground">What We Need to Find Out</h3>
+          <h3 className="text-sm font-medium text-foreground">What We Need to Find Out</h3>
           <p className="mt-1 text-xs text-muted-foreground">
             {capturedCount} of {required.length} required details captured
           </p>
