@@ -88,7 +88,11 @@ export function deriveNextAction(p: NextActionInput): NextAction {
       button: { label: "Create scope summary", href: at("brief", "scope-summary") },
     };
   }
+  // Brief and estimate rules apply until the estimate is approved; after
+  // that, earlier gaps are a change request, not the next step.
+  const preApproval = !p.estimateApproved;
   if (
+    preApproval &&
     p.openQuestions > 0 &&
     !p.clarificationSent &&
     !p.scopeConfirmed &&
@@ -102,7 +106,7 @@ export function deriveNextAction(p: NextActionInput): NextAction {
       button: { label: "Open the email", href: at("brief", "clarification-email") },
     };
   }
-  if (!p.scopeConfirmed) {
+  if (preApproval && !p.scopeConfirmed) {
     return {
       id: "confirm_scope",
       title: "Confirm the scope is ready to estimate",
@@ -125,7 +129,7 @@ export function deriveNextAction(p: NextActionInput): NextAction {
       button: { label: "Review the scope summary", href: at("brief", "scope-summary") },
     };
   }
-  if (p.capabilityCount === 0) {
+  if (preApproval && !p.hasEstimate && p.capabilityCount === 0) {
     return {
       id: "choose_capabilities",
       title: "Choose who should estimate this",
@@ -134,7 +138,7 @@ export function deriveNextAction(p: NextActionInput): NextAction {
       button: { label: "Choose capabilities", href: at("estimate", "capabilities") },
     };
   }
-  if (!p.hasEstimateBrief) {
+  if (preApproval && !p.hasEstimate && !p.hasEstimateBrief) {
     return {
       id: "prepare_estimate_brief",
       title: "Prepare the estimate brief",
@@ -144,7 +148,7 @@ export function deriveNextAction(p: NextActionInput): NextAction {
     };
   }
   const outstanding = p.specialistTotal - p.specialistReceived;
-  if (outstanding > 0 && !p.hasEstimate) {
+  if (preApproval && outstanding > 0 && !p.hasEstimate) {
     return {
       id: "wait_specialists",
       title: `Waiting on ${outstanding} of ${plural(p.specialistTotal, "specialist input")}`,
@@ -153,7 +157,7 @@ export function deriveNextAction(p: NextActionInput): NextAction {
       button: { label: "Open the tracker", href: at("estimate", "specialist-inputs") },
     };
   }
-  if (!p.hasEstimate) {
+  if (preApproval && !p.hasEstimate) {
     return {
       id: "build_estimate",
       title: "Build the estimate",

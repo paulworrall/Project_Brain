@@ -34,6 +34,7 @@ async function actor() {
 function refresh<T extends { projectId: string }>(result: ActionResult<T>): ActionResult<T> {
   if (result.ok) {
     revalidatePath(`/projects/${result.data.projectId}`, "layout");
+    revalidatePath("/"); // FB-009 F: the pipeline home page
   }
   return result;
 }

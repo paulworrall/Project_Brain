@@ -82,7 +82,7 @@ export default async function ProjectLayout({
       <div className="flex items-start justify-between gap-4">
         <div>
           <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground">
-            <Link href="/" className="hover:underline">
+            <Link href="/browse" className="hover:underline">
               {hub.name}
             </Link>
             {" / "}

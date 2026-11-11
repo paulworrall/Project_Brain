@@ -32,13 +32,27 @@ describe("deriveNextAction — each rule", () => {
   it.each<[NextActionId, Partial<NextActionInput>]>([
     ["complete", { projectComplete: true, sowApproved: true, approvedSowHref: "/api/sow/1" }],
     ["create_scope_summary", { hasScopeSummary: false, hasEarlierDocuments: true }],
-    ["send_clarification", { openQuestions: 2, clarificationSent: false, scopeConfirmed: false }],
-    ["confirm_scope", { scopeConfirmed: false }],
+    [
+      "send_clarification",
+      {
+        openQuestions: 2,
+        clarificationSent: false,
+        scopeConfirmed: false,
+        estimateApproved: false,
+      },
+    ],
+    ["confirm_scope", { scopeConfirmed: false, estimateApproved: false }],
     ["confirm_latest_scope", { scopeNewerThanConfirmed: true, estimateApproved: false }],
-    ["choose_capabilities", { capabilityCount: 0 }],
-    ["prepare_estimate_brief", { hasEstimateBrief: false }],
-    ["wait_specialists", { specialistReceived: 1, specialistTotal: 3, hasEstimate: false }],
-    ["build_estimate", { hasEstimate: false }],
+    ["choose_capabilities", { capabilityCount: 0, estimateApproved: false, hasEstimate: false }],
+    [
+      "prepare_estimate_brief",
+      { hasEstimateBrief: false, estimateApproved: false, hasEstimate: false },
+    ],
+    [
+      "wait_specialists",
+      { specialistReceived: 1, specialistTotal: 3, hasEstimate: false, estimateApproved: false },
+    ],
+    ["build_estimate", { hasEstimate: false, estimateApproved: false }],
     ["review_estimate", { estimateStale: true, estimateApproved: false }],
     ["approve_estimate", { estimateApproved: false }],
     ["generate_sow", { hasSow: false }],
@@ -54,6 +68,7 @@ describe("deriveNextAction — each rule", () => {
       specialistReceived: 1,
       specialistTotal: 3,
       hasEstimate: false,
+      estimateApproved: false,
     });
     expect(action).toEqual({
       id: "wait_specialists",
@@ -122,6 +137,19 @@ describe("deriveNextAction — ordering (first match wins)", () => {
     ]);
   });
 
+  it("once the estimate is approved, earlier gaps don't hold up the SOW (legacy projects)", () => {
+    expect(
+      id({
+        scopeConfirmed: false,
+        capabilityCount: 0,
+        hasEstimateBrief: false,
+        openQuestions: 3,
+        clarificationSent: false,
+        hasSow: false,
+      })
+    ).toBe("generate_sow");
+  });
+
   it("complete wins over everything", () => {
     expect(id({ ...fresh, projectComplete: true })).toBe("complete");
   });
@@ -143,6 +171,12 @@ describe("deriveNextAction — ordering (first match wins)", () => {
 
   it("a newer unconfirmed scope is ignored once the estimate is approved (change request)", () => {
     expect(id({ scopeNewerThanConfirmed: true, estimateApproved: true })).toBe("approve_sow");
+  });
+
+  it("once an estimate exists, missing capabilities or estimate brief don't come first", () => {
+    expect(id({ estimateApproved: false, capabilityCount: 0, hasEstimateBrief: false })).toBe(
+      "approve_estimate"
+    );
   });
 
   it("specialist waiting only applies before any estimate exists (not a gate)", () => {

@@ -42,7 +42,7 @@ export default async function RateCardsLibraryPage() {
       <div>
         <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground">
           <Link href="/" className="hover:underline">
-            All Projects
+            Pipeline
           </Link>
           {" / "}
           <span>Rate Cards</span>

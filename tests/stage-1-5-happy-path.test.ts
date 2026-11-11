@@ -62,17 +62,6 @@ const briefClassification = {
   assessment: { level: "partial", reasons: ["Referral feature scope unclear"] },
 };
 
-const positionFieldsV1 = {
-  primaryContactName: "Jamie Chen",
-  primaryContactEmail: "jamie@acme.test",
-  whatWeKnow: [
-    { topic: "Budget", detail: "Confirmed at £100k." },
-    { topic: "Timeline", detail: "Launch before the holidays." },
-  ],
-  whatWeNeedToFindOut: ["Whether the referral feature is in scope"],
-  clientFlaggedOpenItems: [] as string[],
-};
-
 // FB-009: intake drafts a Scope summary (replacing the Position Document).
 const scopeV1 = {
   context: "Acme wants its loyalty app refreshed before the holidays.",
@@ -93,15 +82,6 @@ const clarificationEmail = {
   bodyText: "Hi Jamie, following up on one open item...",
 };
 
-const positionFieldsV2 = {
-  ...positionFieldsV1,
-  whatWeKnow: [
-    ...positionFieldsV1.whatWeKnow,
-    { topic: "Referral feature", detail: "Confirmed in scope." },
-  ],
-  whatWeNeedToFindOut: [] as string[],
-};
-
 const estimateBrief = {
   projectOverview: {
     context: "Refresh the loyalty app before the holidays.",
@@ -109,7 +89,10 @@ const estimateBrief = {
     constraints: ["UK market only"],
   },
   capabilitySections: [
-    { capability: "TECH_AND_DATA" as const, whatIsExpected: ["Estimate the referral feature build"] },
+    {
+      capability: "TECH_AND_DATA" as const,
+      whatIsExpected: ["Estimate the referral feature build"],
+    },
   ],
 };
 const deliverablesAndServices = {
@@ -239,7 +222,9 @@ describe("Stage 1-5 happy path", () => {
     await updateConfirmedCapabilitiesAction(project.id, undefined, capabilities);
     mockParse.mockResolvedValueOnce({ parsed_output: estimateBrief });
     await generateEstimateBriefAction(project.id, undefined, new FormData());
-    expect((await prisma.project.findUniqueOrThrow({ where: { id: project.id } })).currentStageNumber).toBe(5);
+    expect(
+      (await prisma.project.findUniqueOrThrow({ where: { id: project.id } })).currentStageNumber
+    ).toBe(5);
 
     // Stage 5 — Specialist Review: Deliverables + Services Document (1 Claude call).
     mockParse.mockResolvedValueOnce({ parsed_output: deliverablesAndServices });
@@ -256,9 +241,15 @@ describe("Stage 1-5 happy path", () => {
     expect(reviewPrompt).toContain("Estimate the referral feature build");
 
     // The brief's budget was captured as a suggestion only — never confirmed.
-    const keyAttributeRows = await prisma.briefAttributeValue.findMany({ where: { projectId: project.id } });
+    const keyAttributeRows = await prisma.briefAttributeValue.findMany({
+      where: { projectId: project.id },
+    });
     expect(keyAttributeRows).toHaveLength(1);
-    expect(keyAttributeRows[0]).toMatchObject({ attributeId: "budget", kind: "SUGGESTION", source: "BRIEF" });
+    expect(keyAttributeRows[0]).toMatchObject({
+      attributeId: "budget",
+      kind: "SUGGESTION",
+      source: "BRIEF",
+    });
 
     const stageStatuses = await prisma.projectStageStatus.findMany({
       where: { projectId: project.id },

@@ -185,6 +185,7 @@ export async function updateProjectSummaryAction(
   }
 
   revalidatePath(`/projects/${projectId}`, "layout");
+  revalidatePath("/"); // FB-009 F: the pipeline home page
 }
 
 type ProjectDateColumns = { kickOffDate: Date | null; targetCompletionDate: Date | null };
@@ -305,6 +306,7 @@ export async function startSowDevelopmentAction(
   });
 
   revalidatePath(`/projects/${projectId}`, "layout");
+  revalidatePath("/"); // FB-009 F: the pipeline home page
 }
 
 /**
@@ -435,6 +437,7 @@ export async function generateSowAction(
   }
 
   revalidatePath(`/projects/${projectId}`, "layout");
+  revalidatePath("/"); // FB-009 F: the pipeline home page
 }
 
 /**
@@ -628,6 +631,7 @@ export async function submitSpecialistFeedbackAction(
   });
 
   revalidatePath(`/projects/${projectId}`, "layout");
+  revalidatePath("/"); // FB-009 F: the pipeline home page
 }
 
 export async function toggleChecklistItemAction(
@@ -653,6 +657,7 @@ export async function toggleChecklistItemAction(
   }
 
   revalidatePath(`/projects/${projectId}`, "layout");
+  revalidatePath("/"); // FB-009 F: the pipeline home page
 }
 
 const ChecklistDetailSchema = z.object({
@@ -690,6 +695,7 @@ export async function updateChecklistItemDetailAction(
   }
 
   revalidatePath(`/projects/${projectId}`, "layout");
+  revalidatePath("/"); // FB-009 F: the pipeline home page
 }
 
 const OtherLabelSchema = z.object({
@@ -740,6 +746,7 @@ export async function updateOtherServiceLabelAction(
   });
 
   revalidatePath(`/projects/${projectId}`, "layout");
+  revalidatePath("/"); // FB-009 F: the pipeline home page
 }
 
 /**
@@ -1011,6 +1018,7 @@ export async function uploadKnowledgeItemAction(
   });
 
   revalidatePath(`/projects/${projectId}`, "layout");
+  revalidatePath("/"); // FB-009 F: the pipeline home page
   return { notice: saved.notice };
 }
 
@@ -1077,6 +1085,7 @@ export async function saveBriefAttributeAction(
   });
 
   revalidatePath(`/projects/${projectId}`, "layout");
+  revalidatePath("/"); // FB-009 F: the pipeline home page
 }
 
 /**
@@ -1104,6 +1113,7 @@ export async function rereadBriefAttributesAction(
 
   const { error } = await fillKeyAttributeGapsFromProjectSources(projectId);
   revalidatePath(`/projects/${projectId}`, "layout");
+  revalidatePath("/"); // FB-009 F: the pipeline home page
   if (error) {
     return { message: error };
   }
@@ -1214,6 +1224,7 @@ export async function sendAssistantMessageAction(
       reply.confirmation = describeUpdateConfirmation(saved.changed);
       reply.notice = saved.notice;
       revalidatePath(`/projects/${projectId}`, "layout");
+      revalidatePath("/"); // FB-009 F: the pipeline home page
     }
   }
 
@@ -1330,6 +1341,7 @@ export async function updateConfirmedCapabilitiesAction(
   });
 
   revalidatePath(`/projects/${projectId}`, "layout");
+  revalidatePath("/"); // FB-009 F: the pipeline home page
 }
 
 /**
@@ -1431,6 +1443,7 @@ export async function generateEstimateBriefAction(
   });
 
   revalidatePath(`/projects/${projectId}`, "layout");
+  revalidatePath("/"); // FB-009 F: the pipeline home page
 }
 
 // ---------------------------------------------------------------------------
@@ -1464,4 +1477,5 @@ export async function updatePmPerspectiveFieldAction(
     session?.user?.id ?? null
   );
   revalidatePath(`/projects/${projectId}`, "layout");
+  revalidatePath("/"); // FB-009 F: the pipeline home page
 }

@@ -77,7 +77,7 @@ export default async function SowTemplatesLibraryPage() {
       <div>
         <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground">
           <Link href="/" className="hover:underline">
-            All Projects
+            Pipeline
           </Link>
           {" / "}
           <span>SOW Templates</span>

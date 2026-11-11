@@ -136,6 +136,7 @@ export async function createEstimateAction(
   const view = await getEstimateBuildViewData(estimate.id);
 
   revalidatePath(`/projects/${projectId}`, "layout");
+  revalidatePath("/"); // FB-009 F: the pipeline home page
   return {
     estimateId: estimate.id,
     label: estimate.label,

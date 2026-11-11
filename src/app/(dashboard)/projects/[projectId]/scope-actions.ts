@@ -65,6 +65,7 @@ export async function regenerateScopeSummaryAction(
       userId: allowed.userId,
     });
     revalidatePath(`/projects/${projectId}`, "layout");
+    revalidatePath("/"); // FB-009 F: the pipeline home page
     return { ok: true, data: { projectId, versionNumber: saved.versionNumber } };
   } catch (error) {
     return agentFailure(error);
@@ -107,6 +108,7 @@ export async function createScopeSummaryFromEarlierAction(
       userId: allowed.userId,
     });
     revalidatePath(`/projects/${projectId}`, "layout");
+    revalidatePath("/"); // FB-009 F: the pipeline home page
     return { ok: true, data: { projectId, versionNumber: saved.versionNumber } };
   } catch (error) {
     return agentFailure(error);

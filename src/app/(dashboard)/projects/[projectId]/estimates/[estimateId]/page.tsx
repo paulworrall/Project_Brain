@@ -47,7 +47,7 @@ export default async function EstimateDetailPage({
     <div className="space-y-6">
       <div>
         <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground">
-          <Link href="/" className="hover:underline">
+          <Link href="/browse" className="hover:underline">
             {hub.name}
           </Link>
           {" / "}

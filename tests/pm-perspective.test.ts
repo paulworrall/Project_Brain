@@ -50,12 +50,6 @@ let workstreamId: string;
 let msaId: string;
 let pmUserId: string;
 
-const positionFields = {
-  whatWeKnow: [{ topic: "Objective", detail: "Relaunch the loyalty app" }],
-  whatWeNeedToFindOut: [],
-  clientFlaggedOpenItems: [],
-};
-
 const noKeyAttributes = { facts: [] };
 
 // FB-009: intake drafts a Scope summary instead of a Position Document.
