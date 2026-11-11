@@ -18,8 +18,18 @@ import { pmPerspectiveValuesFromFormData } from "@/lib/pmPerspective";
 import { savePmPerspective } from "@/lib/pmPerspectiveStore";
 
 const CreateProjectSchema = z.object({
-  workstreamId: z.string().min(1, { error: "Select a workstream." }),
-  name: z.string().trim().min(2, { error: "Project name must be at least 2 characters." }),
+  // FB-009 E: Client is required; the Workstream is chosen automatically
+  // when the client has only one (older callers may still send it).
+  clientId: z.string().trim().nullish(),
+  workstreamId: z.string().trim().nullish(),
+  // Optional: the Intake Agent suggests one from the brief when blank.
+  name: z
+    .string()
+    .trim()
+    .nullish()
+    .refine((v) => !v || v.length >= 2, { error: "Project name must be at least 2 characters." }),
+  // Optional: defaults to the current user when they can be a PM.
+  projectManagerId: z.string().trim().nullish(),
   // .nullish(), not .optional() — in upload mode the textarea isn't rendered,
   // so formData.get("briefText") is null, and .optional() rejects null with
   // zod's raw "Invalid input: expected string, received null" (FB-002).
@@ -31,15 +41,10 @@ const CreateProjectSchema = z.object({
   // Only meaningful when rateCardId is set (validated below, not here — Zod
   // can't easily express "required iff sibling field is set" inline).
   rateCardVersionId: z.string().trim().nullish(),
-  // Required (audit Rule 1 gap fix) — plain .min(1), not .nullish(): every
-  // project must be created under a specific, currently-active client MSA.
-  // No UI sends this field yet (phase 3 adds the selector); until then this
-  // action rejects every submission with a clear "Select..." error rather
-  // than silently defaulting or skipping the check.
-  masterServiceAgreementId: z
-    .string({ error: "Select the client's Master Service Agreement." })
-    .trim()
-    .min(1, { error: "Select the client's Master Service Agreement." }),
+  // FB-009 E: optional. Defaults to the client's current MSA; a client with
+  // none can still have a project (the Brief readiness check shows it missing).
+  // When sent, it must still be this client's active MSA.
+  masterServiceAgreementId: z.string().trim().nullish(),
 });
 
 export interface RateCardVersionOption {
@@ -95,9 +100,13 @@ export async function getRateCardsForWorkstreamAction(
   if (!workstream) {
     return [];
   }
+  return rateCardOptionsForClient(workstream.clientId);
+}
 
+/** A client's selectable rate cards (not archived, at least one version), with every version. */
+async function rateCardOptionsForClient(clientId: string): Promise<RateCardOption[]> {
   const rateCards = await prisma.rateCard.findMany({
-    where: { clientId: workstream.clientId, archivedAt: null, versions: { some: {} } },
+    where: { clientId, archivedAt: null, versions: { some: {} } },
     orderBy: { name: "asc" },
     select: {
       id: true,
@@ -176,10 +185,78 @@ export async function getMasterServiceAgreementForWorkstreamAction(
   return { id: msa.id, fileName: currentVersion.fileName, effectiveFrom: currentVersion.effectiveFrom };
 }
 
+/** The client's current MSA (one ENABLED version), or null. */
+async function currentMsaForClient(clientId: string): Promise<MasterServiceAgreementOption | null> {
+  const msa = await prisma.masterServiceAgreement.findUnique({
+    where: { clientId },
+    select: {
+      id: true,
+      versions: {
+        where: { status: "ENABLED" },
+        select: { fileName: true, effectiveFrom: true },
+        take: 1,
+      },
+    },
+  });
+  const current = msa?.versions[0];
+  return msa && current ? { id: msa.id, fileName: current.fileName, effectiveFrom: current.effectiveFrom } : null;
+}
+
+export interface ClientProjectDefaults {
+  workstreams: { id: string; name: string }[];
+  msa: MasterServiceAgreementOption | null;
+  rateCards: RateCardOption[];
+  /** The default per the business rules: the client's only rate card and its current version. */
+  defaultRateCard: { rateCardId: string; rateCardVersionId: string } | null;
+}
+
+/**
+ * FB-009 E: what the New Project form shows once a Client is picked — its
+ * workstreams, its current MSA and its rate cards, with the defaults ("Using:
+ * <MSA>, <rate card>"). Client-scoped: another client's documents are never
+ * fetched.
+ */
+export async function getClientProjectDefaultsAction(clientId: string): Promise<ClientProjectDefaults> {
+  if (!clientId) return { workstreams: [], msa: null, rateCards: [], defaultRateCard: null };
+  const [workstreams, msa, rateCards] = await Promise.all([
+    prisma.workstream.findMany({ where: { clientId }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    currentMsaForClient(clientId),
+    rateCardOptionsForClient(clientId),
+  ]);
+  const only = rateCards.length === 1 ? rateCards[0] : null;
+  const version = only ? (only.versions.find((v) => v.status === "ENABLED") ?? only.versions[0]) : null;
+  return {
+    workstreams,
+    msa,
+    rateCards,
+    defaultRateCard: only && version ? { rateCardId: only.id, rateCardVersionId: version.id } : null,
+  };
+}
+
+/** A name not yet used in the workstream: "Name", then "Name (2)", "Name (3)"… */
+async function uniqueProjectName(workstreamId: string, base: string): Promise<string> {
+  const trimmed = base.trim().slice(0, 80) || "New project";
+  const taken = new Set(
+    (
+      await prisma.project.findMany({
+        where: { workstreamId, name: { startsWith: trimmed } },
+        select: { name: true },
+      })
+    ).map((p) => p.name)
+  );
+  if (!taken.has(trimmed)) return trimmed;
+  for (let i = 2; ; i++) {
+    const candidate = `${trimmed} (${i})`;
+    if (!taken.has(candidate)) return candidate;
+  }
+}
+
 export type CreateProjectState =
   | {
       errors?: {
+        clientId?: string[];
         workstreamId?: string[];
+        projectManagerId?: string[];
         name?: string[];
         briefText?: string[];
         briefFile?: string[];
@@ -224,8 +301,10 @@ export async function createProjectAction(
   formData: FormData
 ): Promise<CreateProjectState> {
   const parsed = CreateProjectSchema.safeParse({
+    clientId: formData.get("clientId"),
     workstreamId: formData.get("workstreamId"),
     name: formData.get("name"),
+    projectManagerId: formData.get("projectManagerId"),
     briefText: formData.get("briefText"),
     rateCardId: formData.get("rateCardId"),
     rateCardVersionId: formData.get("rateCardVersionId"),
@@ -236,31 +315,67 @@ export async function createProjectAction(
     return { errors: z.flattenError(parsed.error).fieldErrors };
   }
 
-  // Resolved once, reused by both the MSA and Rate Card checks below.
+  // FB-009 E: resolve the Client and Workstream. A client with one workstream
+  // needs no choice; with several, the form asks. (Projects belong to a
+  // Workstream, so one is always needed.)
+  let workstreamId = parsed.data.workstreamId ?? null;
+  if (!workstreamId) {
+    if (!parsed.data.clientId) {
+      return { errors: { clientId: ["Select a client."] } };
+    }
+    const workstreams = await prisma.workstream.findMany({
+      where: { clientId: parsed.data.clientId },
+      select: { id: true },
+    });
+    if (workstreams.length === 0) {
+      return { message: "This client has no workstream yet. Ask an Admin to add one." };
+    }
+    if (workstreams.length > 1) {
+      return { errors: { workstreamId: ["Select a workstream."] } };
+    }
+    workstreamId = workstreams[0].id;
+  }
+  // Resolved once, reused by the MSA and Rate Card checks below.
   const workstream = await prisma.workstream.findUnique({
-    where: { id: parsed.data.workstreamId },
+    where: { id: workstreamId },
     select: { clientId: true },
   });
-  if (!workstream) {
+  if (!workstream || (parsed.data.clientId && workstream.clientId !== parsed.data.clientId)) {
     return { message: "Selected workstream is not valid." };
   }
 
-  // Re-validate server-side even though the (future) selector will already
-  // be scoped — never trust a submitted id belongs to the right Client
-  // without checking. Rejects outright (no silent default/skip) if missing
-  // or invalid, per Rule 1 (audit gap): every project must be created under
-  // a specific, currently-active MSA. "Currently-active" mirrors MSA's own
-  // exclusivity semantics (unchanged elsewhere) — has an ENABLED version.
-  const validMsa = await prisma.masterServiceAgreement.findFirst({
-    where: {
-      id: parsed.data.masterServiceAgreementId,
-      clientId: workstream.clientId,
-      versions: { some: { status: "ENABLED" } },
-    },
-    select: { id: true },
-  });
-  if (!validMsa) {
-    return { message: "Select a valid, active Master Service Agreement for this client." };
+  // MSA: never trust a submitted id belongs to the right Client without
+  // checking ("currently active" = has an ENABLED version). FB-009 E: when
+  // none is sent, the client's current MSA is used; a client with none can
+  // still have a project.
+  let msaId: string | null = null;
+  if (parsed.data.masterServiceAgreementId) {
+    const validMsa = await prisma.masterServiceAgreement.findFirst({
+      where: {
+        id: parsed.data.masterServiceAgreementId,
+        clientId: workstream.clientId,
+        versions: { some: { status: "ENABLED" } },
+      },
+      select: { id: true },
+    });
+    if (!validMsa) {
+      return { message: "Select a valid, active Master Service Agreement for this client." };
+    }
+    msaId = validMsa.id;
+  } else {
+    msaId = (await currentMsaForClient(workstream.clientId))?.id ?? null;
+  }
+
+  // PM: optional; defaults to the current user when they can be a PM.
+  const session = await auth();
+  let projectManagerId: string | null = null;
+  const requestedPm = parsed.data.projectManagerId ?? (session?.user?.role === "DELIVERY" ? session.user.id : null);
+  if (requestedPm) {
+    const pm = await prisma.user.findFirst({ where: { id: requestedPm, role: "DELIVERY" }, select: { id: true } });
+    if (!pm && parsed.data.projectManagerId) {
+      return { errors: { projectManagerId: ["Choose a project manager from the list."] } };
+    }
+    projectManagerId = pm?.id ?? null;
   }
 
   // Re-validate server-side even though the dropdown was already scoped —
@@ -353,18 +468,28 @@ export async function createProjectAction(
     throw error;
   }
 
+  // FB-009 E: a blank name takes the Intake Agent's suggestion, kept unique
+  // within the workstream.
+  const name = parsed.data.name
+    ? parsed.data.name
+    : await uniqueProjectName(
+        workstreamId,
+        intakeResult.classification.suggestedProjectName?.trim() || `New project ${new Date().toISOString().slice(0, 10)}`
+      );
+
   const project = await prisma.$transaction(async (tx) => {
     const project = await tx.project.create({
       data: {
-        name: parsed.data.name,
-        workstreamId: parsed.data.workstreamId,
+        name,
+        workstreamId,
+        projectManagerId,
         briefRawText,
         briefFileName,
         briefFileType,
         currentStageNumber: 3,
         rateCardId,
         rateCardVersionId,
-        masterServiceAgreementId: validMsa.id,
+        masterServiceAgreementId: msaId,
         // FB-009 D: the Intake Agent's judgement of the brief (null if it gave none).
         briefAssessment: (normaliseBriefAssessment(intakeResult.classification.assessment) ?? undefined) as Prisma.InputJsonValue | undefined,
       },
@@ -473,7 +598,6 @@ export async function createProjectAction(
     ]);
   }
 
-  const session = await auth();
   await savePmPerspective(project.id, pmPerspective, session?.user?.id ?? null);
 
   redirect(`/projects/${project.id}`);

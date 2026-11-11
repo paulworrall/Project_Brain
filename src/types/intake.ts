@@ -55,6 +55,10 @@ export const BriefClassificationSchema = z.object({
   assessment: BriefAssessmentSchema.optional().describe(
     "How ready this brief is to scope and estimate (FB-009 fast path)."
   ),
+  suggestedProjectName: z
+    .string()
+    .optional()
+    .describe("A short project name (2-6 words) taken from the brief, e.g. 'Fizzy Summer Launch'. No client legal names."),
 });
 export type BriefClassification = z.infer<typeof BriefClassificationSchema>;
 
