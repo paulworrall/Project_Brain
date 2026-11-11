@@ -3,90 +3,107 @@
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { useSelectedLayoutSegment } from "next/navigation";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
-import { PROJECT_PHASES, getPhase, isPhaseId, type PhaseId, type PhaseStatus } from "@/lib/projectPhases";
-import { PhaseTabs } from "./PhaseTabs";
-import { PreviousPhaseNotice } from "./PreviousPhaseNotice";
+import {
+  PROJECT_STEPS,
+  STEP_STATUS_LABEL,
+  isStepId,
+  type StepId,
+  type StepStatus,
+  type StepSummary,
+} from "@/lib/projectSteps";
+import { ProjectStepper } from "./ProjectStepper";
 
 /**
- * Tab row + two-column area of the project page. Lives in the project layout,
- * so it (and the sidebar inside it) persists across phase tabs.
+ * Stepper + two-column area of the project page (FB-008; FB-007's shell with
+ * steps in place of phases). Lives in the project layout, so it — and the
+ * sidebar inside it — persists across step switches.
  *
- * - Discover's content is passed in as `discover` and kept mounted but hidden
- *   while another phase shows, so unsaved edits in its cards survive a tab
- *   switch. Other phases arrive through `children` (the routed phase page).
- * - The sidebar renders once. Wide screens: sticky column. Below `lg`: the same
- *   element becomes a slide-in drawer opened by "Project tools" — one instance,
- *   so Ask me anything / update drafts / checklist state are shared.
+ * - All three steps' content is passed in and kept mounted, only the active
+ *   one shown, so unsaved edits in a step survive switching away and back.
+ *   `children` is the routed step page, which renders nothing of its own.
+ * - The sidebar (the Project assistant) renders once. Wide screens: sticky
+ *   column. Below `lg`: the same element becomes a slide-in drawer opened by
+ *   "Project assistant" — one instance, so a draft message survives.
  */
 export function ProjectShell({
   projectId,
-  phaseStatuses,
-  discover,
+  stepStatuses,
+  stepSummaries,
+  attention,
+  steps,
   sidebar,
   children,
 }: {
   projectId: string;
-  phaseStatuses: Record<PhaseId, PhaseStatus>;
-  discover: ReactNode;
+  stepStatuses: Record<StepId, StepStatus>;
+  stepSummaries: Partial<Record<StepId, StepSummary>>;
+  /** Per-step attention flags shown in the stepper (e.g. "Updated since SOW"). */
+  attention?: Partial<Record<StepId, string>>;
+  steps: Record<StepId, ReactNode>;
   sidebar: ReactNode;
   children: ReactNode;
 }) {
   const segment = useSelectedLayoutSegment();
-  const activePhaseId = segment && isPhaseId(segment) ? segment : null;
-  const [toolsOpen, setToolsOpen] = useState(false);
+  const activeStepId = segment && isStepId(segment) ? segment : null;
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const asideRef = useRef<HTMLElement>(null);
-  const previousPhaseRef = useRef(activePhaseId);
-  const toolsTitleId = useId();
+  const previousStepRef = useRef(activeStepId);
+  const drawerTitleId = useId();
 
-  useFocusTrap(asideRef, toolsOpen);
+  useFocusTrap(asideRef, drawerOpen);
 
-  // On a tab switch: announce the change and close the drawer. Adjusted during
-  // render (not in an effect) so it lands in the same commit as the new phase.
-  const [shownPhaseId, setShownPhaseId] = useState(activePhaseId);
-  if (shownPhaseId !== activePhaseId) {
-    setShownPhaseId(activePhaseId);
-    setToolsOpen(false);
-    setAnnouncement(
-      activePhaseId
-        ? `Showing ${getPhase(activePhaseId).label} phase, ${phaseStatuses[activePhaseId].replace("_", " ")}`
-        : ""
-    );
+  // On a step switch: announce the change and close the drawer. Adjusted during
+  // render (not in an effect) so it lands in the same commit as the new step.
+  const [shownStepId, setShownStepId] = useState(activeStepId);
+  if (shownStepId !== activeStepId) {
+    setShownStepId(activeStepId);
+    setDrawerOpen(false);
+    if (activeStepId) {
+      const step = PROJECT_STEPS.find((s) => s.id === activeStepId)!;
+      const summary =
+        stepStatuses[activeStepId] === "done" ? stepSummaries[activeStepId] : undefined;
+      setAnnouncement(
+        `Showing ${step.heading} step, ${STEP_STATUS_LABEL[stepStatuses[activeStepId]].toLowerCase()}${summary ? `, ${summary.spoken}` : ""}`
+      );
+    } else {
+      setAnnouncement("");
+    }
   }
 
-  // ...and move focus to the phase content heading once it has rendered.
+  // ...and move focus to the step heading once it has rendered.
   useEffect(() => {
-    if (previousPhaseRef.current === activePhaseId) return;
-    previousPhaseRef.current = activePhaseId;
-    if (activePhaseId) document.getElementById("phase-heading")?.focus();
-  }, [activePhaseId]);
+    if (previousStepRef.current === activeStepId) return;
+    previousStepRef.current = activeStepId;
+    if (activeStepId) document.getElementById(`step-heading-${activeStepId}`)?.focus();
+  }, [activeStepId]);
 
   useEffect(() => {
-    if (!toolsOpen) return;
+    if (!drawerOpen) return;
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setToolsOpen(false);
+      if (event.key === "Escape") setDrawerOpen(false);
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [toolsOpen]);
-
-  const activePhase = activePhaseId ? getPhase(activePhaseId) : null;
-  const previousPhase = activePhase && activePhase.order > 1 ? PROJECT_PHASES[activePhase.order - 2] : null;
-  const showPreviousNotice = previousPhase !== null && phaseStatuses[previousPhase.id] !== "complete";
-  const discoverPhase = getPhase("discover");
-  const discoverActive = activePhaseId === "discover";
+  }, [drawerOpen]);
 
   return (
     <div className="space-y-4">
       <div className="flex items-end gap-2 border-b border-border">
-        <PhaseTabs projectId={projectId} phaseStatuses={phaseStatuses} activePhaseId={activePhaseId} />
+        <ProjectStepper
+          projectId={projectId}
+          statuses={stepStatuses}
+          summaries={stepSummaries}
+          activeStepId={activeStepId}
+          attention={attention}
+        />
         <button
           type="button"
-          onClick={() => setToolsOpen(true)}
-          aria-expanded={toolsOpen}
-          className="mb-1 shrink-0 border border-border bg-surface px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-muted lg:hidden"
+          onClick={() => setDrawerOpen(true)}
+          aria-expanded={drawerOpen}
+          className="mb-1 min-h-11 shrink-0 border border-border bg-surface px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-muted lg:hidden"
         >
-          Project tools
+          Project assistant
         </button>
       </div>
 
@@ -96,53 +113,42 @@ export function ProjectShell({
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
         <div className="min-w-0 space-y-4">
-          {showPreviousNotice && previousPhase && <PreviousPhaseNotice previousPhaseLabel={previousPhase.label} />}
-
-          <div hidden={!discoverActive}>
-            <section aria-labelledby={discoverActive ? "phase-heading" : undefined} className="space-y-4">
-              <h2
-                id={discoverActive ? "phase-heading" : undefined}
-                tabIndex={-1}
-                className="text-lg font-medium text-foreground outline-none"
-              >
-                {discoverPhase.label} — {discoverPhase.verbs[0]} · {discoverPhase.verbs[1]}
-              </h2>
-              {/* TODO: Delivery Monitoring (inside Discover for now) may move to Dialogue or the sidebar. */}
-              {discover}
-            </section>
-          </div>
-
+          {PROJECT_STEPS.map((step) => (
+            <div key={step.id} hidden={step.id !== activeStepId} data-step={step.id}>
+              {steps[step.id]}
+            </div>
+          ))}
           {children}
         </div>
 
-        {toolsOpen && (
+        {drawerOpen && (
           <div
             aria-hidden="true"
             className="fixed inset-0 z-40 bg-foreground/50 lg:hidden"
-            onClick={() => setToolsOpen(false)}
+            onClick={() => setDrawerOpen(false)}
           />
         )}
         <aside
           ref={asideRef}
-          aria-label={toolsOpen ? undefined : "Project tools"}
-          aria-labelledby={toolsOpen ? toolsTitleId : undefined}
-          role={toolsOpen ? "dialog" : undefined}
-          aria-modal={toolsOpen ? true : undefined}
+          aria-label={drawerOpen ? undefined : "Project assistant"}
+          aria-labelledby={drawerOpen ? drawerTitleId : undefined}
+          role={drawerOpen ? "dialog" : undefined}
+          aria-modal={drawerOpen ? true : undefined}
           tabIndex={-1}
           className={`outline-none lg:sticky lg:top-6 lg:block lg:max-h-[calc(100vh-3rem)] lg:self-start lg:overflow-y-auto ${
-            toolsOpen
-              ? "max-lg:fixed max-lg:inset-y-0 max-lg:right-0 max-lg:z-50 max-lg:block max-lg:w-full max-lg:max-w-md max-lg:overflow-y-auto max-lg:border-l max-lg:border-border max-lg:bg-surface max-lg:p-5 max-lg:"
+            drawerOpen
+              ? "max-lg:fixed max-lg:inset-y-0 max-lg:right-0 max-lg:z-50 max-lg:block max-lg:w-full max-lg:max-w-md max-lg:overflow-y-auto max-lg:border-l max-lg:border-border max-lg:bg-surface max-lg:p-5"
               : "hidden"
           }`}
         >
           <div className="mb-3 flex items-center justify-between lg:hidden">
-            <h2 id={toolsTitleId} className="text-base font-medium text-foreground">
-              Project tools
+            <h2 id={drawerTitleId} className="text-base font-medium text-foreground">
+              Project assistant
             </h2>
             <button
               type="button"
-              onClick={() => setToolsOpen(false)}
-              className="px-2 py-1 text-sm font-medium text-primary hover:underline"
+              onClick={() => setDrawerOpen(false)}
+              className="min-h-11 px-2 py-1 text-sm font-medium text-primary hover:underline"
             >
               Close
             </button>

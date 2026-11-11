@@ -44,7 +44,7 @@ describe("ProjectSummaryBar", () => {
       />
     );
 
-    expect(screen.getByText("Complete")).toBeInTheDocument();
+    expect(screen.getByText("Complete — SOW approved")).toBeInTheDocument();
     expect(screen.getByText("FIZ-2026-014")).toBeInTheDocument();
     expect(screen.getByText("Priya Mehta")).toBeInTheDocument();
     expect(screen.getByText("2026 Standard Rates (GBP)")).toBeInTheDocument();

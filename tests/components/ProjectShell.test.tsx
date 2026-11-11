@@ -2,10 +2,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
-import { deriveProjectPhaseStatuses } from "@/lib/projectPhases";
+import { deriveStepStatuses } from "@/lib/projectSteps";
 
-let segment: string | null = "discover";
+let segment: string | null = "brief";
 vi.mock("next/navigation", () => ({
   useSelectedLayoutSegment: () => segment,
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }),
@@ -13,76 +12,95 @@ vi.mock("next/navigation", () => ({
 
 const { ProjectShell } = await import("@/components/features/ProjectShell");
 
-const statuses = deriveProjectPhaseStatuses({ hasClientApprovedSow: false });
+const statuses = deriveStepStatuses({
+  scopeConfirmedAt: null,
+  hasApprovedEstimate: false,
+  hasEstimateWork: true,
+  hasApprovedSow: false,
+  hasSowVersion: false,
+});
 
-function Sidebar() {
-  return <textarea aria-label="Ask me anything" />;
-}
-function DiscoverCard() {
-  return <textarea aria-label="Client update draft" />;
-}
-
-function shell(children: ReactNode = null) {
+function step(id: string, heading: string) {
   return (
-    <ProjectShell projectId="p1" phaseStatuses={statuses} discover={<DiscoverCard />} sidebar={<Sidebar />}>
-      {children}
+    <section>
+      <h2 id={`step-heading-${id}`} tabIndex={-1}>
+        {heading}
+      </h2>
+      <textarea aria-label={`${heading} draft`} />
+    </section>
+  );
+}
+
+function shell() {
+  return (
+    <ProjectShell
+      projectId="p1"
+      stepStatuses={statuses}
+      stepSummaries={{}}
+      steps={{
+        brief: step("brief", "Brief"),
+        estimate: step("estimate", "Estimate"),
+        sow: step("sow", "Statement of Work"),
+      }}
+      sidebar={<textarea aria-label="Assistant message" />}
+    >
+      {null}
     </ProjectShell>
   );
 }
 
 describe("ProjectShell", () => {
-  it("keeps the sidebar and Discover mounted across a tab switch (drafts survive)", async () => {
+  it("renders the stepper where the tab bar was, with the active step marked", () => {
+    segment = "estimate";
+    render(shell());
+    const nav = screen.getByRole("navigation", { name: "Project steps" });
+    expect(nav).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^Estimate, in progress/ })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+  });
+
+  it("shows one step at a time and keeps the others mounted (drafts survive a switch)", async () => {
     const user = userEvent.setup();
-    segment = "discover";
+    segment = "brief";
     const { rerender } = render(shell());
-    // The sidebar aside is display:hidden below lg until opened, so query by hidden:true.
-    await user.type(screen.getByLabelText("Ask me anything"), "draft question");
-    await user.type(screen.getByLabelText("Client update draft"), "unsaved note");
+    await user.type(screen.getByLabelText("Brief draft"), "unsaved note");
+    await user.type(screen.getByLabelText("Assistant message"), "draft question");
 
-    segment = "define";
-    rerender(shell(<p>define panel</p>));
-
-    expect(screen.getByLabelText("Ask me anything")).toHaveValue("draft question");
-    // Discover is hidden, not unmounted.
-    const discoverDraft = screen.getByLabelText("Client update draft");
-    expect(discoverDraft).toHaveValue("unsaved note");
-    expect(discoverDraft.closest("[hidden]")).not.toBeNull();
-
-    segment = "discover";
+    segment = "estimate";
     rerender(shell());
-    expect(screen.getByLabelText("Client update draft")).toHaveValue("unsaved note");
+    const briefDraft = screen.getByLabelText("Brief draft");
+    expect(briefDraft).toHaveValue("unsaved note");
+    expect(briefDraft.closest("[hidden]")).not.toBeNull();
+    expect(screen.getByLabelText("Estimate draft").closest("[hidden]")).toBeNull();
+    expect(screen.getByLabelText("Assistant message")).toHaveValue("draft question");
+
+    segment = "brief";
+    rerender(shell());
+    expect(screen.getByLabelText("Brief draft")).toHaveValue("unsaved note");
   });
 
-  it("shows a non-blocking note on a phase whose predecessor isn't complete", () => {
-    segment = "define";
-    render(shell(<p>define panel</p>));
-    expect(screen.getByText(/Discover isn.t complete yet/)).toBeInTheDocument();
-  });
-
-  it("shows no note on Discover", () => {
-    segment = "discover";
-    render(shell());
-    expect(screen.queryByText(/isn.t complete yet/)).toBeNull();
-  });
-
-  it("moves focus to the phase heading and announces after a switch", () => {
-    segment = "discover";
+  it("moves focus to the step heading and announces the switch", () => {
+    segment = "brief";
     const { rerender } = render(shell());
-    segment = "define";
-    rerender(shell(<h2 id="phase-heading" tabIndex={-1}>Define</h2>));
-    expect(screen.getByRole("heading", { name: "Define" })).toHaveFocus();
-    expect(screen.getByRole("status")).toHaveTextContent("Showing Define phase");
+    segment = "sow";
+    rerender(shell());
+    expect(screen.getByRole("heading", { name: "Statement of Work" })).toHaveFocus();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Showing Statement of Work step, not started"
+    );
   });
 
-  it("Project tools opens the same sidebar in a dialog, and Close dismisses it", async () => {
+  it("Project assistant opens the same sidebar in a drawer, and Close dismisses it", async () => {
     const user = userEvent.setup();
-    segment = "discover";
+    segment = "brief";
     render(shell());
-    await user.type(screen.getByLabelText("Ask me anything"), "kept");
-    await user.click(screen.getByRole("button", { name: "Project tools" }));
-    const dialog = screen.getByRole("dialog", { name: "Project tools" });
-    expect(dialog).toContainElement(screen.getByLabelText("Ask me anything"));
-    expect(screen.getByLabelText("Ask me anything")).toHaveValue("kept");
+    await user.type(screen.getByLabelText("Assistant message"), "kept");
+    await user.click(screen.getByRole("button", { name: "Project assistant" }));
+    const dialog = screen.getByRole("dialog", { name: "Project assistant" });
+    expect(dialog).toContainElement(screen.getByLabelText("Assistant message"));
+    expect(screen.getByLabelText("Assistant message")).toHaveValue("kept");
     await user.click(screen.getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog")).toBeNull();
   });

@@ -5,6 +5,8 @@ export interface ChecklistItemView {
   label: string;
   isComplete: boolean;
   detailText: string | null;
+  /** Which step's "Before you move on" list the item belongs to (FB-008). */
+  step?: "brief" | "estimate" | "sow";
 }
 
 export function ChecklistView({ items }: { items: ChecklistItemView[] }) {

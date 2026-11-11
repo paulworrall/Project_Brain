@@ -1,21 +1,27 @@
-import { notFound } from "next/navigation";
-import { PhaseComingSoon } from "@/components/features/PhaseComingSoon";
-import { getPhase, isPhaseId } from "@/lib/projectPhases";
+import { notFound, redirect } from "next/navigation";
+import { loadProjectPageData } from "@/lib/projectPageData";
+import { RETIRED_PHASE_SLUGS, isStepId } from "@/lib/projectSteps";
 
 /**
- * One phase's content (the left column). Discover is rendered by the project
- * layout so it can stay mounted across tab switches, so it renders nothing
- * here. For the other phases, once one is built: set `available: true` in
- * projectPhases.ts and add its component to the lookup below.
+ * One step's route (/brief, /estimate, /sow). The project layout renders every
+ * step's content (kept mounted so unsaved work survives a switch) and shows
+ * the one named by this segment, so the page itself renders nothing. FB-007's
+ * phase slugs redirect to the current step; anything else is a 404. The
+ * folder keeps FB-007's `[phase]` name — renaming "phase" files is out of scope.
  */
-export default async function ProjectPhasePage({ params }: { params: Promise<{ phase: string }> }) {
-  const { phase } = await params;
-  if (!isPhaseId(phase)) {
-    notFound();
-  }
-  if (phase === "discover") {
+export default async function ProjectStepPage({
+  params,
+}: {
+  params: Promise<{ projectId: string; phase: string }>;
+}) {
+  const { projectId, phase } = await params;
+  if (isStepId(phase)) {
     return null;
   }
-  // Future: const Content = PHASE_CONTENT[phase]; if (Content) return <Content />;
-  return <PhaseComingSoon phase={getPhase(phase)} />;
+  if (RETIRED_PHASE_SLUGS.includes(phase)) {
+    const data = await loadProjectPageData(projectId);
+    if (!data) notFound();
+    redirect(`/projects/${projectId}/${data.currentStepId}`);
+  }
+  notFound();
 }

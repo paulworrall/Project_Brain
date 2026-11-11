@@ -32,4 +32,8 @@ export const APPROVAL_ERROR_COPY: Record<ApprovalErrorCode, string> = {
     "The 10-second undo window has passed. Only an admin can revert this approval.",
   FORBIDDEN: "You don't have permission to do that.",
   VALIDATION: "Check the highlighted fields and try again.",
+  PROJECT_COMPLETE: "This project is complete. Changes will need a change request (coming soon).",
+  NOT_FOUND: "That item no longer exists. Refresh the page.",
+  ESTIMATE_APPROVED:
+    "The scope can't be reopened because the client has approved an estimate. Changes will need a change request (coming soon).",
 };

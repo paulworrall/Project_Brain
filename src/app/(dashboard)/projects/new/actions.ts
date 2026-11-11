@@ -7,10 +7,8 @@ import { prisma } from "@/lib/prisma";
 import { extractBriefText } from "@/services/parsing/brief";
 import {
   IntakeAgentError,
-  generateSetupChecklist,
   runIntakeAgent,
 } from "@/services/agents/intake-agent";
-import type { Prisma } from "@/generated/prisma/client";
 import { saveCapturedKeyAttributes } from "@/lib/briefAttributeCapture";
 import { recordKeyAttributeExtractionOutcome } from "@/lib/keyAttributeSources";
 import { auth } from "@/lib/auth";
@@ -442,16 +440,18 @@ export async function createProjectAction(
           create: {
             versionNumber: 1,
             stageNumber: 1,
-            content: generateSetupChecklist() as unknown as Prisma.InputJsonValue,
+            // The stored document keeps its original shape (labels only).
+            content: { items: intakeResult.checklist.items.map((item) => item.label) },
           },
         },
       },
     });
 
     await tx.checklistItem.createMany({
-      data: intakeResult.checklist.items.map((label, index) => ({
+      data: intakeResult.checklist.items.map((item, index) => ({
         projectId: project.id,
-        label,
+        label: item.label,
+        step: item.step,
         order: index,
       })),
     });

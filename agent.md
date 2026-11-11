@@ -5,7 +5,7 @@ Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (P
 
 **WPP ES | MAP design system (Nov 2026)**: the whole UI uses the WPP Enterprise Solutions | MAP design system, matching the sister app Reporting Hub: Navy/Cream/White/Orange tokens in `src/app/globals.css` (semantic names kept — `foreground`, `primary`, `surface`, `accent`, `success`/`warning`/`danger` — with MAP values, plus MAP names `navy`, `cream`, `orange`, `tint`, `line-strong`, `rag-*`), WPP Sans via `next/font/local` (`public/fonts/WPP-*.woff2`), square corners (only tags/pills and dots round), no shadows/gradients, and one global `:focus-visible` ring (Orange outline + Navy inner ring; `focus-inset` in scroll containers). Rules are in CLAUDE.md "Styling conventions". App-specific adaptations vs Reporting Hub: two-tone focus ring, Navy eyebrow, Orange 900 error text, Rule border on cards, `border-strong` on inputs, ReadinessStrip fill+outline segments, Toast with Navy frame.
 
-**5D phase tabs (FB-007, Oct 2026)**: the project page is now a persistent shell (`projects/[projectId]/(shell)/layout.tsx`: header box, `PhaseTabs` nav of five links with derived status, sticky sidebar / mobile "Project tools" dialog) over phase routes `/projects/[id]/{discover,define,develop,deliver,dialogue}`; `/projects/[id]` redirects to the first non-Complete phase. Config and status rules: `src/lib/projectPhases.ts` (not `phases.ts`, which groups Stages into Discover's three Steps). Discover is rendered by the layout and kept mounted (hidden) on other tabs so unsaved card state survives; other phases render `PhaseComingSoon` until built. Shared cached loader: `src/lib/projectPageData.ts`. `revalidatePath` on the project route must use `"layout"`.
+**SOW journey stepper (FB-008, Nov 2026)**: the product is an SOW generator: Brief → Estimate → SOW. The project page is a persistent shell (`projects/[projectId]/(shell)/layout.tsx`: header box, `ProjectStepper` nav "Project steps", sticky Project assistant sidebar / "Project assistant" drawer below `lg`) over `/projects/[id]/{brief,estimate,sow}`; `/projects/[id]` and FB-007's old 5D slugs redirect to the current step (first not Done; `sow` once the SOW is approved). All three steps render in the layout and stay mounted (only the active one shown) so unsaved work survives a switch. Config + pure `deriveStepStatuses` in `src/lib/projectSteps.ts` (Brief done = `scopeConfirmedAt`; Estimate done = approved estimate, in progress if any estimate / estimate brief / specialist input; SOW done = approved SOW = project complete). Each step starts with a "Before you move on" readiness list (`EditableChecklist`: system checks from `src/lib/project/readiness.ts` + the PM's `ChecklistItem`s for that `step`). Brief ends with `ScopeGate` (confirm / reopen scope); Estimate = Capabilities & Estimate Brief, `SpecialistInputTracker` (`SpecialistInput` rows per confirmed capability), Build The Estimate; SOW = `StartSowDevelopmentPanel`. Rules in `src/lib/project/stepService.ts` (thin actions in `projects/[projectId]/step-actions.ts`); every project mutation is refused once complete (`src/lib/project/projectGuards.ts`). The Project assistant (`ProjectAssistant`) classifies each message (`services/agents/assistant-classifier.ts`) then routes to `answerProjectQuestion` and/or the shared update flow (`sendAssistantMessageAction` → `saveProjectUpdate`). Shared cached loader: `src/lib/projectPageData.ts`. `revalidatePath` on the project route must use `"layout"`. `src/lib/phases.ts` (stage grouping) is still read by `briefCompleteness.ts`.
 
 **Client approval of estimates/SOWs (FB-005, Oct 2026)**: a version is Draft until a PM records that the client approved it outside the app. `CommercialApproval` is append-only (one table, `documentType` + an estimate-or-SOW version FK; undo/revert set `revokedAt`/`revokeKind`, never delete) with partial unique indexes: one active approval per project per document type and per version. Status is derived (`deriveApprovalState`, `src/lib/commercial/approvalState.ts`), never stored. Rules live in `approvalService.ts` (approve/undo/revert; SOW must come from the approved estimate version; 10s undo + 2s grace on the server clock); every mutating estimate/SOW action calls `assertEstimateEditable`/`assertSowEditable` (`approvalGuards.ts`), re-checked inside the writing transaction for slow work. All permission decisions are in `src/lib/permissions.ts` (`canApprove` = any signed-in user; `canRevertApproval` = `ADMIN_ROLES`, empty until FB-006 defines an Admin role, so revert UI is hidden). Stage 6/8 read Complete from approvals (computed in `stageStatusWithApprovals`, not stored). `assembleSowContext` uses the approved estimate version when one exists. One money formatter (`src/lib/formatMoney.ts`).
 
@@ -30,15 +30,16 @@ Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (P
 | `src/components/ui/{Button,Card,Input,FormError,DocumentStatusBadge,ReadinessStrip,Toast,Modal,ProcessingOverlay}.tsx` | Primitives restyled to Reporting Hub's; Button gains `onNavy`/`onNavyOutline` | MAP restyle |
 | All `src/components/features/*`, `src/app/**` pages | Class sweep: square corners, no shadows, Medium not semibold, Light page titles, square status chips | MAP restyle |
 
-### Source Files — 5D phase tabs (FB-007)
+### Source Files — SOW journey stepper (FB-008)
 | File | Purpose | Last Modified Task |
 |------|---------|-------------------|
-| `src/lib/projectPhases.ts` | 5D phase config, `deriveProjectPhaseStatuses`, current-phase helper | FB-007 |
-| `src/lib/projectPageData.ts` | Cached `loadProjectPageData` (all project page queries and derivations) | FB-007 |
-| `projects/[projectId]/(shell)/{layout,page}.tsx`, `(shell)/[phase]/page.tsx` | Persistent shell, redirect to current phase, phase page (404 unknown slug) | FB-007 |
-| `SidebarPanel` | Shared sidebar panel look (icon badge, title, subtitle); used by chat, knowledge upload, checklist, approved documents | FB-007 follow-up |
-| `ProjectShell`, `PhaseTabs`, `PhaseStatusIndicator`, `PhaseComingSoon`, `PreviousPhaseNotice`, `ProjectSidebar` | Tab row/columns/drawer, nav, status icon+text, placeholder panel, non-blocking note, project-wide tools | FB-007 |
-| `ProjectWorkflow` | Now exports `DiscoverPhaseContent` (left column) + `ProjectWorkflow` (both) | FB-007 |
+| `prisma/migrations/20261111100000_fb008_sow_steps/` | `Project.scopeConfirmedAt/ByUserId`, `ChecklistItem.step` (default brief), `SpecialistInput` (applied) | FB-008 |
+| `src/lib/projectSteps.ts` | Step config, `deriveStepStatuses`, current step, done summaries, accessible names, prerequisite notes | FB-008 |
+| `src/lib/project/{stepService,projectGuards,readiness}.ts` | Scope/specialist/checklist rules; project-complete guard; system checks + specialist rows | FB-008 |
+| `projects/[projectId]/step-actions.ts`, `actions.ts` (`sendAssistantMessageAction`, `saveProjectUpdate`) | Thin step actions; assistant routing; complete-lock on every project action | FB-008 |
+| `src/services/agents/assistant-classifier.ts` | question / update / both / unclear | FB-008 |
+| `ProjectShell`, `ProjectStepper`, `ProjectWorkflow` (`BriefStep`, `EstimateStep`, `SowStep`), `ScopeGate`, `SpecialistInputTracker`, `EditableChecklist`, `ProjectAssistant`, `ProjectSidebar` | Shell, stepper, step content, gate, tracker, readiness list, assistant | FB-008 |
+| `(shell)/{layout,page}.tsx`, `(shell)/[phase]/page.tsx` | Persistent shell; redirect to current step; step page (old phase slugs redirect, unknown 404) | FB-008 |
 
 ### Source Files — Client approval (FB-005)
 | File | Purpose | Last Modified Task |
@@ -48,7 +49,7 @@ Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (P
 | `src/lib/permissions.ts`, `src/lib/undoWindow.ts`, `src/lib/formatMoney.ts` | Central approval permissions; client-safe undo window; shared money formatter | FB-005 |
 | `src/types/approvals.ts` | `ApprovalState`, `ApprovalInfo`, `ActionResult`, zod input schemas | FB-005 |
 | `projects/[projectId]/approval-actions.ts` | Thin server actions: approve estimate/SOW, undo, revert | FB-005 |
-| `ApprovalActions`, `ApproveVersionDialog`, `RevertApprovalDialog`, `ApprovedDocumentsPanel`, `LockedNotice`, `ui/DocumentStatusBadge` | Approve/undo/revert UI, sidebar panel, locked note, status badge | FB-005 |
+| `ApprovalActions`, `ApproveVersionDialog`, `RevertApprovalDialog`, `LockedNotice`, `ui/DocumentStatusBadge` | Approve/undo/revert UI, locked note, status badge (the Approved documents panel was removed in FB-008) | FB-005 |
 | `EstimatesListPanel`, `StartSowDevelopmentPanel`, `EstimateBuildWorkspace`, `EstimateReviewCard`, `ProjectWorkflow`, project `page.tsx` | Badges, locks (aria-disabled), read-only estimate, panel mounted under the checklist | FB-005 |
 
 ### Source Files — "What We Need to Find Out" checklist + Timeline and Key Milestones
@@ -121,10 +122,10 @@ Unchanged recently — see `progress.md`. Auth (`src/lib/{auth,permissions}.ts`,
 | `.gitignore` | Includes `.env.local` |
 | `public/fonts/WPP-*.woff2` | WPP Sans (Thin, Light, Regular, Medium, Bold), copied from Reporting Hub |
 
-### Test Files (108 files, 869 tests, all passing)
+### Test Files (see progress.md for the latest count)
 | File | Tests | Status |
 |------|-------|--------|
-| `tests/lib/projectPhases.test.ts`, `tests/components/{PhaseTabs,PhaseComingSoon,ProjectShell}.test.tsx`, `tests/project-phase-routing.test.tsx` | Status derivation, tab nav/aria/keyboard, coming-soon content and no controls, sidebar+Discover persistence, focus/announce, drawer, redirect/404 routing, revalidatePath uses layout | ✅ New |
+| `tests/lib/{projectSteps,readiness}.test.ts`, `tests/components/{ProjectStepper,ProjectShell,ProjectWorkflow,ScopeGate,SpecialistInputTracker,EditableChecklist,ProjectAssistant}.test.tsx`, `tests/services/assistant-classifier.test.ts`, `tests/project-step-routing.test.tsx`, `tests/fb-008-steps.test.ts` (real DB) | Every status combination, summaries/aria names, stepper, steps + readiness lists, scope gate, specialist rows, assistant routing (question/update/both/unclear, mocked classifier), project-complete locks, redirects, removed panels not linked | ✅ New (FB-008) |
 | `tests/services/{key-attribute-extraction,position-key-detail-filter}.test.ts`, `tests/fixtures/keyAttributeFacts.ts` | Flat-schema regression guard, fact grouping/validation, de-dup removes only covered items and keeps all on failure | ✅ New |
 | `tests/services/{intake-agent,clarification-extraction}.test.ts`, `tests/{brief-key-attributes,pm-perspective,stage-1-5-happy-path,sow-context,chatbot-isolation}.test.ts` | New intake order, exclusion, no contact fields, failure recorded/cleared, SOW contact only from confirmed key detail, chatbot isolation for key details | ✅ Updated |
 | `tests/lib/pmPerspective.test.ts`, `tests/pm-perspective.test.ts` (real DB), `tests/components/PmPerspectivePanel.test.tsx`, `tests/fixtures/pmPerspective.ts` | Config + labelled prompt block; empty submission; separate storage; per-field author/time; prompts include the block but key-attribute extraction doesn't; KPI → PM_ENTRY suggestion only; panel labelling and editing | ✅ New |
@@ -163,11 +164,9 @@ Unchanged recently — see `progress.md`. Auth (`src/lib/{auth,permissions}.ts`,
 - **Scripted edits**: no Python on this machine; use Node. Many files are CRLF — normalize to LF while editing and restore on write. The shell tool mangles apostrophes and backslashes in heredocs, so write edit scripts to the scratchpad with the Write tool first.
 
 ## Current State Summary
-Latest: **MAP design system restyle** on branch `feat/map-design-system` (visual only; not yet merged). The WPP font files' licence for this (public) repo is unconfirmed — see `progress.md`. 5D phase tabs (FB-007) are merged; Define-Dialogue are coming-soon panels.
-
-All MVP scope plus Build The Estimate, Generate SOW, brief key attributes, the PM perspective and (latest) **client approval of estimates/SOWs** are built and deployed (FB-005 merged to main, migration applied).
+Latest: **FB-008** on branch `feat/fb-008-sow-stepper` (PR open): the project page is a Brief → Estimate → SOW stepper with per-step readiness lists, a scope gate, a specialist input tracker and one Project assistant; the 5D tabs, Delivery Monitoring, the delivery-setup placeholder and the checklist / Approved documents sidebar panels are gone. Migration applied (additive). The MAP restyle and FB-007 are merged.
 
 Next:
-- FB-006 roles review: define an Admin role in `ADMIN_ROLES`, decide who may approve (`canApprove`); this switches on the revert UI.
+- FB-009 (scope summary, change propagation, Next step banner, fast path, New Project form, pipeline home page).
+- FB-006 roles review: define PM/Admin roles (`ADMIN_ROLES`, `canApprove`, `canEditProject`).
 - Change Requests (reference the approval they amend).
-- SOW-specific rules for which captured values appear on the SOW; surface `extractionFailure` in the checklist.

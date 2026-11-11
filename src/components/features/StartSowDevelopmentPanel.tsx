@@ -106,8 +106,14 @@ export function StartSowDevelopmentPanel({
   sowChange,
   lock = null,
   permissions = { canApprove: false, canRevert: false },
+  prerequisiteNoteId = null,
 }: {
   lock?: SowLock | null;
+  /**
+   * FB-008: id of the step's prerequisite note, set while the estimate isn't
+   * approved — Generate SOW is disabled and described by that note.
+   */
+  prerequisiteNoteId?: string | null;
   permissions?: ApprovalPermissions;
   /** What's changed since the latest SOW was generated (getSowChangeStatus) — the only source of SOW change notices. */
   sowChange?: SowChangeStatus;
@@ -240,7 +246,7 @@ export function StartSowDevelopmentPanel({
   }, [overlayOpen, overlayStatus, processingKind]);
 
   function handleGenerateClick() {
-    if (locked) return;
+    if (locked || prerequisiteNoteId) return;
     if (!briefCompleteness.canProceed) {
       setShowBriefGate(true);
       return;
@@ -365,8 +371,9 @@ export function StartSowDevelopmentPanel({
             onClick={handleGenerateClick}
             // Not disabled while the review is open: focus must be able to return here when it closes.
             disabled={busy || !currentTemplate}
-            aria-disabled={locked ? true : undefined}
-            className={`text-xs ${locked ? "cursor-not-allowed opacity-50" : ""}`}
+            aria-disabled={locked || prerequisiteNoteId ? true : undefined}
+            aria-describedby={prerequisiteNoteId && !locked ? prerequisiteNoteId : undefined}
+            className={`text-xs ${locked || prerequisiteNoteId ? "cursor-not-allowed opacity-50" : ""}`}
           >
             {busy ? "Working…" : latestSowVersion ? "Regenerate SOW" : "Generate SOW"}
           </Button>

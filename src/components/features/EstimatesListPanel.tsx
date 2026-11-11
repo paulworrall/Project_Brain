@@ -85,11 +85,14 @@ function NewEstimateForm({
   projectId,
   rateCardOptions,
   lock,
+  prerequisiteNoteId,
 }: {
   projectId: string;
   rateCardOptions: RateCardOption[];
   lock: EstimateLock | null;
+  prerequisiteNoteId: string | null;
 }) {
+  const blocked = lock !== null || prerequisiteNoteId !== null;
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [created, setCreated] = useState<CreatedEstimate | null>(null);
@@ -127,10 +130,11 @@ function NewEstimateForm({
         <Button
           type="button"
           variant="secondary"
-          className={`text-xs ${lock ? "cursor-not-allowed opacity-50" : ""}`}
-          aria-disabled={lock ? true : undefined}
+          className={`text-xs ${blocked ? "cursor-not-allowed opacity-50" : ""}`}
+          aria-disabled={blocked ? true : undefined}
+          aria-describedby={prerequisiteNoteId && !lock ? prerequisiteNoteId : undefined}
           onClick={() => {
-            if (!lock) setIsOpen(true);
+            if (!blocked) setIsOpen(true);
           }}
         >
           + New estimate
@@ -365,12 +369,18 @@ export function EstimatesListPanel({
   rateCardOptions,
   lock = null,
   permissions = { canApprove: false, canRevert: false },
+  prerequisiteNoteId = null,
 }: {
   projectId: string;
   estimates: EstimateListItem[];
   rateCardOptions: RateCardOption[];
   lock?: EstimateLock | null;
   permissions?: ApprovalPermissions;
+  /**
+   * FB-008: id of the step's prerequisite note, set while the scope isn't
+   * confirmed — "+ New estimate" is disabled and described by that note.
+   */
+  prerequisiteNoteId?: string | null;
 }) {
   const [showAllOpen, setShowAllOpen] = useState(false);
   const visibleEstimates = estimates.slice(0, MAX_VISIBLE_ESTIMATES);
@@ -378,7 +388,12 @@ export function EstimatesListPanel({
 
   return (
     <div id="estimates" className="scroll-mt-6 space-y-3">
-      <NewEstimateForm projectId={projectId} rateCardOptions={rateCardOptions} lock={lock} />
+      <NewEstimateForm
+        projectId={projectId}
+        rateCardOptions={rateCardOptions}
+        lock={lock}
+        prerequisiteNoteId={prerequisiteNoteId}
+      />
 
       {estimates.length === 0 ? (
         <p className="text-sm text-muted-foreground">No estimates started yet.</p>

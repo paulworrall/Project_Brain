@@ -65,3 +65,16 @@ export function canUndoApproval(
 export function canRevertApproval(user: ApprovalActor | null | undefined): boolean {
   return !!user?.role && ADMIN_ROLES.includes(user.role);
 }
+
+// ---------------------------------------------------------------------------
+// Project editing (FB-008): confirming/reopening scope, checklist items and
+// specialist input rows. The brief says "PM or Admin"; the user model has no
+// PM or Admin role yet (FB-006), so — like canApprove — any signed-in user may
+// edit for now. Change the rule here and every caller follows.
+// ---------------------------------------------------------------------------
+
+export function canEditProject(user: ApprovalActor | null | undefined): boolean {
+  return !!user?.id;
+}
+
+export const CANNOT_EDIT_PROJECT_MESSAGE = "You don't have permission to change this project.";

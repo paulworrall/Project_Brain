@@ -19,8 +19,14 @@ import {
   stageStatusWithApprovals,
 } from "@/lib/commercial/approvalViewData";
 import { sowApprovalBlockedReason } from "@/lib/commercial/sowApprovalGate";
+import {
+  buildStepSummaries,
+  deriveStepStatuses,
+  getCurrentStepId,
+  isProjectComplete,
+} from "@/lib/projectSteps";
+import { buildSpecialistRows, buildSystemChecks } from "@/lib/project/readiness";
 
-import { deriveProjectPhaseStatuses } from "@/lib/projectPhases";
 async function fetchProjectPageData(projectId: string) {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
@@ -87,6 +93,8 @@ async function fetchProjectPageData(projectId: string) {
         },
       },
       projectManager: true,
+      specialistInputs: true,
+      scopeConfirmedBy: { select: { id: true, name: true } },
     },
   });
 
@@ -162,9 +170,6 @@ async function fetchProjectPageData(projectId: string) {
       approvals.summary
     )
   );
-  const projectStatus: "COMPLETE" | "ACTIVE" = stageStatuses.every((status) => status === "COMPLETE")
-    ? "COMPLETE"
-    : "ACTIVE";
 
   const [briefCompleteness, pmPerspective, versionHistory] = await Promise.all([
     getBriefCompleteness(project.id),
@@ -191,7 +196,44 @@ async function fetchProjectPageData(projectId: string) {
       }
     : null;
 
-  const phaseStatuses = deriveProjectPhaseStatuses({ hasClientApprovedSow: approvals.summary.sow !== null });
+  // FB-008: the SOW journey's three steps, derived on read.
+  const sowVersions = sow?.versions ?? [];
+  const stepStatuses = deriveStepStatuses({
+    scopeConfirmedAt: project.scopeConfirmedAt,
+    hasApprovedEstimate: approvals.summary.estimate !== null,
+    hasEstimateWork: estimates.length > 0 || latestEstimateBriefVersion !== null || project.specialistInputs.length > 0,
+    hasApprovedSow: approvals.summary.sow !== null,
+    hasSowVersion: sowVersions.length > 0,
+  });
+  const currentStepId = getCurrentStepId(stepStatuses);
+  const projectComplete = isProjectComplete(stepStatuses);
+  // The header status: "Complete — SOW approved" once the SOW is client approved.
+  const projectStatus: "COMPLETE" | "ACTIVE" = projectComplete ? "COMPLETE" : "ACTIVE";
+  const stepSummaries = buildStepSummaries({
+    scopeConfirmedAt: project.scopeConfirmedAt,
+    approvedEstimate: approvals.summary.estimate
+      ? { ...approvals.summary.estimate, clientApprovedOn: approvals.summary.estimate.approval.clientApprovedOn }
+      : null,
+    approvedSow: approvals.summary.sow
+      ? { ...approvals.summary.sow, clientApprovedOn: approvals.summary.sow.approval.clientApprovedOn }
+      : null,
+  });
+  const systemChecks = buildSystemChecks({
+    // v1 of the version history is the brief (empty if none was submitted).
+    briefSubmitted: !!versionHistory.find((v) => v.id === "brief")?.content.trim(),
+    hasMasterServiceAgreement: project.masterServiceAgreementId !== null,
+    hasRateCard: project.rateCardId !== null,
+    scopeConfirmed: project.scopeConfirmedAt !== null,
+    confirmedCapabilityCount: confirmedCapabilities.length,
+    estimateApproved: approvals.summary.estimate !== null,
+    sowFromApprovedEstimate:
+      approvals.approvedEstimateVersionId !== null &&
+      sowVersions[0]?.sourceEstimateVersionId === approvals.approvedEstimateVersionId,
+  });
+  const specialistRows = buildSpecialistRows(
+    confirmedCapabilities,
+    project.specialistInputs.map((i) => ({ capability: i.capability, status: i.status, note: i.note }))
+  );
 
   return {
     project,
@@ -224,7 +266,12 @@ async function fetchProjectPageData(projectId: string) {
     clientUpdates,
     confirmedCapabilities,
     estimateBriefVersion,
-    phaseStatuses,
+    stepStatuses,
+    stepSummaries,
+    currentStepId,
+    projectComplete,
+    systemChecks,
+    specialistRows,
   };
 }
 

@@ -35,11 +35,8 @@ function baseProps() {
     positionDocument,
     clientUpdates: [],
     clarificationEmail,
-    checklistItems: [],
     briefCompleteness: briefCompleteness(),
     pmPerspective: pmPerspectiveView(),
-    confirmedCapabilities: [],
-    estimateBriefVersion: null,
   };
 }
 
@@ -104,18 +101,17 @@ describe("Phase1Workspace", () => {
     expect(other.compareDocumentPosition(flagged) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("does not render the checklist — it lives only in the sidebar (ProjectWorkflow), to avoid duplication", () => {
-    render(
-      <Phase1Workspace
-        {...baseProps()}
-        checklistItems={[
-          { id: "item_1", label: "Assign job code", isComplete: false, detailText: null },
-        ]}
-      />
-    );
+  it("does not render the readiness checklist or the Capabilities panel — BriefStep and the Estimate step own those (FB-008)", () => {
+    render(<Phase1Workspace {...baseProps()} />);
 
-    expect(screen.queryByText("Project Set-Up Checklist")).not.toBeInTheDocument();
-    expect(screen.queryByRole("checkbox", { name: "Assign job code" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Before you move on")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Capabilities/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/checklist items complete/)).not.toBeInTheDocument();
+  });
+
+  it("makes key details and the PM perspective read-only once the project is complete", () => {
+    const { container } = render(<Phase1Workspace {...baseProps()} readOnly />);
+    expect(container.querySelector("fieldset")).toBeDisabled();
   });
 
   it("shows a compact progress summary computed from the live data", () => {
@@ -130,19 +126,14 @@ describe("Phase1Workspace", () => {
             createdByName: null,
           },
         ]}
-        checklistItems={[
-          { id: "item_1", label: "Assign job code", isComplete: true, detailText: null },
-          { id: "item_2", label: "Create Teams channel", isComplete: false, detailText: null },
-        ]}
       />
     );
 
-    const summary = screen.getByLabelText("Step 1 progress summary");
+    const summary = screen.getByLabelText("Brief progress summary");
     expect(summary).toHaveTextContent("1 other detail from the brief");
     // Nothing confirmed yet: all 4 required details are still to find out.
     expect(summary).toHaveTextContent("4 required details to find out");
     expect(summary).toHaveTextContent("1 update logged");
-    expect(summary).toHaveTextContent("1/2 checklist items complete");
   });
 
   it("pluralizes progress summary counts correctly", () => {
@@ -158,15 +149,13 @@ describe("Phase1Workspace", () => {
         }}
         briefCompleteness={briefCompleteness(ALL_REQUIRED_CONFIRMED.slice(1))}
         clientUpdates={[]}
-        checklistItems={[]}
       />
     );
 
-    const summary = screen.getByLabelText("Step 1 progress summary");
+    const summary = screen.getByLabelText("Brief progress summary");
     expect(summary).toHaveTextContent("2 other details from the brief");
     expect(summary).toHaveTextContent("1 required detail to find out");
     expect(summary).toHaveTextContent("0 updates logged");
-    expect(summary).toHaveTextContent("0/0 checklist items complete");
   });
 
   it("lists the 4 required key details with their status and question", () => {

@@ -71,6 +71,15 @@ import { describeKnownKeyDetails } from "@/lib/keyDetailsContext";
 import { removeItemsCoveredByKeyDetails } from "@/services/agents/position-key-detail-filter";
 import { getPmPerspectiveField } from "@/lib/pmPerspective";
 import { savePmPerspective } from "@/lib/pmPerspectiveStore";
+import { isProjectCompleteInDb, projectCompleteMessage } from "@/lib/project/projectGuards";
+import { canEditProject, CANNOT_EDIT_PROJECT_MESSAGE } from "@/lib/permissions";
+import { PROJECT_COMPLETE_MESSAGE } from "@/lib/projectSteps";
+import {
+  AssistantClassifierError,
+  classifyAssistantMessage,
+  type AssistantIntent,
+} from "@/services/agents/assistant-classifier";
+import type { ActionResult } from "@/types/approvals";
 import {
   CommercialLockedError,
   assertSowEditable,
@@ -101,6 +110,11 @@ export async function updateProjectSummaryAction(
   _prevState: ActionState | undefined,
   formData: FormData
 ): Promise<ActionState | undefined> {
+  const completeLock = await projectCompleteMessage(projectId);
+  if (completeLock) {
+    return { message: completeLock };
+  }
+
   const parsed = ProjectSummarySchema.safeParse({
     jobCode: formData.get("jobCode"),
     kickOffDate: formData.get("kickOffDate"),
@@ -490,11 +504,22 @@ const FeedbackSchema = z
     path: ["otherLabel"],
   });
 
+/**
+ * The pre-FB-008 Specialist consultation submit. Since FB-008 there is no UI
+ * for it (the Estimate step's specialist input tracker replaced it); kept so
+ * the stored notes and Deliverables + Services Document keep their writer and
+ * tests, and guarded like every other mutation.
+ */
 export async function submitSpecialistFeedbackAction(
   projectId: string,
   _prevState: ActionState | undefined,
   formData: FormData
 ): Promise<ActionState | undefined> {
+  const completeLock = await projectCompleteMessage(projectId);
+  if (completeLock) {
+    return { message: completeLock };
+  }
+
   const parsed = FeedbackSchema.safeParse({
     feedback: formData.get("feedback"),
     capability: formData.get("capability"),
@@ -608,6 +633,11 @@ export async function toggleChecklistItemAction(
   _prevState: ActionState | undefined,
   formData: FormData
 ): Promise<ActionState | undefined> {
+  const completeLock = await projectCompleteMessage(projectId);
+  if (completeLock) {
+    return { message: completeLock };
+  }
+
   const isComplete = formData.get("isComplete") === "on";
 
   const result = await prisma.checklistItem.updateMany({
@@ -637,6 +667,11 @@ export async function updateChecklistItemDetailAction(
   _prevState: ActionState | undefined,
   formData: FormData
 ): Promise<ActionState | undefined> {
+  const completeLock = await projectCompleteMessage(projectId);
+  if (completeLock) {
+    return { message: completeLock };
+  }
+
   const parsed = ChecklistDetailSchema.safeParse({ detailText: formData.get("detailText") });
   if (!parsed.success) {
     return { message: "Invalid detail text." };
@@ -663,6 +698,11 @@ export async function updateOtherServiceLabelAction(
   _prevState: ActionState | undefined,
   formData: FormData
 ): Promise<ActionState | undefined> {
+  const completeLock = await projectCompleteMessage(projectId);
+  if (completeLock) {
+    return { message: completeLock };
+  }
+
   const parsed = OtherLabelSchema.safeParse({ otherLabel: formData.get("otherLabel") });
   if (!parsed.success) {
     return {
@@ -711,36 +751,23 @@ export async function updateOtherServiceLabelAction(
  * from. If that refresh fails the update is still saved, with a notice. A one-line AI summary is added after the
  * response — never blocking the save. Usable repeatedly at any time.
  */
-export async function uploadKnowledgeItemAction(
-  projectId: string,
-  _prevState: ActionState | undefined,
-  formData: FormData
-): Promise<ActionState | undefined> {
-  const pasted = formData.get("content");
-  const pastedText = typeof pasted === "string" ? pasted.trim() : "";
-
-  const sourceField = formData.get("source") || "CLIENT";
-  if (sourceField !== "CLIENT" && sourceField !== "INTERNAL_TEAM") {
-    return { message: "Choose whether this update is from the client or the internal team." };
-  }
-  const source: UpdateSource = sourceField;
-
-  const file = formData.get("file");
+/** A project update's text, read from pasted text or an uploaded file. */
+async function readUpdateContent(
+  pastedText: string,
+  file: FormDataEntryValue | null
+): Promise<
+  | { ok: true; content: string; type: "DOCUMENT" | "NOTE"; originalFileName: string | null }
+  | { ok: false; message: string }
+> {
   const hasFile = file instanceof File && file.size > 0;
-  const hasPastedText = !!pastedText;
-
-  if (!hasFile && !hasPastedText) {
-    return { message: "Paste some notes or upload a file." };
+  if (!hasFile && !pastedText) {
+    return { ok: false, message: "Paste some notes or upload a file." };
   }
-  if (hasFile && hasPastedText) {
-    return { message: "Provide either pasted notes or a file, not both." };
+  if (hasFile && pastedText) {
+    return { ok: false, message: "Provide either pasted notes or a file, not both." };
   }
-
-  const session = await auth();
-
   let content: string;
   let originalFileName: string | null = null;
-
   if (hasFile && file instanceof File) {
     originalFileName = file.name;
     try {
@@ -748,18 +775,44 @@ export async function uploadKnowledgeItemAction(
       content = await parseDocumentToText(buffer, file.name);
     } catch (error) {
       if (error instanceof UnsupportedBriefFormatError) {
-        return { message: error.message };
+        return { ok: false, message: error.message };
       }
-      return { message: "Couldn't read that file. Try pasting the notes instead." };
+      return { ok: false, message: "Couldn't read that file. Try pasting the notes instead." };
     }
   } else {
     content = pastedText;
   }
-
   if (content.trim().length === 0) {
-    return { message: "That upload appears to be empty." };
+    return { ok: false, message: "That upload appears to be empty." };
   }
+  return { ok: true, content, type: hasFile ? "DOCUMENT" : "NOTE", originalFileName };
+}
 
+interface ProjectUpdateInput {
+  content: string;
+  type: "DOCUMENT" | "NOTE";
+  originalFileName: string | null;
+  source: UpdateSource;
+  userId: string | undefined;
+}
+
+interface SavedProjectUpdate {
+  versionNumber: number;
+  /** What the update changed, in words: key detail labels, plus "position document". */
+  changed: string[];
+  /** Saved, with something the user should know. */
+  notice: string;
+}
+
+/**
+ * The Keep-This-Project-Up-to-Date flow, shared by uploadKnowledgeItemAction
+ * and the Project assistant (FB-008): saves the update as the next brief
+ * version, refreshes the Position Document and key details from it, then
+ * (after the response) summarises it and redrafts the client email.
+ * Not exported — a "use server" export would be callable from the client.
+ */
+async function saveProjectUpdate(projectId: string, input: ProjectUpdateInput): Promise<SavedProjectUpdate> {
+  const { content } = input;
   const positionDocument = await prisma.document.findUnique({
     where: { projectId_type: { projectId, type: "POSITION_DOCUMENT" } },
     include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
@@ -812,12 +865,12 @@ export async function uploadKnowledgeItemAction(
     const item = await tx.knowledgeItem.create({
       data: {
         projectId,
-        type: hasFile ? "DOCUMENT" : "NOTE",
+        type: input.type,
         content,
-        originalFileName,
-        source,
+        originalFileName: input.originalFileName,
+        source: input.source,
         versionNumber: await nextUpdateVersion(tx, projectId),
-        uploadedById: session?.user?.id,
+        uploadedById: input.userId,
       },
     });
 
@@ -830,7 +883,7 @@ export async function uploadKnowledgeItemAction(
           stageNumber: 3,
           content: updatedFields,
           builtFromVersion: item.versionNumber,
-          createdById: session?.user?.id,
+          createdById: input.userId,
         },
       });
     }
@@ -871,11 +924,52 @@ export async function uploadKnowledgeItemAction(
     }
   });
 
-  revalidatePath(`/projects/${projectId}`, "layout");
+  const changed = [
+    ...Object.keys(keyAttributes ?? {}).map((id) => (getBriefAttribute(id)?.label ?? id).toLowerCase()),
+    ...(updatedFields ? ["position document"] : []),
+  ];
   const draftNotice = `Saved as v${knowledgeItem.versionNumber}. A fresh client email draft is being written from it — refresh in a moment to see it.`;
   return {
+    versionNumber: knowledgeItem.versionNumber!,
+    changed,
     notice: positionDocumentNotice ? `${positionDocumentNotice} ${draftNotice}` : draftNotice,
   };
+}
+
+export async function uploadKnowledgeItemAction(
+  projectId: string,
+  _prevState: ActionState | undefined,
+  formData: FormData
+): Promise<ActionState | undefined> {
+  const pasted = formData.get("content");
+  const pastedText = typeof pasted === "string" ? pasted.trim() : "";
+
+  const sourceField = formData.get("source") || "CLIENT";
+  if (sourceField !== "CLIENT" && sourceField !== "INTERNAL_TEAM") {
+    return { message: "Choose whether this update is from the client or the internal team." };
+  }
+
+  const read = await readUpdateContent(pastedText, formData.get("file"));
+  if (!read.ok) {
+    return { message: read.message };
+  }
+
+  const locked = await projectCompleteMessage(projectId);
+  if (locked) {
+    return { message: locked };
+  }
+
+  const session = await auth();
+  const saved = await saveProjectUpdate(projectId, {
+    content: read.content,
+    type: read.type,
+    originalFileName: read.originalFileName,
+    source: sourceField,
+    userId: session?.user?.id,
+  });
+
+  revalidatePath(`/projects/${projectId}`, "layout");
+  return { notice: saved.notice };
 }
 
 // ---------------------------------------------------------------------------
@@ -895,6 +989,11 @@ export async function saveBriefAttributeAction(
   _prevState: ActionState | undefined,
   formData: FormData
 ): Promise<ActionState | undefined> {
+  const completeLock = await projectCompleteMessage(projectId);
+  if (completeLock) {
+    return { message: completeLock };
+  }
+
   const attribute = getBriefAttribute(attributeId);
   if (!attribute) {
     return { message: "Unknown key detail." };
@@ -948,6 +1047,11 @@ export async function rereadBriefAttributesAction(
   _prevState: ActionState | undefined,
   _formData: FormData
 ): Promise<ActionState | undefined> {
+  const completeLock = await projectCompleteMessage(projectId);
+  if (completeLock) {
+    return { message: completeLock };
+  }
+
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     select: { id: true },
@@ -963,36 +1067,135 @@ export async function rereadBriefAttributesAction(
   }
 }
 
-const QuestionSchema = z.object({
-  question: z.string().trim().min(1, { error: "Ask a question before submitting." }),
-});
+// ---------------------------------------------------------------------------
+// Project assistant (FB-008): one input for questions and updates. A message
+// is classified first (the only new agent call), then routed to the existing
+// flows — answerProjectQuestion for questions, saveProjectUpdate for updates.
+// ---------------------------------------------------------------------------
 
-export interface ChatbotActionState {
+export interface AssistantReply {
+  /** What happened, for the UI. "choose" = ask the user which they meant. */
+  kind: "answer" | "updated" | "answer_and_updated" | "choose" | "declined" | "answer_and_declined";
   answer?: string;
-  message?: string;
+  /** "Updated: timeline, budget constraint" — or that nothing new was found. */
+  confirmation?: string;
+  /** Extra detail about the saved update (version number, email redraft). */
+  notice?: string;
+  /** Why an update wasn't made (the project is complete). */
+  declined?: string;
 }
 
-export async function askChatbotAction(
+const AssistantMessageSchema = z.object({
+  message: z.string().trim().max(20_000, { error: "That message is too long. Attach it as a file instead." }),
+  mode: z.enum(["auto", "question", "update"]).default("auto"),
+  source: z.enum(["CLIENT", "INTERNAL_TEAM"]).default("CLIENT"),
+});
+
+function assistantFailure(message: string): ActionResult<AssistantReply> {
+  return { ok: false, code: "VALIDATION", message };
+}
+
+/** Turns the update's changed labels into the assistant's confirmation line. */
+function describeUpdateConfirmation(changed: string[]): string {
+  const unique = [...new Set(changed)];
+  return unique.length > 0 ? `Updated: ${unique.join(", ")}` : "Saved. Nothing in the key details or position changed.";
+}
+
+export async function sendAssistantMessageAction(
   projectId: string,
-  _prevState: ChatbotActionState | undefined,
   formData: FormData
-): Promise<ChatbotActionState> {
-  const parsed = QuestionSchema.safeParse({ question: formData.get("question") });
+): Promise<ActionResult<AssistantReply>> {
+  const parsed = AssistantMessageSchema.safeParse({
+    message: formData.get("message") ?? "",
+    mode: formData.get("mode") || undefined,
+    source: formData.get("source") || undefined,
+  });
   if (!parsed.success) {
-    return {
-      message: z.flattenError(parsed.error).fieldErrors.question?.[0] ?? "Invalid question.",
-    };
+    return assistantFailure(parsed.error.issues[0]?.message ?? "Invalid message.");
+  }
+  const { message, source } = parsed.data;
+  let { mode } = parsed.data;
+  const file = formData.get("file");
+  const hasFile = file instanceof File && file.size > 0;
+  if (!message && !hasFile) {
+    return assistantFailure("Type a message or attach a file first.");
+  }
+  // An attached file is always an update.
+  if (hasFile) mode = "update";
+
+  let intent: AssistantIntent;
+  if (mode === "question") {
+    intent = { intent: "question", question: message, update: null };
+  } else if (mode === "update") {
+    intent = { intent: "update", question: null, update: message };
+  } else {
+    try {
+      intent = await classifyAssistantMessage(message);
+    } catch (error) {
+      if (error instanceof AssistantClassifierError) return assistantFailure(error.message);
+      throw error;
+    }
   }
 
-  try {
-    const answer = await answerProjectQuestion(projectId, parsed.data.question);
-    return { answer };
-  } catch (error) {
-    if (error instanceof ChatbotError) {
-      return { message: error.message };
-    }
-    throw error;
+  if (intent.intent === "unclear") {
+    return { ok: true, data: { kind: "choose" } };
   }
+
+  const reply: AssistantReply = { kind: "answer" };
+  const wantsUpdate = intent.intent === "update" || intent.intent === "both";
+  const wantsAnswer = intent.intent === "question" || intent.intent === "both";
+  let updated = false;
+  let declined = false;
+
+  // The update runs first, so a question asked alongside it is answered from
+  // the newly recorded information.
+  if (wantsUpdate) {
+    if (await isProjectCompleteInDb(projectId)) {
+      declined = true;
+      reply.declined = PROJECT_COMPLETE_MESSAGE;
+    } else {
+      const session = await auth();
+      const actor = session?.user ? { id: session.user.id, role: session.user.role } : null;
+      if (!canEditProject(actor)) {
+        return { ok: false, code: "FORBIDDEN", message: CANNOT_EDIT_PROJECT_MESSAGE };
+      }
+      const read = await readUpdateContent(hasFile ? "" : (intent.update ?? message), hasFile ? file : null);
+      if (!read.ok) return assistantFailure(read.message);
+      const saved = await saveProjectUpdate(projectId, {
+        content: read.content,
+        type: read.type,
+        originalFileName: read.originalFileName,
+        source,
+        userId: actor?.id,
+      });
+      updated = true;
+      reply.confirmation = describeUpdateConfirmation(saved.changed);
+      reply.notice = saved.notice;
+      revalidatePath(`/projects/${projectId}`, "layout");
+    }
+  }
+
+  if (wantsAnswer) {
+    try {
+      reply.answer = await answerProjectQuestion(projectId, intent.question ?? message);
+    } catch (error) {
+      if (!(error instanceof ChatbotError)) throw error;
+      // An update that was saved stays saved; say the answer failed.
+      if (!updated) return assistantFailure(error.message);
+      reply.answer = error.message;
+    }
+  }
+
+  reply.kind = wantsAnswer
+    ? updated
+      ? "answer_and_updated"
+      : declined
+        ? "answer_and_declined"
+        : "answer"
+    : updated
+      ? "updated"
+      : "declined";
+  return { ok: true, data: reply };
 }
 
 // ---------------------------------------------------------------------------
@@ -1069,6 +1272,11 @@ export async function updateConfirmedCapabilitiesAction(
   _prevState: ActionState | undefined,
   formData: FormData
 ): Promise<ActionState | undefined> {
+  const completeLock = await projectCompleteMessage(projectId);
+  if (completeLock) {
+    return { message: completeLock };
+  }
+
   const parsed = z.array(CapabilityEnum).safeParse(formData.getAll("capabilities").map(String));
   if (!parsed.success) {
     return { message: "Invalid capability selection." };
@@ -1099,6 +1307,11 @@ export async function generateEstimateBriefAction(
   _prevState: ActionState | undefined,
   _formData: FormData
 ): Promise<ActionState | undefined> {
+  const completeLock = await projectCompleteMessage(projectId);
+  if (completeLock) {
+    return { message: completeLock };
+  }
+
   const session = await auth();
 
   const [project, confirmedCapabilities] = await Promise.all([
@@ -1199,6 +1412,11 @@ export async function updatePmPerspectiveFieldAction(
   _prevState: ActionState | undefined,
   formData: FormData
 ): Promise<ActionState | undefined> {
+  const completeLock = await projectCompleteMessage(projectId);
+  if (completeLock) {
+    return { message: completeLock };
+  }
+
   if (!getPmPerspectiveField(fieldId)) {
     return { message: "Unknown PM perspective field." };
   }
