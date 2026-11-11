@@ -29,6 +29,7 @@ import { buildSpecialistRows, buildSystemChecks } from "@/lib/project/readiness"
 import { latestScopeSummary, scopeSummaryVersion } from "@/lib/scopeSummary";
 import { buildScopeView, openQuestionCount } from "@/lib/scopeSummaryView";
 import { getEstimateScopeSyncStatus } from "@/lib/estimateScopeSync";
+import { deriveNextAction, type BriefAssessmentLevel } from "@/lib/nextAction";
 import { DraftScopeDocumentSchema } from "@/types/triage";
 
 async function fetchProjectPageData(projectId: string) {
@@ -268,7 +269,35 @@ async function fetchProjectPageData(projectId: string) {
     draftScopeDocument: draftScopeDocument.success ? draftScopeDocument.data : null,
   };
 
+  const assessment = project.briefAssessment as { level?: string } | null;
+  const nextAction = deriveNextAction({
+    projectId: project.id,
+    projectComplete,
+    approvedSowHref: approvals.summary.sow?.downloadHref ?? null,
+    hasScopeSummary: scopeLatest !== null,
+    hasEarlierDocuments: earlierDocuments.positionDocument !== null || earlierDocuments.draftScopeDocument !== null,
+    openQuestions,
+    clarificationSent: project.clarificationSentAt !== null,
+    briefAssessment: (["complete", "partial", "thin"] as const).includes(assessment?.level as BriefAssessmentLevel)
+      ? (assessment!.level as BriefAssessmentLevel)
+      : null,
+    scopeConfirmed: project.scopeConfirmedAt !== null,
+    scopeNewerThanConfirmed:
+      scopeLatest !== null && scopeConfirmed !== null && scopeLatest.versionNumber > scopeConfirmed.versionNumber,
+    capabilityCount: confirmedCapabilities.length,
+    hasEstimateBrief: estimateBriefVersion !== null,
+    specialistReceived: specialistRows.filter((r) => r.status === "received").length,
+    specialistTotal: specialistRows.length,
+    hasEstimate: estimates.some((e) => e.versions.length > 0),
+    estimateStale: estimateScopeSync.needsReview,
+    estimateApproved: approvals.summary.estimate !== null,
+    hasSow: sowVersions.length > 0,
+    sowStale: sowChange.status === "changed_since_generation",
+    sowApproved: approvals.summary.sow !== null,
+  });
+
   return {
+    nextAction,
     estimateScopeSync,
     scopeSummary,
     openQuestions,

@@ -12,6 +12,8 @@ import {
   type StepSummary,
 } from "@/lib/projectSteps";
 import { ProjectStepper } from "./ProjectStepper";
+import { NextStepBanner } from "./NextStepBanner";
+import type { NextAction } from "@/lib/nextAction";
 
 /**
  * Stepper + two-column area of the project page (FB-008; FB-007's shell with
@@ -30,6 +32,7 @@ export function ProjectShell({
   stepStatuses,
   stepSummaries,
   attention,
+  nextAction,
   steps,
   sidebar,
   children,
@@ -39,6 +42,8 @@ export function ProjectShell({
   stepSummaries: Partial<Record<StepId, StepSummary>>;
   /** Per-step attention flags shown in the stepper (e.g. "Updated since SOW"). */
   attention?: Partial<Record<StepId, string>>;
+  /** FB-009 C: the one next action, shown under the stepper. */
+  nextAction?: NextAction;
   steps: Record<StepId, ReactNode>;
   sidebar: ReactNode;
   children: ReactNode;
@@ -71,11 +76,26 @@ export function ProjectShell({
     }
   }
 
-  // ...and move focus to the step heading once it has rendered.
+  // FB-009 C: announce when the next action changes (after any action, no reload).
+  const [shownNextId, setShownNextId] = useState(nextAction?.id);
+  if (nextAction && shownNextId !== nextAction.id) {
+    setShownNextId(nextAction.id);
+    if (shownNextId !== undefined) setAnnouncement(`Next step: ${nextAction.title}`);
+  }
+
+  // ...and move focus to the step heading once it has rendered. When the URL
+  // names a place on the step (a Next step link), scroll there instead.
   useEffect(() => {
     if (previousStepRef.current === activeStepId) return;
     previousStepRef.current = activeStepId;
-    if (activeStepId) document.getElementById(`step-heading-${activeStepId}`)?.focus();
+    if (!activeStepId) return;
+    const target = window.location.hash
+      ? document.getElementById(window.location.hash.slice(1))
+      : null;
+    document
+      .getElementById(`step-heading-${activeStepId}`)
+      ?.focus({ preventScroll: Boolean(target) });
+    target?.scrollIntoView({ block: "start" });
   }, [activeStepId]);
 
   useEffect(() => {
@@ -106,6 +126,8 @@ export function ProjectShell({
           Project assistant
         </button>
       </div>
+
+      {nextAction && <NextStepBanner action={nextAction} />}
 
       <p role="status" aria-live="polite" className="sr-only">
         {announcement}

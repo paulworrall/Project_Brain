@@ -43,6 +43,7 @@ export default async function ProjectLayout({
     scopeSummary,
     openQuestions,
     estimateScopeSync,
+    nextAction,
     earlierDocuments,
     clarificationEmailVersion,
     permissions,
@@ -132,6 +133,7 @@ export default async function ProjectLayout({
         projectId={project.id}
         stepStatuses={stepStatuses}
         stepSummaries={stepSummaries}
+        nextAction={nextAction}
         // FB-009 B: a step whose document is stale against what it was built from.
         attention={{
           ...(estimateScopeSync.needsReview ? { estimate: NEEDS_REVIEW_TEXT } : {}),

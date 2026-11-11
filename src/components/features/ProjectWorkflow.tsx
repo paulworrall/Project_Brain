@@ -187,7 +187,7 @@ export function EstimateStep(props: EstimateStepProps) {
       projectComplete={props.projectComplete}
       readiness={<Readiness stepId="estimate" common={props} />}
     >
-      <fieldset disabled={props.projectComplete} className="min-w-0">
+      <fieldset id="capabilities" disabled={props.projectComplete} className="min-w-0 scroll-mt-6">
         <legend className="sr-only">Capabilities and estimate brief</legend>
         <CapabilitiesAndEstimateBriefPanel
           projectId={props.projectId}
