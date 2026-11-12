@@ -1,6 +1,13 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { SowChangeNotice } from "./SowChangeNotice";
+import {
+  CHANGE_REQUEST_NOTE,
+  ESTIMATE_SCOPE_HEADLINE,
+  estimateScopeChangeSummary,
+  type EstimateScopeSync,
+} from "@/lib/estimateScopeSyncView";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -43,6 +50,8 @@ export interface EstimateLock {
 export interface EstimateListItem {
   id: string;
   label: string;
+  /** FB-009 B: whether the latest version still reflects the confirmed scope. */
+  scopeSync?: EstimateScopeSync;
   /** Newest first. */
   versions: EstimateVersionListItem[];
 }
@@ -244,6 +253,29 @@ function NewEstimateForm({
  * disclosure's own summary text spells that difference out rather than
  * relying on visual position alone.
  */
+function EstimateScopeNotice({ projectId, estimateId, sync }: { projectId: string; estimateId: string; sync: EstimateScopeSync }) {
+  if (sync.status !== "stale") return null;
+  return (
+    <div className="mt-2">
+      <SowChangeNotice
+        headline={ESTIMATE_SCOPE_HEADLINE}
+        changes={[
+          {
+            versionLabel: `Scope v${sync.confirmedVersionNumber}`,
+            date: sync.confirmedAt,
+            source: "Scope summary",
+            fields: sync.changedSections,
+            summary: estimateScopeChangeSummary(sync),
+          },
+        ]}
+        reviewHref={`/projects/${projectId}/estimates/${estimateId}`}
+        reviewLabel="Review estimate"
+        note={sync.approved ? CHANGE_REQUEST_NOTE : undefined}
+      />
+    </div>
+  );
+}
+
 function EstimateTrackCard({
   projectId,
   estimate,
@@ -287,6 +319,9 @@ function EstimateTrackCard({
             <p className="mt-0.5 text-xs font-medium text-foreground">
               Needs recalculation — open and save a new version
             </p>
+          )}
+          {estimate.scopeSync && (
+            <EstimateScopeNotice projectId={projectId} estimateId={estimate.id} sync={estimate.scopeSync} />
           )}
         </div>
         <a href={`/projects/${projectId}/estimates/${estimate.id}`} className={OPEN_LINK_CLASS}>

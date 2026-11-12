@@ -136,6 +136,7 @@ export async function createEstimateAction(
   const view = await getEstimateBuildViewData(estimate.id);
 
   revalidatePath(`/projects/${projectId}`, "layout");
+  revalidatePath("/"); // FB-009 F: the pipeline home page
   return {
     estimateId: estimate.id,
     label: estimate.label,
@@ -547,6 +548,11 @@ export async function saveEstimateVersionAction(
   try {
     version = await prisma.$transaction(async (tx) => {
       await assertEstimateEditable(estimate.projectId, tx);
+      // FB-009 B: the confirmed Scope summary version this version is built against.
+      const { confirmedScopeVersionId } = await tx.project.findUniqueOrThrow({
+        where: { id: estimate.projectId },
+        select: { confirmedScopeVersionId: true },
+      });
       const created = await tx.estimateVersion.create({
         data: {
           estimateId,
@@ -562,6 +568,7 @@ export async function saveEstimateVersionAction(
           fileName,
           fileBytes,
           content,
+          sourceScopeVersionId: confirmedScopeVersionId,
           createdById: session?.user?.id,
         },
       });

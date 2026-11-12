@@ -26,6 +26,12 @@ import {
   isProjectComplete,
 } from "@/lib/projectSteps";
 import { buildSpecialistRows, buildSystemChecks } from "@/lib/project/readiness";
+import { latestScopeSummary, scopeSummaryVersion } from "@/lib/scopeSummary";
+import { buildScopeView, openQuestionCount } from "@/lib/scopeSummaryView";
+import { getEstimateScopeSyncStatus } from "@/lib/estimateScopeSync";
+import { deriveNextAction } from "@/lib/nextAction";
+import { normaliseBriefAssessment } from "@/types/intake";
+import { DraftScopeDocumentSchema } from "@/types/triage";
 
 async function fetchProjectPageData(projectId: string) {
   const project = await prisma.project.findUnique({
@@ -171,12 +177,25 @@ async function fetchProjectPageData(projectId: string) {
     )
   );
 
+  // FB-009: the Scope summary (latest + the confirmed version's number) and,
+  // for projects created before it, their earlier documents (read-only).
+  const [scopeLatest, scopeConfirmed] = await Promise.all([
+    latestScopeSummary(project.id),
+    project.confirmedScopeVersionId ? scopeSummaryVersion(project.id, project.confirmedScopeVersionId) : null,
+  ]);
+  const draftScopeDocument = DraftScopeDocumentSchema.safeParse(
+    documents.find((d) => d.type === "DRAFT_SCOPE_DOCUMENT")?.versions[0]?.content
+  );
+
   const [briefCompleteness, pmPerspective, versionHistory] = await Promise.all([
     getBriefCompleteness(project.id),
     getPmPerspective(project.id),
     getVersionHistory(project.id),
   ]);
-  const sowChange = await getSowChangeStatus(project.id);
+  const [sowChange, estimateScopeSync] = await Promise.all([
+    getSowChangeStatus(project.id),
+    getEstimateScopeSyncStatus(project.id),
+  ]);
   // Every update since the brief (v2 onwards), for Phase 1's progress count.
   const clientUpdates = versionHistory.slice(1).map((v) => ({
     id: v.id,
@@ -235,7 +254,54 @@ async function fetchProjectPageData(projectId: string) {
     project.specialistInputs.map((i) => ({ capability: i.capability, status: i.status, note: i.note }))
   );
 
+  const scopeSummary = scopeLatest
+    ? {
+        versionId: scopeLatest.id,
+        versionNumber: scopeLatest.versionNumber,
+        createdAt: scopeLatest.createdAt,
+        content: scopeLatest.content,
+        sections: buildScopeView(scopeLatest.content, briefCompleteness),
+        confirmedVersionNumber: scopeConfirmed?.versionNumber ?? null,
+      }
+    : null;
+  const openQuestions = openQuestionCount(scopeLatest?.content ?? null, briefCompleteness);
+  const earlierDocuments = {
+    positionDocument: positionDocument.success ? positionDocument.data : null,
+    draftScopeDocument: draftScopeDocument.success ? draftScopeDocument.data : null,
+  };
+
+  const briefAssessment = normaliseBriefAssessment(project.briefAssessment);
+  const nextAction = deriveNextAction({
+    projectId: project.id,
+    projectComplete,
+    approvedSowHref: approvals.summary.sow?.downloadHref ?? null,
+    hasScopeSummary: scopeLatest !== null,
+    hasEarlierDocuments: earlierDocuments.positionDocument !== null || earlierDocuments.draftScopeDocument !== null,
+    openQuestions,
+    clarificationSent: project.clarificationSentAt !== null,
+    briefAssessment: briefAssessment?.level ?? null,
+    scopeConfirmed: project.scopeConfirmedAt !== null,
+    scopeNewerThanConfirmed:
+      scopeLatest !== null && scopeConfirmed !== null && scopeLatest.versionNumber > scopeConfirmed.versionNumber,
+    capabilityCount: confirmedCapabilities.length,
+    hasEstimateBrief: estimateBriefVersion !== null,
+    specialistReceived: specialistRows.filter((r) => r.status === "received").length,
+    specialistTotal: specialistRows.length,
+    hasEstimate: estimates.some((e) => e.versions.length > 0),
+    estimateStale: estimateScopeSync.needsReview,
+    estimateApproved: approvals.summary.estimate !== null,
+    hasSow: sowVersions.length > 0,
+    sowStale: sowChange.status === "changed_since_generation",
+    sowApproved: approvals.summary.sow !== null,
+  });
+
   return {
+    briefAssessment,
+    nextAction,
+    estimateScopeSync,
+    scopeSummary,
+    openQuestions,
+    earlierDocuments,
     project,
     workstream,
     client,

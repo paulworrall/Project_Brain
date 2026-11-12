@@ -13,20 +13,21 @@ import { BRIEF_ACCEPT_ATTRIBUTE, validateBriefFileMeta } from "@/lib/briefFileRu
 import { PmPerspectiveFields } from "@/components/features/PmPerspectiveFields";
 import {
   createProjectAction,
-  getRateCardsForWorkstreamAction,
-  getMasterServiceAgreementForWorkstreamAction,
+  getClientProjectDefaultsAction,
   previewBriefFileAction,
   type BriefFilePreviewResult,
+  type ClientProjectDefaults,
   type RateCardOption,
-  type MasterServiceAgreementOption,
 } from "./actions";
 
 type BriefInputMode = "paste" | "upload";
 
 function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(
-    date
-  );
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(date);
 }
 
 function defaultRateCardVersionId(rateCard: RateCardOption | undefined): string {
@@ -35,14 +36,31 @@ function defaultRateCardVersionId(rateCard: RateCardOption | undefined): string 
   return (flaggedCurrent ?? rateCard.versions[0])?.id ?? "";
 }
 
+/**
+ * FB-009 E: the short New Project form. Required: Client and Brief. Optional:
+ * project name (the Intake Agent suggests one if blank) and PM (defaults to
+ * the current user). MSA and rate card default to the client's current
+ * versions, shown as "Using: …" with "Change" to reveal the selectors. Job
+ * number and dates are set later in the project header.
+ */
 export function NewProjectForm({
-  workstreamOptions,
+  clientOptions,
+  pmOptions = [],
+  defaultPmId = "",
 }: {
-  workstreamOptions: { id: string; label: string }[];
+  clientOptions: { id: string; name: string }[];
+  /** Users who can be PM (Delivery role). */
+  pmOptions?: { id: string; name: string }[];
+  /** The current user when they can be PM; "" otherwise. */
+  defaultPmId?: string;
 }) {
   const [state, formAction, pending] = useActionState(createProjectAction, undefined);
   const [briefMode, setBriefMode] = useState<BriefInputMode>("paste");
+  const [clientId, setClientId] = useState("");
+  const [defaults, setDefaults] = useState<ClientProjectDefaults | null>(null);
   const [workstreamId, setWorkstreamId] = useState("");
+  const [projectManagerId, setProjectManagerId] = useState(defaultPmId);
+  const [showCommercials, setShowCommercials] = useState(false);
   // Controlled (not left uncontrolled) specifically so a failed submission
   // doesn't lose them: React resets uncontrolled fields once a <form
   // action> call completes, success or failure — for the brief text in
@@ -54,17 +72,8 @@ export function NewProjectForm({
   // Same reasoning — the PM perspective must survive a failed submission.
   const [pmPerspective, setPmPerspective] = useState<Record<string, string>>({});
 
-  const [rateCardOptions, setRateCardOptions] = useState<RateCardOption[]>([]);
   const [rateCardId, setRateCardId] = useState("");
   const [rateCardVersionId, setRateCardVersionId] = useState("");
-
-  // null = "no MSA for this client"; undefined = "not checked yet" (no
-  // Workstream chosen, or the check is still in flight) — kept distinct from
-  // null so the "no MSA" warning never flashes before the real check
-  // resolves.
-  const [msaOption, setMsaOption] = useState<MasterServiceAgreementOption | null | undefined>(
-    undefined
-  );
 
   const [isCheckingClient, startClientCheck] = useTransition();
 
@@ -74,7 +83,10 @@ export function NewProjectForm({
   // uploading are mutually exclusive — only the active mode's field is
   // rendered, so only one can ever be submitted.
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [filePreview, setFilePreview] = useState<Extract<BriefFilePreviewResult, { ok: true }> | null>(null);
+  const [filePreview, setFilePreview] = useState<Extract<
+    BriefFilePreviewResult,
+    { ok: true }
+  > | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [isReadingFile, setIsReadingFile] = useState(false);
   // React resets the form (including the native file input) after every
@@ -205,153 +217,187 @@ export function NewProjectForm({
     setOverlayOpen(false);
   }
 
-  function handleWorkstreamChange(value: string) {
-    setWorkstreamId(value);
-    setRateCardOptions([]);
+  function handleClientChange(value: string) {
+    setClientId(value);
+    setDefaults(null);
+    setWorkstreamId("");
     setRateCardId("");
     setRateCardVersionId("");
-    setMsaOption(undefined);
+    setShowCommercials(false);
     if (!value) return;
 
     startClientCheck(async () => {
-      const [rateCards, msa] = await Promise.all([
-        getRateCardsForWorkstreamAction(value),
-        getMasterServiceAgreementForWorkstreamAction(value),
-      ]);
-      setRateCardOptions(rateCards);
-      setMsaOption(msa);
+      const result = await getClientProjectDefaultsAction(value);
+      setDefaults(result);
+      setWorkstreamId(result.workstreams.length === 1 ? result.workstreams[0].id : "");
+      setRateCardId(result.defaultRateCard?.rateCardId ?? "");
+      setRateCardVersionId(result.defaultRateCard?.rateCardVersionId ?? "");
     });
   }
 
   function handleRateCardChange(value: string) {
     setRateCardId(value);
-    setRateCardVersionId(defaultRateCardVersionId(rateCardOptions.find((rc) => rc.id === value)));
+    setRateCardVersionId(
+      defaultRateCardVersionId(defaults?.rateCards.find((rc) => rc.id === value))
+    );
   }
 
+  const rateCardOptions = defaults?.rateCards ?? [];
   const selectedRateCard = rateCardOptions.find((rc) => rc.id === rateCardId);
-  const clientHasNoMsa = workstreamId !== "" && !isCheckingClient && msaOption === null;
-  // Requires an actual, confirmed MSA — not just "haven't found out yet" —
-  // so the button stays disabled before any Workstream is chosen, not only
-  // once a client is positively confirmed to have none.
-  const canSubmit = !pending && !isCheckingClient && msaOption != null;
+  const msaOption = defaults?.msa ?? null;
+  const loaded = clientId !== "" && !isCheckingClient && defaults !== null;
+  const needsWorkstream = loaded && defaults.workstreams.length > 1;
+  const noWorkstream = loaded && defaults.workstreams.length === 0;
+  const selectedVersion = selectedRateCard?.versions.find((v) => v.id === rateCardVersionId);
+  const usingRateCard = selectedRateCard
+    ? `${formatRateCardLabel(selectedRateCard.name, selectedRateCard.currency)}${selectedVersion ? ` v${selectedVersion.versionNumber}` : ""}`
+    : "no rate card";
+  const usingMsa = msaOption ? msaOption.fileName : "no MSA";
+  // The project can be created without an MSA or rate card (FB-009 E).
+  const canSubmit =
+    !pending && loaded && !noWorkstream && (!needsWorkstream || workstreamId !== "");
 
   return (
     <form ref={formRef} action={submitBrief} onSubmit={handleFormSubmit} className="space-y-5">
       <div>
-        <Label htmlFor="workstreamId">Workstream</Label>
+        <Label htmlFor="clientId">Client</Label>
         <select
-          id="workstreamId"
-          name="workstreamId"
-          value={workstreamId}
-          onChange={(e) => handleWorkstreamChange(e.target.value)}
+          id="clientId"
+          name="clientId"
+          value={clientId}
+          onChange={(e) => handleClientChange(e.target.value)}
           required
           className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground"
         >
           <option value="" disabled>
-            Select a workstream…
+            Select a client…
           </option>
-          {workstreamOptions.map((ws) => (
-            <option key={ws.id} value={ws.id}>
-              {ws.label}
+          {clientOptions.map((client) => (
+            <option key={client.id} value={client.id}>
+              {client.name}
             </option>
           ))}
         </select>
-        <FormError>{state?.errors?.workstreamId}</FormError>
-      </div>
-
-      <div>
-        <Label htmlFor="name">Project name</Label>
-        <Input
-          id="name"
-          name="name"
-          type="text"
-          required
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <FormError>{state?.errors?.name}</FormError>
-      </div>
-
-      <div>
-        <Label htmlFor="masterServiceAgreementId">Master Service Agreement</Label>
-        <select
-          id="masterServiceAgreementId"
-          name="masterServiceAgreementId"
-          value={msaOption?.id ?? ""}
-          disabled={!msaOption}
-          required
-          className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground disabled:opacity-60"
-        >
-          <option value="" disabled>
-            {!workstreamId
-              ? "Select a workstream first"
-              : isCheckingClient
-                ? "Checking…"
-                : clientHasNoMsa
-                  ? "No MSA on file for this client"
-                  : "Select…"}
-          </option>
-          {msaOption && (
-            <option value={msaOption.id}>
-              {msaOption.fileName} (effective from {formatDate(msaOption.effectiveFrom)})
-            </option>
-          )}
-        </select>
-        {clientHasNoMsa && (
-          <p className="mt-1 text-sm text-danger" role="alert">
-            This client has no Master Service Agreement on file. Contact Client Engagement to add
-            one before creating a project.
+        <FormError>{state?.errors?.clientId}</FormError>
+        {isCheckingClient && (
+          <p className="mt-1 text-xs text-muted-foreground" role="status">
+            Checking the client&apos;s agreements…
           </p>
         )}
-        <FormError>{state?.errors?.masterServiceAgreementId}</FormError>
+        {noWorkstream && (
+          <p className="mt-1 text-sm text-danger" role="alert">
+            This client has no workstream yet. An Admin needs to add one before you can create a
+            project.
+          </p>
+        )}
       </div>
 
-      <div>
-        <Label htmlFor="rateCardId">Rate card (optional)</Label>
-        <select
-          id="rateCardId"
-          name="rateCardId"
-          value={rateCardId}
-          onChange={(e) => handleRateCardChange(e.target.value)}
-          disabled={rateCardOptions.length === 0}
-          className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground disabled:opacity-60"
-        >
-          <option value="">
-            {workstreamId
-              ? rateCardOptions.length === 0
-                ? "No rate cards for this client"
-                : "No rate card"
-              : "Select a workstream first"}
-          </option>
-          {rateCardOptions.map((rc) => (
-            <option key={rc.id} value={rc.id}>
-              {formatRateCardLabel(rc.name, rc.currency)}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {selectedRateCard && (
+      {needsWorkstream ? (
         <div>
-          <Label htmlFor="rateCardVersionId">Rate card version</Label>
+          <Label htmlFor="workstreamId">Workstream</Label>
           <select
-            id="rateCardVersionId"
-            name="rateCardVersionId"
-            value={rateCardVersionId}
-            onChange={(e) => setRateCardVersionId(e.target.value)}
+            id="workstreamId"
+            name="workstreamId"
+            value={workstreamId}
+            onChange={(e) => setWorkstreamId(e.target.value)}
+            required
             className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground"
           >
             <option value="" disabled>
-              Select a version…
+              Select a workstream…
             </option>
-            {selectedRateCard.versions.map((v) => (
-              <option key={v.id} value={v.id}>
-                Version {v.versionNumber} — {v.fileName}
-                {v.currencies.length > 0 ? ` [${v.currencies.join(", ")}]` : ""}
-                {v.status === "ENABLED" ? " (current)" : ""}
+            {defaults!.workstreams.map((ws) => (
+              <option key={ws.id} value={ws.id}>
+                {ws.name}
               </option>
             ))}
           </select>
+          <FormError>{state?.errors?.workstreamId}</FormError>
+        </div>
+      ) : (
+        <input type="hidden" name="workstreamId" value={workstreamId} />
+      )}
+
+      {loaded && !noWorkstream && (
+        <div className="space-y-2 border border-border bg-surface-muted px-3 py-2 text-sm">
+          <p className="text-foreground">
+            <span className="font-medium">Using:</span> {usingMsa}, {usingRateCard}{" "}
+            <button
+              type="button"
+              aria-expanded={showCommercials}
+              onClick={() => setShowCommercials((v) => !v)}
+              className="font-medium text-primary underline-offset-2 hover:underline"
+            >
+              {showCommercials ? "Done" : "Change"}
+            </button>
+          </p>
+          {!msaOption && (
+            <p className="text-foreground" role="note">
+              <span aria-hidden="true">! </span>This client has no Master Service Agreement on file.
+              An Admin needs to add it. You can still create the project.
+            </p>
+          )}
+          {rateCardOptions.length === 0 && (
+            <p className="text-foreground" role="note">
+              <span aria-hidden="true">! </span>This client has no rate card. An Admin needs to add
+              one. You can still create the project.
+            </p>
+          )}
+          <input type="hidden" name="masterServiceAgreementId" value={msaOption?.id ?? ""} />
+          {showCommercials ? (
+            <div className="space-y-3 pt-1">
+              <p className="text-xs text-muted-foreground">
+                The MSA is the client&apos;s current one
+                {msaOption ? ` (effective from ${formatDate(msaOption.effectiveFrom)})` : ""}.
+              </p>
+              <div>
+                <Label htmlFor="rateCardId">Rate card</Label>
+                <select
+                  id="rateCardId"
+                  name="rateCardId"
+                  value={rateCardId}
+                  onChange={(e) => handleRateCardChange(e.target.value)}
+                  disabled={rateCardOptions.length === 0}
+                  className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground disabled:opacity-60"
+                >
+                  <option value="">No rate card</option>
+                  {rateCardOptions.map((rc) => (
+                    <option key={rc.id} value={rc.id}>
+                      {formatRateCardLabel(rc.name, rc.currency)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {selectedRateCard && (
+                <div>
+                  <Label htmlFor="rateCardVersionId">Rate card version</Label>
+                  <select
+                    id="rateCardVersionId"
+                    name="rateCardVersionId"
+                    value={rateCardVersionId}
+                    onChange={(e) => setRateCardVersionId(e.target.value)}
+                    className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground"
+                  >
+                    <option value="" disabled>
+                      Select a version…
+                    </option>
+                    {selectedRateCard.versions.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        Version {v.versionNumber} — {v.fileName}
+                        {v.currencies.length > 0 ? ` [${v.currencies.join(", ")}]` : ""}
+                        {v.status === "ENABLED" ? " (current)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <input type="hidden" name="rateCardId" value={rateCardId} />
+              <input type="hidden" name="rateCardVersionId" value={rateCardVersionId} />
+            </>
+          )}
         </div>
       )}
 
@@ -409,7 +455,10 @@ export function NewProjectForm({
               </p>
             )}
             {filePreview && (
-              <div className="mt-2 border border-border bg-surface p-3 text-sm" data-testid="brief-file-preview">
+              <div
+                className="mt-2 border border-border bg-surface p-3 text-sm"
+                data-testid="brief-file-preview"
+              >
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-medium text-foreground">
                     {filePreview.fileName}{" "}
@@ -437,9 +486,47 @@ export function NewProjectForm({
         <FormError>{state?.errors?.briefText}</FormError>
       </div>
 
+      <div>
+        <Label htmlFor="name">Project name (optional)</Label>
+        <Input
+          id="name"
+          name="name"
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          aria-describedby="name-help"
+        />
+        <p id="name-help" className="mt-1 text-xs text-muted-foreground">
+          Leave blank and we&apos;ll suggest one from the brief.
+        </p>
+        <FormError>{state?.errors?.name}</FormError>
+      </div>
+
+      <div>
+        <Label htmlFor="projectManagerId">Project manager (optional)</Label>
+        <select
+          id="projectManagerId"
+          name="projectManagerId"
+          value={projectManagerId}
+          onChange={(e) => setProjectManagerId(e.target.value)}
+          className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground"
+        >
+          <option value="">Not yet set</option>
+          {pmOptions.map((pm) => (
+            <option key={pm.id} value={pm.id}>
+              {pm.name}
+              {pm.id === defaultPmId ? " (you)" : ""}
+            </option>
+          ))}
+        </select>
+        <FormError>{state?.errors?.projectManagerId}</FormError>
+      </div>
+
       <PmPerspectiveFields
         values={pmPerspective}
-        onChange={(fieldId, value) => setPmPerspective((current) => ({ ...current, [fieldId]: value }))}
+        onChange={(fieldId, value) =>
+          setPmPerspective((current) => ({ ...current, [fieldId]: value }))
+        }
       />
 
       {state?.message && (

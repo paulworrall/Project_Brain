@@ -3,38 +3,67 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const getRateCardsForWorkstreamAction = vi.fn();
-const getMasterServiceAgreementForWorkstreamAction = vi.fn();
+const getClientProjectDefaultsAction = vi.fn();
 const createProjectAction = vi.fn();
 const previewBriefFileAction = vi.fn();
 
 vi.mock("@/app/(dashboard)/projects/new/actions", () => ({
   createProjectAction,
   previewBriefFileAction,
-  getRateCardsForWorkstreamAction,
-  getMasterServiceAgreementForWorkstreamAction,
+  getClientProjectDefaultsAction,
 }));
 
 const { NewProjectForm } = await import("@/app/(dashboard)/projects/new/NewProjectForm");
 
-const workstreamOptions = [
-  { id: "ws_1", label: "Coffee / Coffee Loyalty App" },
-  { id: "ws_2", label: "Fizzy / Fizzy Refresh 2026" },
+const clientOptions = [
+  { id: "client_coffee", name: "Coffee" },
+  { id: "client_fizzy", name: "Fizzy" },
 ];
 
-const msaOption = { id: "msa_1", fileName: "coffee-msa.pdf", effectiveFrom: new Date("2026-01-01") };
+const msaOption = {
+  id: "msa_1",
+  fileName: "coffee-msa.pdf",
+  effectiveFrom: new Date("2026-01-01"),
+};
+
+const rateCard = {
+  id: "rc_1",
+  name: "Coffee Rates",
+  currency: "GBP",
+  versions: [
+    {
+      id: "rcv_2",
+      versionNumber: 2,
+      fileName: "rates-v2.xlsx",
+      effectiveFrom: new Date("2026-06-01"),
+      effectiveTo: null,
+      status: "ENABLED",
+      currencies: ["GBP"],
+    },
+    {
+      id: "rcv_1",
+      versionNumber: 1,
+      fileName: "rates-v1.xlsx",
+      effectiveFrom: new Date("2026-01-01"),
+      effectiveTo: null,
+      status: "DISABLED",
+      currencies: ["GBP"],
+    },
+  ],
+};
+
+/** One workstream, a current MSA and one rate card: everything defaults. */
+const coffeeDefaults = {
+  workstreams: [{ id: "ws_1", name: "Coffee Loyalty App" }],
+  msa: msaOption,
+  rateCards: [rateCard],
+  defaultRateCard: { rateCardId: "rc_1", rateCardVersionId: "rcv_2" },
+};
 
 beforeEach(() => {
-  getRateCardsForWorkstreamAction.mockReset();
-  getMasterServiceAgreementForWorkstreamAction.mockReset();
+  getClientProjectDefaultsAction.mockReset();
   createProjectAction.mockReset();
-  // Every test below picks a Workstream, which always triggers both fetches
-  // together (phase 3: the MSA select is required alongside the Rate Card
-  // one) — default the MSA one to "found" so tests focused on Rate Card
-  // behavior aren't also exercising the "no MSA" blocked-submission path
-  // unless they explicitly override it.
-  getMasterServiceAgreementForWorkstreamAction.mockResolvedValue(msaOption);
-  getRateCardsForWorkstreamAction.mockResolvedValue([]);
+  getClientProjectDefaultsAction.mockResolvedValue(coffeeDefaults);
 });
 
 // A dangling never-resolving promise left over at test end can bleed into
@@ -50,181 +79,115 @@ function createDeferred<T>() {
   return { promise, resolve };
 }
 
+/** FB-009 E: only Client and Brief are required. */
 async function fillMinimalValidForm(user: ReturnType<typeof userEvent.setup>) {
-  await user.selectOptions(screen.getByLabelText("Workstream"), "ws_1");
-  await waitFor(() => expect(screen.getByLabelText("Master Service Agreement")).toBeEnabled());
-  await user.type(screen.getByLabelText("Project name"), "Test Project");
+  await user.selectOptions(screen.getByLabelText("Client"), "client_coffee");
+  await screen.findByText("Using:");
   await user.type(screen.getByLabelText("Brief"), "Some client brief text.");
 }
 
-describe("NewProjectForm — Rate Card select", () => {
-  it("disables the Rate card select with a 'select a workstream first' hint before any Workstream is chosen", () => {
-    render(<NewProjectForm workstreamOptions={workstreamOptions} />);
+describe("NewProjectForm — short form (FB-009 E)", () => {
+  function submitted(): FormData {
+    return createProjectAction.mock.calls[0][1] as FormData;
+  }
 
-    const rateCardSelect = screen.getByLabelText("Rate card (optional)");
-    expect(rateCardSelect).toBeDisabled();
-    // Both the Rate Card and MSA selects share this placeholder text before
-    // a Workstream is chosen — scope to the Rate Card select specifically.
-    expect(rateCardSelect).toHaveTextContent("Select a workstream first");
-    expect(getRateCardsForWorkstreamAction).not.toHaveBeenCalled();
-  });
-
-  it("fetches and shows only that Workstream's Client's Rate Cards once one is selected", async () => {
-    getRateCardsForWorkstreamAction.mockResolvedValueOnce([
-      { id: "rc_1", name: "2026 Standard Rates", currency: "GBP", versions: [] },
-    ]);
-    const user = userEvent.setup();
-    render(<NewProjectForm workstreamOptions={workstreamOptions} />);
-
-    await user.selectOptions(screen.getByLabelText("Workstream"), "ws_1");
-
-    expect(getRateCardsForWorkstreamAction).toHaveBeenCalledWith("ws_1");
-    await waitFor(() =>
-      expect(screen.getByRole("option", { name: "2026 Standard Rates (GBP)" })).toBeInTheDocument()
-    );
-    expect(screen.getByLabelText("Rate card (optional)")).toBeEnabled();
-  });
-
-  it("omits the '(currency)' suffix entirely for a rate card with no currency set", async () => {
-    getRateCardsForWorkstreamAction.mockResolvedValueOnce([
-      { id: "rc_1", name: "No Currency Rates", currency: null, versions: [] },
-    ]);
-    const user = userEvent.setup();
-    render(<NewProjectForm workstreamOptions={workstreamOptions} />);
-
-    await user.selectOptions(screen.getByLabelText("Workstream"), "ws_1");
-
-    await waitFor(() =>
-      expect(screen.getByRole("option", { name: "No Currency Rates" })).toBeInTheDocument()
-    );
-    expect(screen.queryByRole("option", { name: /No Currency Rates \(/ })).not.toBeInTheDocument();
-  });
-
-  it("shows a 'no rate cards for this client' hint and keeps the select disabled when the Client has none", async () => {
-    getRateCardsForWorkstreamAction.mockResolvedValueOnce([]);
-    const user = userEvent.setup();
-    render(<NewProjectForm workstreamOptions={workstreamOptions} />);
-
-    await user.selectOptions(screen.getByLabelText("Workstream"), "ws_2");
-
-    await waitFor(() =>
-      expect(screen.getByText("No rate cards for this client")).toBeInTheDocument()
-    );
-    expect(screen.getByLabelText("Rate card (optional)")).toBeDisabled();
-  });
-
-  it("clears the previous Workstream's Rate Card options when switching to a different Workstream", async () => {
-    getRateCardsForWorkstreamAction
-      .mockResolvedValueOnce([{ id: "rc_1", name: "Coffee Rates", currency: "GBP", versions: [] }])
-      .mockResolvedValueOnce([{ id: "rc_2", name: "Fizzy Rates", currency: "USD", versions: [] }]);
-    const user = userEvent.setup();
-    render(<NewProjectForm workstreamOptions={workstreamOptions} />);
-
-    await user.selectOptions(screen.getByLabelText("Workstream"), "ws_1");
-    await waitFor(() =>
-      expect(screen.getByRole("option", { name: "Coffee Rates (GBP)" })).toBeInTheDocument()
-    );
-
-    await user.selectOptions(screen.getByLabelText("Workstream"), "ws_2");
-
-    // The first Client's rate card must never remain selectable once a
-    // different Workstream (a different Client) is chosen.
-    expect(screen.queryByRole("option", { name: "Coffee Rates (GBP)" })).not.toBeInTheDocument();
-    await waitFor(() =>
-      expect(screen.getByRole("option", { name: "Fizzy Rates (USD)" })).toBeInTheDocument()
-    );
-  });
-
-  it("presents a version select, pre-selecting the version flagged current, once a Rate Card with versions is chosen", async () => {
-    getRateCardsForWorkstreamAction.mockResolvedValueOnce([
-      {
-        id: "rc_1",
-        name: "2026 Standard Rates",
-        currency: "GBP",
-        versions: [
-          {
-            id: "rcv_2",
-            versionNumber: 2,
-            fileName: "rates-v2.pdf",
-            effectiveFrom: new Date("2026-06-01"),
-            effectiveTo: null,
-            status: "DISABLED",
-            currencies: ["GBP"],
-          },
-          {
-            id: "rcv_1",
-            versionNumber: 1,
-            fileName: "rates-v1.pdf",
-            effectiveFrom: new Date("2026-01-01"),
-            effectiveTo: null,
-            status: "ENABLED",
-            currencies: ["GBP"],
-          },
-        ],
-      },
-    ]);
-    const user = userEvent.setup();
-    render(<NewProjectForm workstreamOptions={workstreamOptions} />);
-
-    await user.selectOptions(screen.getByLabelText("Workstream"), "ws_1");
-    await waitFor(() =>
-      expect(screen.getByRole("option", { name: "2026 Standard Rates (GBP)" })).toBeInTheDocument()
-    );
-    await user.selectOptions(screen.getByLabelText("Rate card (optional)"), "rc_1");
-
-    const versionSelect = await screen.findByLabelText("Rate card version");
-    expect(versionSelect).toHaveValue("rcv_1");
+  it("asks only for Client and Brief; name and PM are optional; no job number or dates", () => {
+    render(<NewProjectForm clientOptions={clientOptions} />);
+    expect(screen.getByLabelText("Client")).toBeRequired();
+    expect(screen.getByLabelText("Project name (optional)")).not.toBeRequired();
     expect(
-      screen.getByRole("option", { name: "Version 1 — rates-v1.pdf [GBP] (current)" })
+      screen.getByText("Leave blank and we'll suggest one from the brief.")
     ).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Version 2 — rates-v2.pdf [GBP]" })).toBeInTheDocument();
-  });
-});
-
-describe("NewProjectForm — Master Service Agreement select", () => {
-  it("disables the MSA select with a 'select a workstream first' hint before any Workstream is chosen, and keeps submission disabled", () => {
-    render(<NewProjectForm workstreamOptions={workstreamOptions} />);
-
-    const msaSelect = screen.getByLabelText("Master Service Agreement");
-    expect(msaSelect).toBeDisabled();
-    // Both the MSA and Rate Card selects share this placeholder text before
-    // a Workstream is chosen — scope to the MSA select specifically.
-    expect(msaSelect).toHaveTextContent("Select a workstream first");
+    expect(screen.getByLabelText("Project manager (optional)")).not.toBeRequired();
+    expect(screen.queryByLabelText(/Job/i)).toBeNull();
+    expect(screen.queryByLabelText(/Kick-off|Target completion/i)).toBeNull();
     expect(screen.getByRole("button", { name: "Create project" })).toBeDisabled();
   });
 
-  it("shows the Client's active MSA once a Workstream is selected, and enables submission", async () => {
-    getRateCardsForWorkstreamAction.mockResolvedValueOnce([]);
-    const user = userEvent.setup();
-    render(<NewProjectForm workstreamOptions={workstreamOptions} />);
-
-    await user.selectOptions(screen.getByLabelText("Workstream"), "ws_1");
-
-    await waitFor(() =>
-      expect(
-        screen.getByRole("option", { name: "coffee-msa.pdf (effective from 1 Jan 2026)" })
-      ).toBeInTheDocument()
+  it("defaults the PM to the current user", () => {
+    render(
+      <NewProjectForm
+        clientOptions={clientOptions}
+        pmOptions={[
+          { id: "u_me", name: "Pat PM" },
+          { id: "u_2", name: "Sam" },
+        ]}
+        defaultPmId="u_me"
+      />
     );
-    expect(screen.getByLabelText("Master Service Agreement")).toHaveValue("msa_1");
+    expect(screen.getByLabelText("Project manager (optional)")).toHaveValue("u_me");
+    expect(screen.getByRole("option", { name: "Pat PM (you)" })).toBeInTheDocument();
+  });
+
+  it("uses the client's current MSA and rate card, shown as Using:, and submits them", async () => {
+    createProjectAction.mockResolvedValueOnce(undefined);
+    const user = userEvent.setup();
+    render(<NewProjectForm clientOptions={clientOptions} />);
+    await fillMinimalValidForm(user);
+
+    expect(getClientProjectDefaultsAction).toHaveBeenCalledWith("client_coffee");
+    expect(screen.getByText(/coffee-msa\.pdf, Coffee Rates \(GBP\) v2/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Rate card")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Create project" }));
+    await waitFor(() => expect(createProjectAction).toHaveBeenCalled());
+    expect(submitted().get("clientId")).toBe("client_coffee");
+    expect(submitted().get("workstreamId")).toBe("ws_1");
+    expect(submitted().get("masterServiceAgreementId")).toBe("msa_1");
+    expect(submitted().get("rateCardId")).toBe("rc_1");
+    expect(submitted().get("rateCardVersionId")).toBe("rcv_2");
+    expect(submitted().get("name")).toBe("");
+  });
+
+  it("Change reveals the rate card selectors, and an override is submitted", async () => {
+    createProjectAction.mockResolvedValueOnce(undefined);
+    const user = userEvent.setup();
+    render(<NewProjectForm clientOptions={clientOptions} />);
+    await fillMinimalValidForm(user);
+
+    await user.click(screen.getByRole("button", { name: "Change" }));
+    expect(screen.getByRole("button", { name: "Done" })).toHaveAttribute("aria-expanded", "true");
+    await user.selectOptions(screen.getByLabelText("Rate card version"), "rcv_1");
+    await user.click(screen.getByRole("button", { name: "Create project" }));
+    await waitFor(() => expect(createProjectAction).toHaveBeenCalled());
+    expect(submitted().get("rateCardVersionId")).toBe("rcv_1");
+  });
+
+  it("explains a missing MSA and rate card, and still lets the project be created", async () => {
+    getClientProjectDefaultsAction.mockResolvedValueOnce({
+      workstreams: [{ id: "ws_2", name: "Fizzy Refresh" }],
+      msa: null,
+      rateCards: [],
+      defaultRateCard: null,
+    });
+    const user = userEvent.setup();
+    render(<NewProjectForm clientOptions={clientOptions} />);
+    await user.selectOptions(screen.getByLabelText("Client"), "client_fizzy");
+    await screen.findByText("Using:");
+    expect(screen.getByText(/no MSA, no rate card/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/no Master Service Agreement on file. An Admin needs to add it/)
+    ).toBeInTheDocument();
+    expect(screen.getByText(/no rate card. An Admin needs to add one/)).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Brief"), "Brief.");
     expect(screen.getByRole("button", { name: "Create project" })).toBeEnabled();
   });
 
-  it("blocks submission with a clear explanatory message when the Client has no MSA on file", async () => {
-    getRateCardsForWorkstreamAction.mockResolvedValueOnce([]);
-    getMasterServiceAgreementForWorkstreamAction.mockReset();
-    getMasterServiceAgreementForWorkstreamAction.mockResolvedValueOnce(null);
+  it("asks for a workstream only when the client has several", async () => {
+    getClientProjectDefaultsAction.mockResolvedValueOnce({
+      ...coffeeDefaults,
+      workstreams: [
+        { id: "ws_a", name: "Alpha" },
+        { id: "ws_b", name: "Beta" },
+      ],
+    });
     const user = userEvent.setup();
-    render(<NewProjectForm workstreamOptions={workstreamOptions} />);
-
-    await user.selectOptions(screen.getByLabelText("Workstream"), "ws_1");
-
-    await waitFor(() =>
-      expect(
-        screen.getByText(/This client has no Master Service Agreement on file/i)
-      ).toBeInTheDocument()
-    );
-    expect(screen.getByLabelText("Master Service Agreement")).toBeDisabled();
+    render(<NewProjectForm clientOptions={clientOptions} />);
+    await user.selectOptions(screen.getByLabelText("Client"), "client_coffee");
+    await screen.findByText("Using:");
     expect(screen.getByRole("button", { name: "Create project" })).toBeDisabled();
+    await user.selectOptions(screen.getByLabelText("Workstream"), "ws_b");
+    expect(screen.getByRole("button", { name: "Create project" })).toBeEnabled();
   });
 });
 
@@ -233,7 +196,7 @@ describe("NewProjectForm — processing overlay", () => {
     const deferred = createDeferred<{ message?: string } | undefined>();
     createProjectAction.mockReturnValueOnce(deferred.promise);
     const user = userEvent.setup();
-    render(<NewProjectForm workstreamOptions={workstreamOptions} />);
+    render(<NewProjectForm clientOptions={clientOptions} />);
     await fillMinimalValidForm(user);
 
     await user.click(screen.getByRole("button", { name: "Create project" }));
@@ -246,10 +209,14 @@ describe("NewProjectForm — processing overlay", () => {
   });
 
   async function submitUploadedBrief(user: ReturnType<typeof userEvent.setup>) {
-    previewBriefFileAction.mockResolvedValue({ ok: true, fileName: "brief.docx", charCount: 10, preview: "Brief" });
-    await user.selectOptions(screen.getByLabelText("Workstream"), "ws_1");
-    await waitFor(() => expect(screen.getByLabelText("Master Service Agreement")).toBeEnabled());
-    await user.type(screen.getByLabelText("Project name"), "Test Project");
+    previewBriefFileAction.mockResolvedValue({
+      ok: true,
+      fileName: "brief.docx",
+      charCount: 10,
+      preview: "Brief",
+    });
+    await user.selectOptions(screen.getByLabelText("Client"), "client_coffee");
+    await screen.findByText("Using:");
     await user.click(screen.getByLabelText("Upload file"));
     await user.upload(screen.getByLabelText("Brief"), new File(["x"], "brief.docx", { type: "" }));
     await screen.findByTestId("brief-file-preview");
@@ -260,14 +227,16 @@ describe("NewProjectForm — processing overlay", () => {
     const deferred = createDeferred<{ message?: string } | undefined>();
     createProjectAction.mockReturnValueOnce(deferred.promise);
     const user = userEvent.setup();
-    render(<NewProjectForm workstreamOptions={workstreamOptions} />);
+    render(<NewProjectForm clientOptions={clientOptions} />);
 
     await submitUploadedBrief(user);
 
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Setting up your project")).toBeInTheDocument();
     await waitFor(() => expect(createProjectAction).toHaveBeenCalledTimes(1));
-    expect((createProjectAction.mock.calls[0][1] as FormData).get("briefFile")).toBeInstanceOf(File);
+    expect((createProjectAction.mock.calls[0][1] as FormData).get("briefFile")).toBeInstanceOf(
+      File
+    );
 
     deferred.resolve(undefined);
     await waitFor(() => expect(within(dialog).getByRole("alert")).toBeInTheDocument());
@@ -278,12 +247,14 @@ describe("NewProjectForm — processing overlay", () => {
       errors: { briefFile: ["We couldn't read any text from this file."] },
     });
     const user = userEvent.setup();
-    render(<NewProjectForm workstreamOptions={workstreamOptions} />);
+    render(<NewProjectForm clientOptions={clientOptions} />);
     await submitUploadedBrief(user);
 
     const dialog = await screen.findByRole("dialog");
     await waitFor(() =>
-      expect(within(dialog).getByText("We couldn't read any text from this file.")).toBeInTheDocument()
+      expect(
+        within(dialog).getByText("We couldn't read any text from this file.")
+      ).toBeInTheDocument()
     );
 
     const retryDeferred = createDeferred<{ message?: string } | undefined>();
@@ -302,7 +273,7 @@ describe("NewProjectForm — processing overlay", () => {
   it("shows the failure reason with a retry action when the intake agent call fails, and resubmits on retry", async () => {
     createProjectAction.mockResolvedValueOnce({ message: "Claude couldn't classify this brief." });
     const user = userEvent.setup();
-    render(<NewProjectForm workstreamOptions={workstreamOptions} />);
+    render(<NewProjectForm clientOptions={clientOptions} />);
     await fillMinimalValidForm(user);
 
     await user.click(screen.getByRole("button", { name: "Create project" }));
@@ -326,7 +297,7 @@ describe("NewProjectForm — processing overlay", () => {
   it("dismisses the overlay and restores focus to the submit button when closed without retry", async () => {
     createProjectAction.mockResolvedValueOnce({ message: "Boom." });
     const user = userEvent.setup();
-    render(<NewProjectForm workstreamOptions={workstreamOptions} />);
+    render(<NewProjectForm clientOptions={clientOptions} />);
     await fillMinimalValidForm(user);
 
     const submitButton = screen.getByRole("button", { name: "Create project" });
@@ -341,64 +312,66 @@ describe("NewProjectForm — processing overlay", () => {
     expect(document.activeElement).toBe(submitButton);
   });
 
-describe("NewProjectForm — PM perspective", () => {
-  it("offers an optional PM perspective section below the brief, with a helper prompt per field", () => {
-    render(<NewProjectForm workstreamOptions={workstreamOptions} />);
+  describe("NewProjectForm — PM perspective", () => {
+    it("offers an optional PM perspective section below the brief, with a helper prompt per field", () => {
+      render(<NewProjectForm clientOptions={clientOptions} />);
 
-    const section = screen.getByRole("group", { name: /PM perspective/ });
-    expect(section).toHaveTextContent("(optional)");
-    // Just two fields (Context, Consultancy guidance and Early KPIs were removed).
-    expect(within(section).getAllByRole("textbox")).toHaveLength(2);
-    expect(within(section).queryByLabelText("Context")).not.toBeInTheDocument();
-    expect(within(section).queryByLabelText("Early KPIs")).not.toBeInTheDocument();
-    // The title sits inside the box as a heading, not a legend on the border.
-    expect(within(section).getByRole("heading", { name: /PM perspective/ })).toBeInTheDocument();
-    for (const label of ["Initial thoughts", "Proposed solution"]) {
-      const field = within(section).getByLabelText(label);
-      expect(field).not.toBeRequired();
-      expect(field).toHaveAccessibleDescription();
-    }
-    // Below the client brief, and not part of it.
-    const brief = screen.getByLabelText("Brief");
-    expect(brief.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(section).not.toContainElement(brief);
+      const section = screen.getByRole("group", { name: /PM perspective/ });
+      expect(section).toHaveTextContent("(optional)");
+      // Just two fields (Context, Consultancy guidance and Early KPIs were removed).
+      expect(within(section).getAllByRole("textbox")).toHaveLength(2);
+      expect(within(section).queryByLabelText("Context")).not.toBeInTheDocument();
+      expect(within(section).queryByLabelText("Early KPIs")).not.toBeInTheDocument();
+      // The title sits inside the box as a heading, not a legend on the border.
+      expect(within(section).getByRole("heading", { name: /PM perspective/ })).toBeInTheDocument();
+      for (const label of ["Initial thoughts", "Proposed solution"]) {
+        const field = within(section).getByLabelText(label);
+        expect(field).not.toBeRequired();
+        expect(field).toHaveAccessibleDescription();
+      }
+      // Below the client brief, and not part of it.
+      const brief = screen.getByLabelText("Brief");
+      expect(
+        brief.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+      expect(section).not.toContainElement(brief);
+    });
+
+    it("can be submitted with the PM perspective left empty", async () => {
+      const user = userEvent.setup();
+      createProjectAction.mockResolvedValue(undefined);
+      render(<NewProjectForm clientOptions={clientOptions} />);
+
+      await fillMinimalValidForm(user);
+      await user.click(screen.getByRole("button", { name: "Create project" }));
+
+      expect(createProjectAction).toHaveBeenCalledTimes(1);
+      const formData = createProjectAction.mock.calls[0][1] as FormData;
+      expect(formData.get("pm_initialThoughts")).toBe("");
+      expect(formData.get("briefText")).toBe("Some client brief text.");
+    });
+
+    it("submits the PM's fields as their own inputs, separate from the brief text", async () => {
+      const user = userEvent.setup();
+      createProjectAction.mockResolvedValue(undefined);
+      render(<NewProjectForm clientOptions={clientOptions} />);
+
+      await fillMinimalValidForm(user);
+      await user.type(screen.getByLabelText("Proposed solution"), "Start with one partner.");
+      await user.click(screen.getByRole("button", { name: "Create project" }));
+
+      const formData = createProjectAction.mock.calls[0][1] as FormData;
+      expect(formData.get("pm_proposedSolution")).toBe("Start with one partner.");
+      expect(formData.get("briefText")).toBe("Some client brief text.");
+    });
   });
-
-  it("can be submitted with the PM perspective left empty", async () => {
-    const user = userEvent.setup();
-    createProjectAction.mockResolvedValue(undefined);
-    render(<NewProjectForm workstreamOptions={workstreamOptions} />);
-
-    await fillMinimalValidForm(user);
-    await user.click(screen.getByRole("button", { name: "Create project" }));
-
-    expect(createProjectAction).toHaveBeenCalledTimes(1);
-    const formData = createProjectAction.mock.calls[0][1] as FormData;
-    expect(formData.get("pm_initialThoughts")).toBe("");
-    expect(formData.get("briefText")).toBe("Some client brief text.");
-  });
-
-  it("submits the PM's fields as their own inputs, separate from the brief text", async () => {
-    const user = userEvent.setup();
-    createProjectAction.mockResolvedValue(undefined);
-    render(<NewProjectForm workstreamOptions={workstreamOptions} />);
-
-    await fillMinimalValidForm(user);
-    await user.type(screen.getByLabelText("Proposed solution"), "Start with one partner.");
-    await user.click(screen.getByRole("button", { name: "Create project" }));
-
-    const formData = createProjectAction.mock.calls[0][1] as FormData;
-    expect(formData.get("pm_proposedSolution")).toBe("Start with one partner.");
-    expect(formData.get("briefText")).toBe("Some client brief text.");
-  });
-});
 });
 
 describe("NewProjectForm — Brief file upload (FB-002)", () => {
   beforeEach(() => previewBriefFileAction.mockReset());
 
   async function openUpload(user: ReturnType<typeof userEvent.setup>) {
-    render(<NewProjectForm workstreamOptions={workstreamOptions} />);
+    render(<NewProjectForm clientOptions={clientOptions} />);
     await user.click(screen.getByLabelText("Upload file"));
     return screen.getByLabelText("Brief") as HTMLInputElement;
   }
@@ -426,13 +399,18 @@ describe("NewProjectForm — Brief file upload (FB-002)", () => {
   });
 
   it("shows a specific inline message and clears the input when the server can't read the file", async () => {
-    previewBriefFileAction.mockResolvedValueOnce({ ok: false, error: "We couldn't read any text from this file." });
+    previewBriefFileAction.mockResolvedValueOnce({
+      ok: false,
+      error: "We couldn't read any text from this file.",
+    });
     const user = userEvent.setup();
     const input = await openUpload(user);
 
     await user.upload(input, new File(["x"], "scan.pdf", { type: "application/pdf" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't read any text from this file.");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "We couldn't read any text from this file."
+    );
     expect(input.files).toHaveLength(0);
   });
 
@@ -447,7 +425,12 @@ describe("NewProjectForm — Brief file upload (FB-002)", () => {
   });
 
   it("drops the chosen file when switching back to pasted text, so both can never be submitted", async () => {
-    previewBriefFileAction.mockResolvedValueOnce({ ok: true, fileName: "b.txt", charCount: 3, preview: "abc" });
+    previewBriefFileAction.mockResolvedValueOnce({
+      ok: true,
+      fileName: "b.txt",
+      charCount: 3,
+      preview: "abc",
+    });
     const user = userEvent.setup();
     const input = await openUpload(user);
     await user.upload(input, new File(["abc"], "b.txt", { type: "text/plain" }));

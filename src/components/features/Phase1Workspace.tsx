@@ -1,20 +1,21 @@
+import type { ReactNode } from "react";
 import type { ClarificationEmail, PositionDocumentFields } from "@/types/intake";
+import type { DraftScopeDocument } from "@/types/triage";
 import { PositionDocumentView } from "./PositionDocumentView";
+import { DraftScopeDocumentView } from "./DraftScopeDocumentView";
 import { ClarificationEmailCard, type ClarificationEmailDraftMeta } from "./ClarificationEmailCard";
 import { BriefChecklist } from "./BriefChecklist";
 import type { BriefCompleteness } from "@/lib/briefCompleteness";
 import { PmPerspectivePanel } from "./PmPerspectivePanel";
 import type { PmPerspectiveFieldView } from "@/lib/pmPerspectiveStore";
+import { Disclosure } from "@/components/ui/Disclosure";
+import { ScopeSummaryCard, type ScopeSummaryCardData } from "./ScopeSummaryCard";
 
 function pluralize(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
-// A submission through the "Additional Inputs" panel that also updated the
-// Position Document (see uploadKnowledgeItemAction) — counted in the
-// progress summary strip below. There's no dedicated UI list of these
-// anymore; the Additional Inputs panel's own knowledge-item list doubles as
-// the visible history.
+// A saved project update — counted in the progress summary strip below.
 export interface ClientUpdateLogEntry {
   id: string;
   content: string;
@@ -22,39 +23,55 @@ export interface ClientUpdateLogEntry {
   createdByName: string | null;
 }
 
+export interface EarlierDocuments {
+  positionDocument: PositionDocumentFields | null;
+  draftScopeDocument: DraftScopeDocument | null;
+}
+
 /**
- * The Brief step's working content (FB-008; formerly Phase 1, "Clarifying the
- * brief and scope") as a single fluid workspace. Clarification happens
- * repeatedly, over days or weeks, outside the platform, so this surfaces the
- * key details, the PM's perspective, the Position Document's live state and
- * the client email draft. The step's readiness list and scope gate are added
- * around it by BriefStep. Capabilities & Estimate Brief moved to the Estimate
- * step in FB-008.
+ * The Brief step's working content. FB-009: the Scope summary is the one scope
+ * document (it replaces the Position Document / Draft Scope); a project set up
+ * before it keeps those read-only under "Earlier documents". The clarification
+ * email is an action card shown only while there are open questions. The
+ * step's readiness list and scope gate are added around it by BriefStep.
  */
 export interface Phase1WorkspaceProps {
   projectId: string;
-  positionDocument: PositionDocumentFields | null;
   clientUpdates: ClientUpdateLogEntry[];
   clarificationEmail: ClarificationEmail | null;
   briefCompleteness: BriefCompleteness;
   pmPerspective: PmPerspectiveFieldView[];
   clarificationEmailDraft?: ClarificationEmailDraftMeta | null;
-  /** The project is complete: key details and PM perspective can't be edited. */
+  scopeSummary?: ScopeSummaryCardData | null;
+  earlierDocuments?: EarlierDocuments;
+  /** Stored open questions plus required key details still outstanding. */
+  openQuestions?: number;
+  clarificationSentAt?: string | null;
+  /** Brief completeness from the Intake Agent (FB-009 D), shown on the Scope summary card. */
+  assessment?: ReactNode;
+  /** The project is complete: nothing can be edited. */
   readOnly?: boolean;
 }
 
+const NO_EARLIER: EarlierDocuments = { positionDocument: null, draftScopeDocument: null };
+
 export function Phase1Workspace({
   projectId,
-  positionDocument,
   clientUpdates,
   clarificationEmail,
   briefCompleteness,
   pmPerspective,
   clarificationEmailDraft,
+  scopeSummary = null,
+  earlierDocuments = NO_EARLIER,
+  openQuestions = 0,
+  clarificationSentAt = null,
+  assessment,
   readOnly = false,
 }: Phase1WorkspaceProps) {
-  const otherDetailsCount = positionDocument?.whatWeKnow.length ?? 0;
   const outstandingCount = briefCompleteness.requiredOutstanding.length;
+  const hasEarlier =
+    earlierDocuments.positionDocument !== null || earlierDocuments.draftScopeDocument !== null;
 
   return (
     <div className="space-y-6">
@@ -62,12 +79,31 @@ export function Phase1Workspace({
         className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground"
         aria-label="Brief progress summary"
       >
-        <span>{pluralize(otherDetailsCount, "other detail")} from the brief</span>
+        <span>{pluralize(openQuestions, "open question")}</span>
         <span aria-hidden="true">·</span>
         <span>{pluralize(outstandingCount, "required detail")} to find out</span>
         <span aria-hidden="true">·</span>
         <span>{pluralize(clientUpdates.length, "update")} logged</span>
       </div>
+
+      <ScopeSummaryCard
+        projectId={projectId}
+        summary={scopeSummary}
+        readOnly={readOnly}
+        assessment={assessment}
+        canCreateFromEarlier={hasEarlier}
+      />
+
+      {openQuestions > 0 && (
+        <ClarificationEmailCard
+          projectId={projectId}
+          email={clarificationEmail}
+          draft={clarificationEmailDraft}
+          sentAt={clarificationSentAt}
+          openQuestionCount={openQuestions}
+          readOnly={readOnly}
+        />
+      )}
 
       {/* A disabled fieldset makes every control inside read-only once the project is complete. */}
       <fieldset disabled={readOnly} className="min-w-0 space-y-6">
@@ -76,22 +112,34 @@ export function Phase1Workspace({
         <PmPerspectivePanel projectId={projectId} fields={pmPerspective} />
       </fieldset>
 
-      <div>
-        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Current position — from the client
-        </h3>
-        {positionDocument ? (
-          <PositionDocumentView fields={positionDocument} />
-        ) : (
-          <p className="text-sm text-muted-foreground">Not generated yet.</p>
-        )}
-      </div>
-
-      <ClarificationEmailCard
-        projectId={projectId}
-        email={clarificationEmail}
-        draft={clarificationEmailDraft}
-      />
+      {hasEarlier && (
+        <Disclosure
+          summary={<span className="text-sm font-medium text-foreground">Earlier documents</span>}
+        >
+          <div className="mt-3 space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Read-only. These were made before scope summaries; nothing reads them once the scope
+              summary exists.
+            </p>
+            {earlierDocuments.positionDocument && (
+              <div>
+                <h4 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  Position Document
+                </h4>
+                <PositionDocumentView fields={earlierDocuments.positionDocument} />
+              </div>
+            )}
+            {earlierDocuments.draftScopeDocument && (
+              <div>
+                <h4 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  Draft Scope Document
+                </h4>
+                <DraftScopeDocumentView scope={earlierDocuments.draftScopeDocument} />
+              </div>
+            )}
+          </div>
+        </Disclosure>
+      )}
     </div>
   );
 }

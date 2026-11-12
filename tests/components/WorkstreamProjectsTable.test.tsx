@@ -42,13 +42,14 @@ describe("WorkstreamProjectsTable", () => {
     expect(screen.getByText("No projects yet in this Workstream.")).toBeInTheDocument();
   });
 
-  it("lists every project with its stage, PM, and dates", () => {
+  it("lists every project with its step, PM, and dates", () => {
     render(<WorkstreamProjectsTable projects={projects} stageOptions={stageOptions} />);
 
     const rows = screen.getAllByRole("row").slice(1); // skip header row
     const alphaRow = rows.find((row) => within(row).queryByText("Alpha Launch"));
     expect(alphaRow).toBeDefined();
-    expect(within(alphaRow!).getByText(/Stage\s*4\s*—\s*Triage/)).toBeInTheDocument();
+    // FB-009 F: the current step's name, not "Stage N — name".
+    expect(within(alphaRow!).getByText("Triage")).toBeInTheDocument();
 
     const zebraRow = rows.find((row) => within(row).queryByText("Zebra Refresh"));
     expect(zebraRow).toBeDefined();
@@ -74,11 +75,11 @@ describe("WorkstreamProjectsTable", () => {
     expect(screen.getByText("No projects match your search.")).toBeInTheDocument();
   });
 
-  it("filters by stage", async () => {
+  it("filters by step", async () => {
     const user = userEvent.setup();
     render(<WorkstreamProjectsTable projects={projects} stageOptions={stageOptions} />);
 
-    await user.selectOptions(screen.getByLabelText("Filter by stage"), "4");
+    await user.selectOptions(screen.getByLabelText("Filter by step"), "4");
 
     expect(screen.getByText("Alpha Launch")).toBeInTheDocument();
     expect(screen.queryByText("Zebra Refresh")).not.toBeInTheDocument();

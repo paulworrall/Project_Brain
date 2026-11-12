@@ -48,7 +48,7 @@ export function ScopeGate({
   if (scopeConfirmedAt) {
     const reopenBlocked = estimateApproved || projectComplete;
     return (
-      <div className="flex flex-wrap items-center justify-between gap-3 border border-border bg-surface px-4 py-3">
+      <div id="scope-gate" className="flex scroll-mt-6 flex-wrap items-center justify-between gap-3 border border-border bg-surface px-4 py-3">
         <p className="flex items-center gap-2 text-sm text-foreground">
           <span
             aria-hidden="true"
@@ -87,7 +87,7 @@ export function ScopeGate({
   }
 
   return (
-    <div className="border border-border bg-surface px-4 py-3">
+    <div id="scope-gate" className="scroll-mt-6 border border-border bg-surface px-4 py-3">
       <p className="text-sm text-muted-foreground">
         When the scope is clear enough to estimate, confirm it to move on to the estimate.
       </p>

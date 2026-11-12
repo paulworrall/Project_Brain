@@ -6,6 +6,10 @@ import { prisma } from "@/lib/prisma";
 import {
   addChecklistItem,
   confirmScope,
+  editScopeSummary,
+  setClarificationSent,
+  type ClarificationSentResultData,
+  type ScopeSummaryResultData,
   reopenScope,
   setChecklistItemStep,
   updateSpecialistInput,
@@ -30,6 +34,7 @@ async function actor() {
 function refresh<T extends { projectId: string }>(result: ActionResult<T>): ActionResult<T> {
   if (result.ok) {
     revalidatePath(`/projects/${result.data.projectId}`, "layout");
+    revalidatePath("/"); // FB-009 F: the pipeline home page
   }
   return result;
 }
@@ -58,4 +63,16 @@ export async function addChecklistItemAction(
   input: unknown
 ): Promise<ActionResult<ChecklistItemResultData>> {
   return refresh(await addChecklistItem(prisma, await actor(), input));
+}
+
+export async function editScopeSummaryAction(
+  input: unknown
+): Promise<ActionResult<ScopeSummaryResultData>> {
+  return refresh(await editScopeSummary(prisma, await actor(), input));
+}
+
+export async function setClarificationSentAction(
+  input: unknown
+): Promise<ActionResult<ClarificationSentResultData>> {
+  return refresh(await setClarificationSent(prisma, await actor(), input));
 }

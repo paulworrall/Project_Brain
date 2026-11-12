@@ -4,6 +4,8 @@ import { canEditProject, CANNOT_EDIT_PROJECT_MESSAGE, type ApprovalActor } from 
 import { findActiveApproval, type ApprovalDb } from "@/lib/commercial/approvalGuards";
 import { APPROVAL_ERROR_COPY } from "@/lib/commercial/approvalCopy";
 import { isProjectCompleteInDb } from "@/lib/project/projectGuards";
+import { appendScopeSummaryVersion, latestScopeSummary } from "@/lib/scopeSummary";
+import { ScopeSummaryContentSchema, changedScopeSections, normaliseScopeSummary } from "@/types/scope";
 import type { ActionResult, ApprovalErrorCode } from "@/types/approvals";
 
 /**
@@ -66,12 +68,20 @@ export async function confirmScope(
   const blocked = await precheck(db, actor, projectId);
   if (blocked) return blocked;
 
-  // Idempotent: a second confirm keeps the first confirmation's time and author.
-  const existing = await db.project.findUniqueOrThrow({
-    where: { id: projectId },
-    select: { scopeConfirmedAt: true },
-  });
-  if (existing.scopeConfirmedAt) {
+  // FB-009: confirming records the Scope summary version confirmed (the
+  // latest; null for a legacy project with none). Confirming again when a
+  // newer version exists moves the confirmation to it — that's how a scope
+  // change reaches the estimate ("Scope changed since this estimate").
+  // Otherwise idempotent: the first confirmation's time and author are kept.
+  const [existing, latest] = await Promise.all([
+    db.project.findUniqueOrThrow({
+      where: { id: projectId },
+      select: { scopeConfirmedAt: true, confirmedScopeVersionId: true },
+    }),
+    latestScopeSummary(projectId, db),
+  ]);
+  const latestId = latest?.id ?? null;
+  if (existing.scopeConfirmedAt && existing.confirmedScopeVersionId === latestId) {
     return {
       ok: true,
       data: { projectId, scopeConfirmedAt: existing.scopeConfirmedAt.toISOString() },
@@ -79,7 +89,11 @@ export async function confirmScope(
   }
   const updated = await db.project.update({
     where: { id: projectId },
-    data: { scopeConfirmedAt: new Date(), scopeConfirmedByUserId: actor!.id },
+    data: {
+      scopeConfirmedAt: new Date(),
+      scopeConfirmedByUserId: actor!.id,
+      confirmedScopeVersionId: latestId,
+    },
     select: { scopeConfirmedAt: true },
   });
   return {
@@ -102,7 +116,7 @@ export async function reopenScope(
 
   await db.project.update({
     where: { id: projectId },
-    data: { scopeConfirmedAt: null, scopeConfirmedByUserId: null },
+    data: { scopeConfirmedAt: null, scopeConfirmedByUserId: null, confirmedScopeVersionId: null },
   });
   return { ok: true, data: { projectId, scopeConfirmedAt: null } };
 }
@@ -226,4 +240,81 @@ export async function addChecklistItem(
     data: { projectId, label, step, order: (last?.order ?? -1) + 1 },
   });
   return { ok: true, data: { projectId, itemId: item.id, step } };
+}
+
+// ---------------------------------------------------------------------------
+// FB-009: Scope summary edits and the clarification email's sent flag
+// ---------------------------------------------------------------------------
+
+export const EditScopeSummarySchema = z.object({
+  projectId: z.string().min(1),
+  /** The version the PM edited — refused if a newer one has arrived since. */
+  baseVersionId: z.string().min(1),
+  content: ScopeSummaryContentSchema,
+});
+
+export interface ScopeSummaryResultData {
+  projectId: string;
+  versionNumber: number;
+  changedSections: string[];
+}
+
+export async function editScopeSummary(
+  db: ApprovalDb,
+  actor: ApprovalActor | null | undefined,
+  input: unknown
+): Promise<ActionResult<ScopeSummaryResultData>> {
+  const parsed = EditScopeSummarySchema.safeParse(input);
+  if (!parsed.success) return validationFailure(parsed.error);
+  const { projectId, baseVersionId } = parsed.data;
+  const blocked = await precheck(db, actor, projectId);
+  if (blocked) return blocked;
+
+  const latest = await latestScopeSummary(projectId, db);
+  if (!latest) return fail("NOT_FOUND", "This project has no scope summary yet.");
+  if (latest.id !== baseVersionId) {
+    return fail(
+      "VALIDATION",
+      `The scope summary changed while you were editing (now v${latest.versionNumber}). Copy your changes, refresh and try again.`
+    );
+  }
+  const content = normaliseScopeSummary(parsed.data.content);
+  const changedSections = changedScopeSections(latest.content, content);
+  if (changedSections.length === 0) {
+    return { ok: true, data: { projectId, versionNumber: latest.versionNumber, changedSections } };
+  }
+  const saved = await appendScopeSummaryVersion(projectId, content, { userId: actor!.id }, db);
+  return { ok: true, data: { projectId, versionNumber: saved.versionNumber, changedSections } };
+}
+
+export const ClarificationSentSchema = z.object({
+  projectId: z.string().min(1),
+  sent: z.boolean(),
+});
+
+export interface ClarificationSentResultData {
+  projectId: string;
+  clarificationSentAt: string | null;
+}
+
+/** "Mark as sent" (or undo it). The app never sends anything itself. */
+export async function setClarificationSent(
+  db: ApprovalDb,
+  actor: ApprovalActor | null | undefined,
+  input: unknown
+): Promise<ActionResult<ClarificationSentResultData>> {
+  const parsed = ClarificationSentSchema.safeParse(input);
+  if (!parsed.success) return validationFailure(parsed.error);
+  const { projectId, sent } = parsed.data;
+  const blocked = await precheck(db, actor, projectId);
+  if (blocked) return blocked;
+  const updated = await db.project.update({
+    where: { id: projectId },
+    data: { clarificationSentAt: sent ? new Date() : null },
+    select: { clarificationSentAt: true },
+  });
+  return {
+    ok: true,
+    data: { projectId, clarificationSentAt: updated.clarificationSentAt?.toISOString() ?? null },
+  };
 }

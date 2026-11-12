@@ -5,7 +5,8 @@ import { latestPositionDocumentContent } from "@/lib/positionDocument";
 import { clarificationQuestionsFrom } from "@/lib/clarificationQuestions";
 import { currentText, describeKnownKeyDetails } from "@/lib/keyDetailsContext";
 import { CLIENT_CONTACT_FIELDS } from "@/lib/briefAttributes";
-import { generateClarificationEmail } from "@/services/agents/intake-agent";
+import { emailFieldsFromScopeSummary, generateClarificationEmail } from "@/services/agents/intake-agent";
+import { latestScopeSummary } from "@/lib/scopeSummary";
 import { rebuildPositionDocument } from "@/services/agents/clarification-extraction";
 import { removeItemsCoveredByKeyDetails } from "@/services/agents/position-key-detail-filter";
 
@@ -67,12 +68,18 @@ export async function redraftClarificationEmail(
   userId: string | null,
   triggeredByUpdateVersion: number | null = null
 ): Promise<RegeneratedVersion> {
-  const [context, position] = await Promise.all([
+  const [context, scope, position] = await Promise.all([
     getProjectContext(projectId),
+    latestScopeSummary(projectId),
     latestPositionDocumentContent(projectId),
   ]);
+  // FB-009: the Scope summary's open questions when there is one; a legacy
+  // project's Position Document otherwise.
+  const fields = scope
+    ? emailFieldsFromScopeSummary(scope.content)
+    : { whatWeKnow: position?.whatWeKnow ?? [], clientFlaggedOpenItems: position?.clientFlaggedOpenItems ?? [] };
   const email = await generateClarificationEmail(
-    { whatWeKnow: position?.whatWeKnow ?? [], clientFlaggedOpenItems: position?.clientFlaggedOpenItems ?? [] },
+    fields,
     clarificationQuestionsFrom(context.keyDetails),
     context.pmPerspective,
     currentText(context.keyDetails, CLIENT_CONTACT_FIELDS.attributeId, CLIENT_CONTACT_FIELDS.name),

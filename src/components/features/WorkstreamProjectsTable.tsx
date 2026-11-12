@@ -121,13 +121,13 @@ export function WorkstreamProjectsTable({
         <select
           value={stageFilter}
           onChange={(e) => setStageFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
-          aria-label="Filter by stage"
+          aria-label="Filter by step"
           className="border border-border-strong bg-surface px-3 py-1.5 text-sm text-foreground"
         >
-          <option value="all">All stages</option>
+          <option value="all">All steps</option>
           {stageOptions.map((s) => (
             <option key={s.number} value={s.number}>
-              Stage {s.number} — {s.name}
+              {s.name}
             </option>
           ))}
         </select>
@@ -141,7 +141,7 @@ export function WorkstreamProjectsTable({
                 <SortButton label="Project" sortKey="name" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
               </th>
               <th className="px-4 py-2">
-                <SortButton label="Stage" sortKey="stage" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortButton label="Step" sortKey="stage" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
               </th>
               <th className="px-4 py-2">
                 <SortButton label="PM" sortKey="pm" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
@@ -178,7 +178,7 @@ export function WorkstreamProjectsTable({
                   )}
                 </td>
                 <td className="px-4 py-2.5 text-foreground">
-                  Stage {project.currentStageNumber} — {project.stageName}
+                  {project.stageName}
                 </td>
                 <td className="px-4 py-2.5 text-foreground">{project.projectManagerName ?? NOT_SET}</td>
                 <td className="px-4 py-2.5 text-foreground">{formatDate(project.targetCompletionDate)}</td>

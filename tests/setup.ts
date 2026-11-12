@@ -56,6 +56,14 @@ vi.mock("@/app/(dashboard)/projects/[projectId]/step-actions", () => ({
   updateSpecialistInputAction: vi.fn(async () => ({ ok: true, data: {} })),
   setChecklistItemStepAction: vi.fn(async () => ({ ok: true, data: {} })),
   addChecklistItemAction: vi.fn(async () => ({ ok: true, data: {} })),
+  editScopeSummaryAction: vi.fn(async () => ({ ok: true, data: { projectId: "p", versionNumber: 2, changedSections: [] } })),
+  setClarificationSentAction: vi.fn(async () => ({ ok: true, data: { projectId: "p", clarificationSentAt: null } })),
+}));
+
+// FB-009 Scope summary agent actions — inert defaults for component tests.
+vi.mock("@/app/(dashboard)/projects/[projectId]/scope-actions", () => ({
+  regenerateScopeSummaryAction: vi.fn(async () => ({ ok: true, data: { projectId: "p", versionNumber: 2 } })),
+  createScopeSummaryFromEarlierAction: vi.fn(async () => ({ ok: true, data: { projectId: "p", versionNumber: 1 } })),
 }));
 
 // ApprovalActions calls useRouter(); component tests render without an app router.

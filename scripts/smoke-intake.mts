@@ -23,8 +23,6 @@ Thanks, Marketing Lead, Fizzy`;
 const result = await runIntakeAgent(brief);
 console.log("KEY DETAILS:", JSON.stringify(result.keyAttributes, null, 1));
 console.log("KEY DETAILS ERROR:", result.keyAttributesError);
-console.log("OTHER DETAILS (whatWeKnow):");
-for (const item of result.positionDocument.whatWeKnow)
-  console.log(`  - ${item.topic}: ${item.detail}`);
+console.log("SCOPE SUMMARY:", JSON.stringify(result.scopeSummary, null, 1));
 console.log("CLARIFICATION EMAIL:", result.clarificationEmail.bodyText);
-console.log("POSITION DOC KEYS:", Object.keys(result.positionDocument));
+console.log("SCOPE SUMMARY KEYS:", Object.keys(result.scopeSummary));

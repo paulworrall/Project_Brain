@@ -1,7 +1,8 @@
 import Link from "next/link";
 
 const NAV_ITEMS = [
-  { href: "/", label: "All Projects" },
+  { href: "/", label: "Pipeline" },
+  { href: "/browse", label: "Browse clients" },
   { href: "/master-service-agreements", label: "Master Service Agreements" },
   { href: "/rate-cards", label: "Rate Cards" },
   { href: "/sow-templates", label: "SOW Templates" },

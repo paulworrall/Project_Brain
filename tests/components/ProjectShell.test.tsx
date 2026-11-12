@@ -105,3 +105,53 @@ describe("ProjectShell", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
+
+describe("Next step banner (FB-009 C)", () => {
+  const action = (id: "confirm_scope" | "choose_capabilities", title: string) => ({
+    id,
+    title,
+    reason: "Because.",
+    step: "brief" as const,
+    button: { label: "Do it", href: "/projects/p1/brief#scope-gate" },
+  });
+
+  function withAction(nextAction: ReturnType<typeof action>) {
+    return (
+      <ProjectShell
+        projectId="p1"
+        stepStatuses={statuses}
+        stepSummaries={{}}
+        nextAction={nextAction}
+        steps={{ brief: <p>b</p>, estimate: <p>e</p>, sow: <p>s</p> }}
+        sidebar={null}
+      >
+        {null}
+      </ProjectShell>
+    );
+  }
+
+  it("sits under the stepper with one title, reason and primary link", () => {
+    segment = "brief";
+    render(withAction(action("confirm_scope", "Confirm the scope is ready to estimate")));
+    const banner = screen.getByRole("region", { name: "Confirm the scope is ready to estimate" });
+    expect(banner).toHaveTextContent("Because.");
+    expect(screen.getByRole("link", { name: "Do it" })).toHaveAttribute(
+      "href",
+      "/projects/p1/brief#scope-gate"
+    );
+    const nav = screen.getByRole("navigation", { name: "Project steps" });
+    expect(nav.compareDocumentPosition(banner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("announces a new next action after an action (no reload)", () => {
+    segment = "brief";
+    const { rerender } = render(
+      withAction(action("confirm_scope", "Confirm the scope is ready to estimate"))
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("");
+    rerender(withAction(action("choose_capabilities", "Choose who should estimate this")));
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Next step: Choose who should estimate this"
+    );
+  });
+});

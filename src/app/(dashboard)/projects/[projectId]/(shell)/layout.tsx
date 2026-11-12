@@ -7,7 +7,7 @@ import { ProjectShell } from "@/components/features/ProjectShell";
 import { loadProjectPageData } from "@/lib/projectPageData";
 import { approvalViewFor } from "@/lib/commercial/approvalViewData";
 import { sowApprovalBlockedReason } from "@/lib/commercial/sowApprovalGate";
-import { SOW_PHASE_INDICATOR_TEXT } from "@/lib/sowChangeView";
+import { NEEDS_REVIEW_TEXT } from "@/lib/estimateScopeSyncView";
 
 /**
  * The persistent project shell: breadcrumb, title, header box, the Brief →
@@ -40,7 +40,12 @@ export default async function ProjectLayout({
     sowTemplateOptions,
     rateCardOptions,
     clarificationEmail,
-    positionDocument,
+    scopeSummary,
+    openQuestions,
+    estimateScopeSync,
+    nextAction,
+    briefAssessment,
+    earlierDocuments,
     clarificationEmailVersion,
     permissions,
     approvals,
@@ -77,7 +82,7 @@ export default async function ProjectLayout({
       <div className="flex items-start justify-between gap-4">
         <div>
           <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground">
-            <Link href="/" className="hover:underline">
+            <Link href="/browse" className="hover:underline">
               {hub.name}
             </Link>
             {" / "}
@@ -129,17 +134,22 @@ export default async function ProjectLayout({
         projectId={project.id}
         stepStatuses={stepStatuses}
         stepSummaries={stepSummaries}
-        attention={
-          sowChange?.status === "changed_since_generation"
-            ? { sow: SOW_PHASE_INDICATOR_TEXT }
-            : undefined
-        }
+        nextAction={nextAction}
+        // FB-009 B: a step whose document is stale against what it was built from.
+        attention={{
+          ...(estimateScopeSync.needsReview ? { estimate: NEEDS_REVIEW_TEXT } : {}),
+          ...(sowChange?.status === "changed_since_generation" ? { sow: NEEDS_REVIEW_TEXT } : {}),
+        }}
         steps={{
           brief: (
             <BriefStep
               {...common}
               systemChecks={systemChecks.brief}
-              positionDocument={positionDocument.success ? positionDocument.data : null}
+              scopeSummary={scopeSummary}
+              briefAssessment={briefAssessment}
+              earlierDocuments={earlierDocuments}
+              openQuestions={openQuestions}
+              clarificationSentAt={project.clarificationSentAt?.toISOString() ?? null}
               clientUpdates={clientUpdates}
               clarificationEmail={clarificationEmail.success ? clarificationEmail.data : null}
               clarificationEmailDraft={
@@ -169,6 +179,7 @@ export default async function ProjectLayout({
               estimates={estimates.map((estimate) => ({
                 id: estimate.id,
                 label: estimate.label,
+                scopeSync: estimateScopeSync.estimates.find((e) => e.estimateId === estimate.id),
                 versions: estimate.versions.map((version, index) => ({
                   id: version.id,
                   versionNumber: version.versionNumber,

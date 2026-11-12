@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { ClarificationEmail, PositionDocumentFields } from "@/types/intake";
+import type { ClarificationEmail } from "@/types/intake";
 import type { Capability } from "@/generated/prisma/enums";
 import type { ApprovalPermissions } from "@/types/approvals";
 import type { BriefCompleteness } from "@/lib/briefCompleteness";
@@ -13,7 +13,10 @@ import {
   type StepId,
 } from "@/lib/projectSteps";
 import type { RateCardOption } from "@/app/(dashboard)/projects/new/actions";
-import { Phase1Workspace, type ClientUpdateLogEntry } from "./Phase1Workspace";
+import { Phase1Workspace, type ClientUpdateLogEntry, type EarlierDocuments } from "./Phase1Workspace";
+import type { ScopeSummaryCardData } from "./ScopeSummaryCard";
+import type { BriefAssessment } from "@/types/intake";
+import { BriefAssessmentCallout, BriefAssessmentLabel } from "./BriefAssessmentNotice";
 import type { ClarificationEmailDraftMeta } from "./ClarificationEmailCard";
 import {
   CapabilitiesAndEstimateBriefPanel,
@@ -108,7 +111,12 @@ function Readiness({ stepId, common }: { stepId: StepId; common: StepCommonProps
 // ---------------------------------------------------------------------------
 
 export interface BriefStepProps extends StepCommonProps {
-  positionDocument: PositionDocumentFields | null;
+  scopeSummary: ScopeSummaryCardData | null;
+  earlierDocuments: EarlierDocuments;
+  /** FB-009 D: the Intake Agent's judgement of the brief (null for older projects). */
+  briefAssessment?: BriefAssessment | null;
+  openQuestions: number;
+  clarificationSentAt: string | null;
   clientUpdates: ClientUpdateLogEntry[];
   clarificationEmail: ClarificationEmail | null;
   clarificationEmailDraft: ClarificationEmailDraftMeta | null;
@@ -132,11 +140,21 @@ export function BriefStep(props: BriefStepProps) {
       projectComplete={props.projectComplete}
       readiness={<Readiness stepId="brief" common={props} />}
     >
+      <BriefAssessmentCallout
+        projectId={props.projectId}
+        assessment={props.briefAssessment ?? null}
+        scopeConfirmed={props.scopeConfirmedAt !== null}
+        readOnly={props.projectComplete}
+      />
       <BriefReadinessIndicator completeness={props.briefCompleteness} />
       <BriefCompletenessWarning completeness={props.briefCompleteness} />
       <Phase1Workspace
         projectId={props.projectId}
-        positionDocument={props.positionDocument}
+        scopeSummary={props.scopeSummary}
+        assessment={<BriefAssessmentLabel assessment={props.briefAssessment ?? null} />}
+        earlierDocuments={props.earlierDocuments}
+        openQuestions={props.openQuestions}
+        clarificationSentAt={props.clarificationSentAt}
         clientUpdates={props.clientUpdates}
         clarificationEmail={props.clarificationEmail}
         clarificationEmailDraft={props.clarificationEmailDraft}
@@ -180,7 +198,7 @@ export function EstimateStep(props: EstimateStepProps) {
       projectComplete={props.projectComplete}
       readiness={<Readiness stepId="estimate" common={props} />}
     >
-      <fieldset disabled={props.projectComplete} className="min-w-0">
+      <fieldset id="capabilities" disabled={props.projectComplete} className="min-w-0 scroll-mt-6">
         <legend className="sr-only">Capabilities and estimate brief</legend>
         <CapabilitiesAndEstimateBriefPanel
           projectId={props.projectId}

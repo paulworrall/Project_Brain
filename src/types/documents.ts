@@ -6,10 +6,12 @@ export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   CHECKLIST: "Project Set-Up Checklist",
   DRAFT_SCOPE_DOCUMENT: "Draft Scope Document",
   DELIVERABLES_SERVICES_DOCUMENT: "Deliverables + Services Document",
+  SCOPE_SUMMARY: "Scope summary",
 };
 
 /** Display order for the Outputs Library — matches the stage each artifact is first produced at. */
 export const DOCUMENT_TYPE_ORDER: DocumentType[] = [
+  "SCOPE_SUMMARY",
   "CLARIFICATION_EMAIL",
   "POSITION_DOCUMENT",
   "CHECKLIST",

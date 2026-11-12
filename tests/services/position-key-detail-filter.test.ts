@@ -65,36 +65,28 @@ describe("removeItemsCoveredByKeyDetails", () => {
   });
 });
 
-describe("runIntakeAgent — each key detail recorded once", () => {
-  it("removes Position Document items the extracted key details already cover", async () => {
+describe("runIntakeAgent — each key detail recorded once (FB-009)", () => {
+  it("tells the Scope summary to leave the key details out, and runs no Position Document de-dup", async () => {
     mockParse
       .mockResolvedValueOnce({ parsed_output: { briefType: "EMAIL", summary: "A brief." } })
+      .mockResolvedValueOnce({ parsed_output: { facts: [] } })
       .mockResolvedValueOnce({
         parsed_output: {
-          facts: [
-            {
-              field: "objective.objective",
-              value: "Drive more purchases; capture more first-party data",
-              date: null,
-              evidence: null,
-            },
-          ],
+          context: "Fizzy wants real-time offers.",
+          outOfScope: [],
+          deliverables: [],
+          constraints: [],
+          assumptions: [],
+          openQuestions: [],
         },
       })
-      .mockResolvedValueOnce({
-        parsed_output: { whatWeKnow: items, whatWeNeedToFindOut: [], clientFlaggedOpenItems: [] },
-      })
-      .mockResolvedValueOnce({ parsed_output: { coveredIndexes: [0] } })
       .mockResolvedValueOnce({ parsed_output: { subject: "Hi", bodyText: "Hello," } });
 
     const result = await runIntakeAgent("brief text");
 
-    const dedupPrompt = mockParse.mock.calls[3][0].messages[0].content as string;
-    expect(dedupPrompt).toContain("Drive more purchases; capture more first-party data");
-    expect(result.positionDocument.whatWeKnow.map((i) => i.topic)).toEqual([
-      "Brand background",
-      "Approach",
-    ]);
-    expect(result.keyAttributes?.objective.values.objective).toContain("first-party data");
+    expect(mockParse).toHaveBeenCalledTimes(4);
+    const scopePrompt = mockParse.mock.calls[2][0].messages[0].content as string;
+    expect(scopePrompt).toMatch(/tracked separately/);
+    expect(result.scopeSummary.context).toBe("Fizzy wants real-time offers.");
   });
 });
