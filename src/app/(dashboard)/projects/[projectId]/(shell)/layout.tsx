@@ -260,7 +260,12 @@ export default async function ProjectLayout({
           ),
         }}
         sidebar={
-          <ProjectSidebar projectId={project.id} projectName={project.name} versions={versions} />
+          <ProjectSidebar
+            projectId={project.id}
+            projectName={project.name}
+            versions={versions}
+            projectComplete={projectComplete}
+          />
         }
       >
         {children}

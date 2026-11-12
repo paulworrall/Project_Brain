@@ -24,7 +24,8 @@ vi.mock("@/lib/auth", () => ({ auth: vi.fn().mockResolvedValue(null) }));
 const { anthropic } = await import("@/lib/anthropic");
 const mockParse = anthropic.messages.parse as ReturnType<typeof vi.fn>;
 const { keyAttributeFacts } = await import("./fixtures/keyAttributeFacts");
-const { uploadKnowledgeItemAction } = await import("@/app/(dashboard)/projects/[projectId]/actions");
+// FB-010: the old update action, through the new Add project information action.
+const { uploadKnowledgeItemAction } = await import("./helpers/addInformation");
 const { updateLabel } = await import("@/lib/updateLabel");
 const { getVersionHistory } = await import("@/lib/updateVersions");
 const { getBriefCompleteness } = await import("@/lib/briefCompleteness");
@@ -219,7 +220,7 @@ describe("versioned updates", () => {
       undefined,
       notesFormData("Hello.", "SOMEONE_ELSE")
     );
-    expect(result?.message).toMatch(/client or the internal team/i);
+    expect(result?.message).toMatch(/who this is from/i);
     expect(await prisma.knowledgeItem.count({ where: { projectId } })).toBe(0);
     expect(mockParse).not.toHaveBeenCalled();
   });

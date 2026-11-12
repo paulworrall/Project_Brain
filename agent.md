@@ -9,6 +9,8 @@ Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (P
 
 **Brief-to-SOW journey (FB-009, Nov 2026)**: the **Scope summary** (DocumentType SCOPE_SUMMARY, `src/types/scope.ts`, `src/lib/scopeSummary.ts`, agent `scope-summary-agent.ts`) is the one scope document — drafted at intake (replacing the Position Document), edited/regenerated as new versions, updated by every project update (naming changed sections). Key details appear read-only in its sections (`buildScopeView`). Confirm scope records `confirmedScopeVersionId`; the estimate brief and SOW read `scopeInputSection` (confirmed → latest → legacy Position Document). Estimate versions record `sourceScopeVersionId`; `getEstimateScopeSyncStatus` flags "Scope changed since this estimate" and the stepper's "Needs review". `deriveNextAction` (`src/lib/nextAction.ts`) drives the Next step banner and the pipeline. The Intake Agent's classify call also returns `briefAssessment` (complete/partial/thin) and a suggested project name. New Project needs only Client + Brief (`getClientProjectDefaultsAction`). `/` is the pipeline (`src/lib/pipeline.ts`, one findMany, no N+1); the old browser is `/browse`.
 
+**Add project information (FB-010, Nov 2026)**: the sidebar is now `AddProjectInformationPanel` (type, from, date, paste or several files, version history) above the `ProjectAssistant` (questions and short typed updates). `addProjectInformationAction` saves one version per call (the panel sends files one by one; the email is redrafted once per batch) through `saveProjectUpdate`, storing `KnowledgeItem.category` / `occurredOn`, shown in history and the agents' context. Files are checked with `extractUploadText` + `INFO_RULES` (`src/lib/projectInfoFileRules.ts`; docx/pdf/pptx/txt, 8 MB each).
+
 **Client approval of estimates/SOWs (FB-005, Oct 2026)**: a version is Draft until a PM records that the client approved it outside the app. `CommercialApproval` is append-only (one table, `documentType` + an estimate-or-SOW version FK; undo/revert set `revokedAt`/`revokeKind`, never delete) with partial unique indexes: one active approval per project per document type and per version. Status is derived (`deriveApprovalState`, `src/lib/commercial/approvalState.ts`), never stored. Rules live in `approvalService.ts` (approve/undo/revert; SOW must come from the approved estimate version; 10s undo + 2s grace on the server clock); every mutating estimate/SOW action calls `assertEstimateEditable`/`assertSowEditable` (`approvalGuards.ts`), re-checked inside the writing transaction for slow work. All permission decisions are in `src/lib/permissions.ts` (`canApprove` = any signed-in user; `canRevertApproval` = `ADMIN_ROLES`, empty until FB-006 defines an Admin role, so revert UI is hidden). Stage 6/8 read Complete from approvals (computed in `stageStatusWithApprovals`, not stored). `assembleSowContext` uses the approved estimate version when one exists. One money formatter (`src/lib/formatMoney.ts`).
 
 **Key details are a single source of truth (this session's fix)**: budget, objective, timeline, client contact, scope, markets, languages and channels live only in the key-details record (`BriefAttributeValue`). Intake reads them first (flat-facts extraction that the API accepts), then the Position Document is told to leave them out and a de-dup check (`position-key-detail-filter.ts`) removes any "Other details" item they already cover. The Position Document no longer stores the contact. Extraction failures are recorded on the project (`getBriefCompleteness().extractionFailure`). SOW, specialist brief and chatbot read key details via `src/lib/keyDetailsContext.ts`. Existing projects were backfilled by `scripts/backfill-key-details.mts`.
@@ -31,6 +33,15 @@ Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (P
 | `src/components/layout/Logo.tsx`, `Header.tsx` | MAP lockup placeholder (as Reporting Hub) + "PROJECT BRAIN" app bar | MAP restyle |
 | `src/components/ui/{Button,Card,Input,FormError,DocumentStatusBadge,ReadinessStrip,Toast,Modal,ProcessingOverlay}.tsx` | Primitives restyled to Reporting Hub's; Button gains `onNavy`/`onNavyOutline` | MAP restyle |
 | All `src/components/features/*`, `src/app/**` pages | Class sweep: square corners, no shadows, Medium not semibold, Light page titles, square status chips | MAP restyle |
+
+### Source Files — Add project information (FB-010)
+| File | Purpose | Last Modified Task |
+|------|---------|-------------------|
+| `prisma/migrations/20261113100000_fb010_project_information/` | `KnowledgeItem.category` (enum) and `occurredOn` (applied) | FB-010 |
+| `src/lib/projectInfoFileRules.ts`, `src/lib/briefFileRules.ts` (`UploadRules`), `src/services/parsing/brief.ts` (`extractUploadText`) | Shared upload checks; panel rules and categories | FB-010 |
+| `projects/[projectId]/actions.ts` (`addProjectInformationAction`, `saveProjectUpdate`) | Save one version with type/date; batch redraft switch; assistant typed-only | FB-010 |
+| `AddProjectInformationPanel`, `ProjectSidebar`, `ProjectAssistant`, `src/lib/updateVersions.ts` (`updateInfoDetail`), `src/lib/projectContext.ts` | Panel UI; sidebar order; slimmer assistant; type/date in history and context | FB-010 |
+| `tests/helpers/addInformation.ts` | The old update call shape for existing tests | FB-010 |
 
 ### Source Files — Brief-to-SOW journey (FB-009)
 | File | Purpose | Last Modified Task |
@@ -178,7 +189,7 @@ Unchanged recently — see `progress.md`. Auth (`src/lib/{auth,permissions}.ts`,
 - **Scripted edits**: no Python on this machine; use Node. Many files are CRLF — normalize to LF while editing and restore on write. The shell tool mangles apostrophes and backslashes in heredocs, so write edit scripts to the scratchpad with the Write tool first.
 
 ## Current State Summary
-Latest: **FB-009** on branch `feat/fb-009-journey` (PR open, six commits A–F): Scope summary as the single source of truth, scope → estimate staleness, Next step banner, fast path, short New Project form, pipeline home page. Migration applied (additive). FB-008 is merged.
+Latest: **FB-010** on branch `feat/fb-010-add-information` (PR open): Add project information panel above the Project assistant (type, from, date, paste or several files). Migration applied (additive). FB-009 is merged.
 
 Next:
 - Run the live smoke checks with a valid Anthropic key (`scripts/smoke-intake.mts`, `scripts/smoke-assistant-classifier.mts`) before deploying.

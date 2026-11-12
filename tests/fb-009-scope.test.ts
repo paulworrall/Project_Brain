@@ -28,8 +28,8 @@ const { appendScopeSummaryVersion, latestScopeSummary, scopeInputSection } =
   await import("@/lib/scopeSummary");
 const { confirmScope, reopenScope, editScopeSummary, setClarificationSent } =
   await import("@/lib/project/stepService");
-const { uploadKnowledgeItemAction } =
-  await import("@/app/(dashboard)/projects/[projectId]/actions");
+// FB-010: the old update action, through the new Add project information action.
+const { uploadKnowledgeItemAction } = await import("./helpers/addInformation");
 const { createScopeSummaryFromEarlierAction, regenerateScopeSummaryAction } =
   await import("@/app/(dashboard)/projects/[projectId]/scope-actions");
 const { assembleSowContext } = await import("@/lib/sow-context");

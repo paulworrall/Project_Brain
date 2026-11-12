@@ -41,8 +41,11 @@ const { addEstimateVersion, createEstimate } = await import("./helpers/estimates
 const { confirmScope, reopenScope, updateSpecialistInput, setChecklistItemStep, addChecklistItem } =
   await import("@/lib/project/stepService");
 const { assertProjectEditable, ProjectCompleteError } = await import("@/lib/project/projectGuards");
-const { sendAssistantMessageAction, toggleChecklistItemAction, uploadKnowledgeItemAction } =
-  await import("@/app/(dashboard)/projects/[projectId]/actions");
+const { sendAssistantMessageAction, toggleChecklistItemAction } = await import(
+  "@/app/(dashboard)/projects/[projectId]/actions"
+);
+// FB-010: the old update action, through the new Add project information action.
+const { uploadKnowledgeItemAction } = await import("./helpers/addInformation");
 const { loadProjectPageData } = await import("@/lib/projectPageData");
 
 const prisma = new PrismaClient({

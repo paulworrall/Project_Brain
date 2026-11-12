@@ -26,11 +26,11 @@ vi.mock("@/lib/auth", () => ({ auth: vi.fn().mockResolvedValue(null) }));
 const { anthropic } = await import("@/lib/anthropic");
 const mockParse = anthropic.messages.parse as ReturnType<typeof vi.fn>;
 
-const {
-  uploadKnowledgeItemAction,
-  updateChecklistItemDetailAction,
-  toggleChecklistItemAction,
-} = await import("@/app/(dashboard)/projects/[projectId]/actions");
+const { updateChecklistItemDetailAction, toggleChecklistItemAction } = await import(
+  "@/app/(dashboard)/projects/[projectId]/actions"
+);
+// FB-010: the old update action, through the new Add project information action.
+const { uploadKnowledgeItemAction } = await import("./helpers/addInformation");
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),

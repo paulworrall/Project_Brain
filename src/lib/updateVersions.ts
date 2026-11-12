@@ -1,3 +1,4 @@
+import { infoCategoryLabel } from "@/lib/projectInfoFileRules";
 import { prisma } from "@/lib/prisma";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import type { UpdateSource } from "@/generated/prisma/enums";
@@ -68,6 +69,22 @@ export async function nextUpdateVersion(db: Db, projectId: string): Promise<numb
   return (_max.versionNumber ?? INITIAL_BRIEF_VERSION) + 1;
 }
 
+const HAPPENED_ON = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+/** FB-010: an update's kind and the day it happened, in words; null if it has neither. */
+export function updateInfoDetail(item: { category: string | null; occurredOn: Date | null }): string | null {
+  const parts = [
+    infoCategoryLabel(item.category),
+    item.occurredOn ? `happened ${HAPPENED_ON.format(item.occurredOn)}` : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 /** Every version of the project's brief, oldest first: v1 the brief, then each update. */
 export async function getVersionHistory(projectId: string): Promise<VersionEntry[]> {
   const [project, items] = await Promise.all([
@@ -100,7 +117,8 @@ export async function getVersionHistory(projectId: string): Promise<VersionEntry
         label: updateLabel(item),
         source: item.source,
         createdAt: item.uploadedAt,
-        detail: null,
+        // FB-010: "Meeting notes · happened 3 Nov 2026" (null for older updates).
+        detail: updateInfoDetail(item),
         summary: item.summary,
         changeSummary: item.changeSummary,
         content: item.content,
