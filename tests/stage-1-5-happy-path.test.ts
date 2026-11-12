@@ -37,12 +37,11 @@ const mockParse = anthropic.messages.parse as ReturnType<typeof vi.fn>;
 const { keyAttributeFacts } = await import("./fixtures/keyAttributeFacts");
 
 const { createProjectAction } = await import("@/app/(dashboard)/projects/new/actions");
-const {
-  uploadKnowledgeItemAction,
-  updateConfirmedCapabilitiesAction,
-  generateEstimateBriefAction,
-  submitSpecialistFeedbackAction,
-} = await import("@/app/(dashboard)/projects/[projectId]/actions");
+const { updateConfirmedCapabilitiesAction, generateEstimateBriefAction, submitSpecialistFeedbackAction } = await import(
+  "@/app/(dashboard)/projects/[projectId]/actions"
+);
+// FB-010: the old update action, through the new Add project information action.
+const { uploadKnowledgeItemAction } = await import("./helpers/addInformation");
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),

@@ -940,6 +940,14 @@ enum UpdateSource {
   INTERNAL_TEAM
 }
 
+// FB-010: the kind of project information an update is.
+enum ProjectInfoCategory {
+  MEETING_NOTES
+  CLIENT_CLARIFICATION
+  PRESENTATION_OR_DOCUMENT
+  OTHER
+}
+
 // A project update ("Keep This Project Up to Date"). Each one is a version
 // of the brief: the original brief (Project.briefRawText) is v1, updates are
 // v2, v3, … (src/lib/updateVersions.ts). Immutable once saved — a database
@@ -947,7 +955,7 @@ enum UpdateSource {
 // project, uploadedAt or a set versionNumber; corrections are a new update.
 // Only the after-save AI summaries (summary, changeSummary) are filled in later.
 model KnowledgeItem {
-  id               String            @id @default(cuid())
+  id               String               @id @default(cuid())
   projectId        String
   type             KnowledgeItemType
   // Only updates saved before titles were removed (2026-09-30) have one;
@@ -962,10 +970,15 @@ model KnowledgeItem {
   // 2, 3, … (v1 is the brief). Null only for rows saved before versioning,
   // until assignMissingUpdateVersions numbers them.
   versionNumber    Int?
-  source           UpdateSource      @default(CLIENT)
+  source           UpdateSource         @default(CLIENT)
   originalFileName String?
+  // FB-010: what kind of information this is (set by the Add project
+  // information panel; null for updates saved before it, or typed into the
+  // Project assistant) and the day it happened (e.g. the meeting date).
+  category         ProjectInfoCategory?
+  occurredOn       DateTime?            @db.Date
   uploadedById     String?
-  uploadedAt       DateTime          @default(now())
+  uploadedAt       DateTime             @default(now())
 
   project              Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
   uploadedBy           User?                 @relation(fields: [uploadedById], references: [id], onDelete: SetNull)

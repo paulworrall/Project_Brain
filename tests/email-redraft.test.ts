@@ -24,7 +24,8 @@ vi.mock("@/lib/auth", () => ({ auth: vi.fn().mockResolvedValue(null) }));
 const { anthropic } = await import("@/lib/anthropic");
 const mockParse = anthropic.messages.parse as ReturnType<typeof vi.fn>;
 const { keyAttributeFacts } = await import("./fixtures/keyAttributeFacts");
-const { uploadKnowledgeItemAction } = await import("@/app/(dashboard)/projects/[projectId]/actions");
+// FB-010: the old update action, through the new Add project information action.
+const { uploadKnowledgeItemAction } = await import("./helpers/addInformation");
 const { redraftClarificationEmail } = await import("@/lib/outputRegeneration");
 
 const prisma = new PrismaClient({

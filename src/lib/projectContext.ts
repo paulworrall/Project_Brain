@@ -69,7 +69,7 @@ export function formatProjectContext(
         "## Updates since the brief, oldest first (where they differ, a later version supersedes an earlier one)",
         ...updates.map(
           (u) =>
-            `### v${u.versionNumber ?? "?"} — ${u.label}, ${sourcePhrase(u)}\n${u.content.trim()}`
+            `### v${u.versionNumber ?? "?"} — ${u.label}, ${sourcePhrase(u)}${u.detail ? ` (${u.detail})` : ""}\n${u.content.trim()}`
         ),
       ].join("\n\n")
     );

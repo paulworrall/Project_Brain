@@ -33,8 +33,11 @@ const { anthropic } = await import("@/lib/anthropic");
 const mockParse = anthropic.messages.parse as ReturnType<typeof vi.fn>;
 
 const { createProjectAction } = await import("@/app/(dashboard)/projects/new/actions");
-const { suggestCapabilitiesAction, updatePmPerspectiveFieldAction, uploadKnowledgeItemAction } =
-  await import("@/app/(dashboard)/projects/[projectId]/actions");
+const { suggestCapabilitiesAction, updatePmPerspectiveFieldAction } = await import(
+  "@/app/(dashboard)/projects/[projectId]/actions"
+);
+// FB-010: the old update action, through the new Add project information action.
+const { uploadKnowledgeItemAction } = await import("./helpers/addInformation");
 const { getPmPerspective } = await import("@/lib/pmPerspectiveStore");
 const { getBriefCompleteness } = await import("@/lib/briefCompleteness");
 

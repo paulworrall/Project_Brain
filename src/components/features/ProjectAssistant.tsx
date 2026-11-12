@@ -7,8 +7,6 @@ import {
   sendAssistantMessageAction,
   type AssistantReply,
 } from "@/app/(dashboard)/projects/[projectId]/actions";
-import { formatUkDateTime } from "@/lib/updateLabel";
-import { VersionHistoryDrawer, type VersionView } from "./VersionHistoryDrawer";
 
 /**
  * The Project assistant (FB-008): one input for questions and updates —
@@ -31,31 +29,22 @@ type NewEntry = Entry extends infer E ? (E extends Entry ? Omit<E, "id"> : never
 
 interface PendingChoice {
   message: string;
-  source: string;
 }
 
 export function ProjectAssistant({
   projectId,
   projectName,
-  versions,
 }: {
   projectId: string;
   projectName: string;
-  /** The brief and its updates, oldest first; the history drawer shows them newest first. */
-  versions: VersionView[];
 }) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [message, setMessage] = useState("");
-  const [source, setSource] = useState("CLIENT");
   const [choice, setChoice] = useState<PendingChoice | null>(null);
-  const [historyOpen, setHistoryOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const nextId = useRef(0);
-  const fileRef = useRef<HTMLInputElement>(null);
   const choiceRef = useRef<HTMLButtonElement>(null);
   const messageId = useId();
-  const sourceLabelId = useId();
-  const latest = versions.at(-1);
 
   useEffect(() => {
     // The "which did you mean?" buttons take focus when they appear.
@@ -96,26 +85,21 @@ export function ProjectAssistant({
   }
 
   function submit() {
-    const file = fileRef.current?.files?.[0];
     const text = message.trim();
-    if (!text && !file) return;
+    if (!text) return;
     const formData = new FormData();
     formData.set("message", text);
-    formData.set("source", source);
     formData.set("mode", "auto");
-    if (file) formData.set("file", file);
-    add({ kind: "user", text: file ? `${text ? `${text} ` : ""}(attached ${file.name})` : text });
+    add({ kind: "user", text });
     setMessage("");
-    if (fileRef.current) fileRef.current.value = "";
     setChoice(null);
-    send(formData, { message: text, source });
+    send(formData, { message: text });
   }
 
   function choose(mode: "question" | "update") {
     if (!choice) return;
     const formData = new FormData();
     formData.set("message", choice.message);
-    formData.set("source", choice.source);
     formData.set("mode", mode);
     setEntries((prev) => prev.map((e) => (e.kind === "choose" ? { ...e, resolved: true } : e)));
     add({ kind: "user", text: mode === "question" ? "It's a question." : "It's an update." });
@@ -153,9 +137,9 @@ export function ProjectAssistant({
       >
         {entries.length === 0 ? (
           <p className="text-muted-foreground">
-            Ask about this project, or tell me something new — a client reply, meeting notes, a
-            changed budget — and I&apos;ll update the project. Answers come only from this
-            project&apos;s own records.
+            Ask about this project, or tell me something new in a sentence — a changed budget, a new
+            date — and I&apos;ll update the project. For longer notes or files, use Add project
+            information above. Answers come only from this project&apos;s own records.
           </p>
         ) : (
           entries.map((entry) => {
@@ -274,77 +258,10 @@ export function ProjectAssistant({
           placeholder="Ask a question, or tell me something new about this project"
           className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
         />
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-foreground">
-          <div
-            role="radiogroup"
-            aria-labelledby={sourceLabelId}
-            className="flex flex-wrap items-center gap-x-3 gap-y-1"
-          >
-            <span id={sourceLabelId} className="font-medium">
-              Updates from
-            </span>
-            <label className="flex items-center gap-1.5">
-              <input
-                type="radio"
-                name="source"
-                value="CLIENT"
-                checked={source === "CLIENT"}
-                onChange={() => setSource("CLIENT")}
-              />
-              Client
-            </label>
-            <label className="flex items-center gap-1.5">
-              <input
-                type="radio"
-                name="source"
-                value="INTERNAL_TEAM"
-                checked={source === "INTERNAL_TEAM"}
-                onChange={() => setSource("INTERNAL_TEAM")}
-              />
-              Internal team
-            </label>
-          </div>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-foreground">
-            Or attach a file (recorded as an update)
-            <input
-              ref={fileRef}
-              type="file"
-              name="file"
-              accept=".docx,.pdf,.pptx,.txt"
-              disabled={pending}
-              className="mt-1 block w-full text-xs text-foreground"
-            />
-          </label>
-        </div>
         <Button type="submit" disabled={pending} className="w-full">
           {pending ? "Working…" : "Send"}
         </Button>
       </form>
-
-      {latest && (
-        <p className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">
-          Latest:{" "}
-          <span className="font-medium text-foreground">
-            {latest.versionNumber ? `v${latest.versionNumber}` : "—"}
-          </span>{" "}
-          · {formatUkDateTime(latest.createdAt)} ·{" "}
-          <button
-            type="button"
-            className="font-medium text-primary hover:underline"
-            aria-haspopup="dialog"
-            onClick={() => setHistoryOpen(true)}
-          >
-            View history ({versions.length})
-          </button>
-        </p>
-      )}
-      <VersionHistoryDrawer
-        versions={versions}
-        isOpen={historyOpen}
-        onClose={() => setHistoryOpen(false)}
-      />
     </SidebarPanel>
   );
 }

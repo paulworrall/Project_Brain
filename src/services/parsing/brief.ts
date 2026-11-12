@@ -1,9 +1,10 @@
 import { parseDocumentToText } from "@/services/parsing";
 import {
-  BRIEF_ERRORS,
+  BRIEF_RULES,
   getFileExtension,
-  validateBriefFileMeta,
+  validateUploadMeta,
   type BriefFileMeta,
+  type UploadRules,
 } from "@/lib/briefFileRules";
 
 export type BriefTextResult = { ok: true; text: string } | { ok: false; error: string };
@@ -25,13 +26,26 @@ export async function extractBriefText(
   file: BriefFileMeta,
   buffer: Buffer
 ): Promise<BriefTextResult> {
-  const metaError = validateBriefFileMeta(file);
+  return extractUploadText(file, buffer, BRIEF_RULES);
+}
+
+/**
+ * The same checks and reading for any upload with its own rules (FB-010: the
+ * Add project information panel, which also accepts .pptx). Never throws.
+ */
+export async function extractUploadText(
+  file: BriefFileMeta,
+  buffer: Buffer,
+  rules: UploadRules
+): Promise<BriefTextResult> {
+  const BRIEF_ERRORS = rules.errors;
+  const metaError = validateUploadMeta(file, rules);
   if (metaError) return { ok: false, error: metaError };
 
   const ext = getFileExtension(file.name);
 
   // Signature check: the extension alone is trivially wrong or spoofed.
-  if (ext === "docx" && !startsWith(buffer, ZIP_MAGIC)) {
+  if ((ext === "docx" || ext === "pptx") && !startsWith(buffer, ZIP_MAGIC)) {
     // A real legacy .doc renamed to .docx, or a password-protected file.
     return {
       ok: false,

@@ -23,7 +23,6 @@ import {
   redraftClarificationEmail,
 } from "@/lib/outputRegeneration";
 import { IntakeAgentError } from "@/services/agents/intake-agent";
-import { parseDocumentToText, UnsupportedBriefFormatError } from "@/services/parsing";
 import { PositionDocumentFieldsSchema, type PositionDocumentFields } from "@/types/intake";
 import { DeliverablesServicesDocumentSchema } from "@/types/deliverables-services";
 import {
@@ -49,7 +48,7 @@ import { checkSowPreconditions } from "@/lib/sowPreconditions";
 import { completeSowReview, listSowItems, validatedListsFromItems } from "@/lib/sowItems";
 import { snapshotItems } from "@/lib/sowReview";
 import type { SOWContent, SOWDocumentContent } from "@/types/sow";
-import type { Capability, UpdateSource } from "@/generated/prisma/enums";
+import type { Capability, ProjectInfoCategory, UpdateSource } from "@/generated/prisma/enums";
 import { Prisma } from "@/generated/prisma/client";
 import {
   BRIEF_ATTRIBUTES,
@@ -71,7 +70,14 @@ import { describeKnownKeyDetails } from "@/lib/keyDetailsContext";
 import { removeItemsCoveredByKeyDetails } from "@/services/agents/position-key-detail-filter";
 import { getPmPerspectiveField } from "@/lib/pmPerspective";
 import { savePmPerspective } from "@/lib/pmPerspectiveStore";
-import { isProjectCompleteInDb, projectCompleteMessage } from "@/lib/project/projectGuards";
+import {
+  ProjectCompleteError,
+  assertProjectEditable,
+  isProjectCompleteInDb,
+  projectCompleteMessage,
+} from "@/lib/project/projectGuards";
+import { extractUploadText } from "@/services/parsing/brief";
+import { INFO_ERRORS, INFO_RULES } from "@/lib/projectInfoFileRules";
 import { canEditProject, CANNOT_EDIT_PROJECT_MESSAGE } from "@/lib/permissions";
 import { appendScopeSummaryVersion, latestScopeSummary, scopeInputSection } from "@/lib/scopeSummary";
 import { ScopeSummaryAgentError, updateScopeSummary } from "@/services/agents/scope-summary-agent";
@@ -761,49 +767,21 @@ export async function updateOtherServiceLabelAction(
  * from. If that refresh fails the update is still saved, with a notice. A one-line AI summary is added after the
  * response — never blocking the save. Usable repeatedly at any time.
  */
-/** A project update's text, read from pasted text or an uploaded file. */
-async function readUpdateContent(
-  pastedText: string,
-  file: FormDataEntryValue | null
-): Promise<
-  | { ok: true; content: string; type: "DOCUMENT" | "NOTE"; originalFileName: string | null }
-  | { ok: false; message: string }
-> {
-  const hasFile = file instanceof File && file.size > 0;
-  if (!hasFile && !pastedText) {
-    return { ok: false, message: "Paste some notes or upload a file." };
-  }
-  if (hasFile && pastedText) {
-    return { ok: false, message: "Provide either pasted notes or a file, not both." };
-  }
-  let content: string;
-  let originalFileName: string | null = null;
-  if (hasFile && file instanceof File) {
-    originalFileName = file.name;
-    try {
-      const buffer = Buffer.from(await file.arrayBuffer());
-      content = await parseDocumentToText(buffer, file.name);
-    } catch (error) {
-      if (error instanceof UnsupportedBriefFormatError) {
-        return { ok: false, message: error.message };
-      }
-      return { ok: false, message: "Couldn't read that file. Try pasting the notes instead." };
-    }
-  } else {
-    content = pastedText;
-  }
-  if (content.trim().length === 0) {
-    return { ok: false, message: "That upload appears to be empty." };
-  }
-  return { ok: true, content, type: hasFile ? "DOCUMENT" : "NOTE", originalFileName };
-}
-
 interface ProjectUpdateInput {
   content: string;
   type: "DOCUMENT" | "NOTE";
   originalFileName: string | null;
   source: UpdateSource;
   userId: string | undefined;
+  /** FB-010: what kind of information it is (null when typed into the assistant). */
+  category?: ProjectInfoCategory | null;
+  /** FB-010: the day it happened (e.g. the meeting date). */
+  occurredOn?: Date | null;
+  /**
+   * FB-010: whether to queue the automatic clarification email redraft. A
+   * batch of files redrafts once, after its last file. Default true.
+   */
+  redraftEmail?: boolean;
 }
 
 interface SavedProjectUpdate {
@@ -896,6 +874,8 @@ async function saveProjectUpdate(projectId: string, input: ProjectUpdateInput): 
         content,
         originalFileName: input.originalFileName,
         source: input.source,
+        category: input.category ?? null,
+        occurredOn: input.occurredOn ?? null,
         versionNumber: await nextUpdateVersion(tx, projectId),
         uploadedById: input.userId,
       },
@@ -957,7 +937,8 @@ async function saveProjectUpdate(projectId: string, input: ProjectUpdateInput): 
     where: { id: projectId },
     select: { clarificationSentAt: true },
   });
-  if (!clarificationSentAt) {
+  const redraft = !clarificationSentAt && input.redraftEmail !== false;
+  if (redraft) {
     runAfterResponse(async () => {
       try {
         await redraftClarificationEmail(projectId, null, knowledgeItem.versionNumber);
@@ -974,7 +955,7 @@ async function saveProjectUpdate(projectId: string, input: ProjectUpdateInput): 
     ...(changedScope.length > 0 ? [`scope summary (${changedScope.join(", ")})`] : []),
   ];
   const savedNotice = `Saved as v${knowledgeItem.versionNumber}.`;
-  const draftNotice = clarificationSentAt
+  const draftNotice = !redraft
     ? savedNotice
     : `${savedNotice} A fresh client email draft is being written from it — refresh in a moment to see it.`;
   const problem = scopeNotice ?? positionDocumentNotice;
@@ -985,41 +966,126 @@ async function saveProjectUpdate(projectId: string, input: ProjectUpdateInput): 
   };
 }
 
-export async function uploadKnowledgeItemAction(
+// ---------------------------------------------------------------------------
+// FB-010: Add project information — the sidebar panel for meeting notes,
+// client clarifications, presentations and documents. One call saves one
+// version (pasted text, or one file): the panel sends several files one call
+// each, in order, so every request stays under the 10 MB server action limit.
+// ---------------------------------------------------------------------------
+
+export interface ProjectInformationResult {
+  projectId: string;
+  versionNumber: number;
+  /** The file this version came from (null for pasted text). */
+  fileName: string | null;
+  /** "Added as v3 · Updated: budget, scope summary (Deliverables)". */
+  confirmation: string;
+  /** Extra detail (the email redraft, or a scope summary that couldn't be refreshed). */
+  notice: string;
+}
+
+const ProjectInformationSchema = z.object({
+  category: z.enum(["MEETING_NOTES", "CLIENT_CLARIFICATION", "PRESENTATION_OR_DOCUMENT", "OTHER"], {
+    error: "Choose what kind of information this is.",
+  }),
+  source: z.enum(["CLIENT", "INTERNAL_TEAM"], { error: "Choose who this is from." }).default("CLIENT"),
+  occurredOn: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, { error: "Enter the date it happened." })
+    .refine((v) => !Number.isNaN(new Date(`${v}T00:00:00Z`).getTime()), { error: "Enter a valid date." })
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
+  content: z.string().trim().max(200_000, { error: "That's too long to paste. Add it as a file instead." }).default(""),
+  /** "false" for every file but the last in a batch: the email is redrafted once, at the end. */
+  finalInBatch: z.enum(["true", "false"]).default("true"),
+});
+
+function informationFailure(
+  message: string,
+  code: "VALIDATION" | "FORBIDDEN" | "PROJECT_COMPLETE" | "NOT_FOUND" = "VALIDATION",
+  fieldErrors?: Record<string, string>
+): ActionResult<ProjectInformationResult> {
+  return { ok: false, code, message, ...(fieldErrors ? { fieldErrors } : {}) };
+}
+
+export async function addProjectInformationAction(
   projectId: string,
-  _prevState: ActionState | undefined,
   formData: FormData
-): Promise<ActionState | undefined> {
-  const pasted = formData.get("content");
-  const pastedText = typeof pasted === "string" ? pasted.trim() : "";
-
-  const sourceField = formData.get("source") || "CLIENT";
-  if (sourceField !== "CLIENT" && sourceField !== "INTERNAL_TEAM") {
-    return { message: "Choose whether this update is from the client or the internal team." };
+): Promise<ActionResult<ProjectInformationResult>> {
+  const parsed = ProjectInformationSchema.safeParse({
+    category: formData.get("category") ?? undefined,
+    source: formData.get("source") || undefined,
+    occurredOn: formData.get("occurredOn") ?? undefined,
+    content: formData.get("content") ?? undefined,
+    finalInBatch: formData.get("finalInBatch") || undefined,
+  });
+  if (!parsed.success) {
+    const fieldErrors: Record<string, string> = {};
+    for (const issue of parsed.error.issues) fieldErrors[String(issue.path[0] ?? "form")] ??= issue.message;
+    return informationFailure(parsed.error.issues[0]?.message ?? "Check the form.", "VALIDATION", fieldErrors);
   }
-
-  const read = await readUpdateContent(pastedText, formData.get("file"));
-  if (!read.ok) {
-    return { message: read.message };
-  }
-
-  const locked = await projectCompleteMessage(projectId);
-  if (locked) {
-    return { message: locked };
-  }
+  const { category, source, occurredOn, content: pasted, finalInBatch } = parsed.data;
 
   const session = await auth();
+  const actor = session?.user ? { id: session.user.id, role: session.user.role } : null;
+  if (!canEditProject(actor)) return informationFailure(CANNOT_EDIT_PROJECT_MESSAGE, "FORBIDDEN");
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
+  if (!project) return informationFailure("Project not found.", "NOT_FOUND");
+  try {
+    await assertProjectEditable(projectId);
+  } catch (error) {
+    if (error instanceof ProjectCompleteError) return informationFailure(error.message, "PROJECT_COMPLETE");
+    throw error;
+  }
+
+  const file = formData.get("file");
+  const hasFile = file instanceof File && file.size > 0;
+  if (!hasFile && !pasted) {
+    // A zero-byte file arrives as an empty File.
+    return informationFailure(
+      file instanceof File && file.name ? INFO_ERRORS.noText : "Paste some text or add a file."
+    );
+  }
+  if (hasFile && pasted) return informationFailure("Add either pasted text or a file, not both.");
+
+  let content = pasted;
+  let fileName: string | null = null;
+  if (hasFile && file instanceof File) {
+    fileName = file.name;
+    const read = await extractUploadText(
+      { name: file.name, size: file.size, type: file.type },
+      Buffer.from(await file.arrayBuffer()),
+      INFO_RULES
+    );
+    if (!read.ok) return informationFailure(read.error, "VALIDATION", { file: read.error });
+    content = read.text;
+  }
+
   const saved = await saveProjectUpdate(projectId, {
-    content: read.content,
-    type: read.type,
-    originalFileName: read.originalFileName,
-    source: sourceField,
-    userId: session?.user?.id,
+    content,
+    type: hasFile ? "DOCUMENT" : "NOTE",
+    originalFileName: fileName,
+    source,
+    userId: actor!.id,
+    category,
+    occurredOn: occurredOn ? new Date(`${occurredOn}T00:00:00Z`) : new Date(new Date().toISOString().slice(0, 10)),
+    redraftEmail: finalInBatch === "true",
   });
 
   revalidatePath(`/projects/${projectId}`, "layout");
   revalidatePath("/"); // FB-009 F: the pipeline home page
-  return { notice: saved.notice };
+  const changed = [...new Set(saved.changed)];
+  return {
+    ok: true,
+    data: {
+      projectId,
+      versionNumber: saved.versionNumber,
+      fileName,
+      confirmation: `Added as v${saved.versionNumber}${changed.length > 0 ? ` · Updated: ${changed.join(", ")}` : " · Nothing in the key details or scope changed"}`,
+      notice: saved.notice,
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1138,9 +1204,11 @@ export interface AssistantReply {
 }
 
 const AssistantMessageSchema = z.object({
-  message: z.string().trim().max(20_000, { error: "That message is too long. Attach it as a file instead." }),
+  message: z
+    .string()
+    .trim()
+    .max(20_000, { error: "That message is too long. Add it under Add project information instead." }),
   mode: z.enum(["auto", "question", "update"]).default("auto"),
-  source: z.enum(["CLIENT", "INTERNAL_TEAM"]).default("CLIENT"),
 });
 
 function assistantFailure(message: string): ActionResult<AssistantReply> {
@@ -1160,20 +1228,14 @@ export async function sendAssistantMessageAction(
   const parsed = AssistantMessageSchema.safeParse({
     message: formData.get("message") ?? "",
     mode: formData.get("mode") || undefined,
-    source: formData.get("source") || undefined,
   });
   if (!parsed.success) {
     return assistantFailure(parsed.error.issues[0]?.message ?? "Invalid message.");
   }
-  const { message, source } = parsed.data;
-  let { mode } = parsed.data;
-  const file = formData.get("file");
-  const hasFile = file instanceof File && file.size > 0;
-  if (!message && !hasFile) {
-    return assistantFailure("Type a message or attach a file first.");
+  const { message, mode } = parsed.data;
+  if (!message) {
+    return assistantFailure("Type a message first.");
   }
-  // An attached file is always an update.
-  if (hasFile) mode = "update";
 
   let intent: AssistantIntent;
   if (mode === "question") {
@@ -1211,13 +1273,13 @@ export async function sendAssistantMessageAction(
       if (!canEditProject(actor)) {
         return { ok: false, code: "FORBIDDEN", message: CANNOT_EDIT_PROJECT_MESSAGE };
       }
-      const read = await readUpdateContent(hasFile ? "" : (intent.update ?? message), hasFile ? file : null);
-      if (!read.ok) return assistantFailure(read.message);
+      // FB-010: typed updates are notes from the client side by default; the
+      // Add project information panel is where the source and type are set.
       const saved = await saveProjectUpdate(projectId, {
-        content: read.content,
-        type: read.type,
-        originalFileName: read.originalFileName,
-        source,
+        content: intent.update ?? message,
+        type: "NOTE",
+        originalFileName: null,
+        source: "CLIENT",
         userId: actor?.id,
       });
       updated = true;

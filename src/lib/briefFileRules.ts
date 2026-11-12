@@ -19,10 +19,11 @@ export const BRIEF_ERRORS = {
   noText: "We couldn't read any text from this file.",
 } as const;
 
-const EXPECTED_MIME: Record<BriefExtension, string[]> = {
+const EXPECTED_MIME: Record<string, string[]> = {
   docx: ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
   pdf: ["application/pdf"],
   txt: ["text/plain"],
+  pptx: ["application/vnd.openxmlformats-officedocument.presentationml.presentation"],
 };
 
 // Types browsers/OSes send when they don't recognise the file or only know it
@@ -47,30 +48,49 @@ export interface BriefFileMeta {
   type: string;
 }
 
+/** What a file upload accepts, and what the user is told when a file isn't accepted. */
+export interface UploadRules {
+  allowedExtensions: readonly string[];
+  maxBytes: number;
+  errors: { unsupported: string; legacyDoc: string; tooLarge: string; noText: string };
+}
+
+export const BRIEF_RULES: UploadRules = {
+  allowedExtensions: BRIEF_ALLOWED_EXTENSIONS,
+  maxBytes: BRIEF_MAX_BYTES,
+  errors: BRIEF_ERRORS,
+};
+
 /**
  * Cheap checks that need no file contents: extension, MIME type, size.
  * Returns a user-facing message, or null if the file may proceed to reading.
  * A valid .docx is never rejected for an empty/generic MIME type — only a
  * specific type that contradicts the extension (e.g. image/png) is.
  */
-export function validateBriefFileMeta(file: BriefFileMeta): string | null {
+export function validateUploadMeta(file: BriefFileMeta, rules: UploadRules): string | null {
   const ext = getFileExtension(file.name);
-  if (ext === "doc") return BRIEF_ERRORS.legacyDoc;
-  if (!(BRIEF_ALLOWED_EXTENSIONS as readonly string[]).includes(ext)) {
-    return BRIEF_ERRORS.unsupported;
+  if (ext === "doc" || ext === "ppt") return rules.errors.legacyDoc;
+  if (!rules.allowedExtensions.includes(ext)) {
+    return rules.errors.unsupported;
   }
 
   const mime = file.type.trim().toLowerCase();
   if (!NEUTRAL_MIME.has(mime)) {
-    const matchesExtension = EXPECTED_MIME[ext as BriefExtension].includes(mime);
+    const matchesExtension = (EXPECTED_MIME[ext] ?? []).includes(mime);
     // .txt files are routinely labelled with other text/* types (text/markdown, text/csv).
     const looseTextOk = ext === "txt" && mime.startsWith("text/");
     if (!matchesExtension && !looseTextOk) {
-      return mime === "application/msword" ? BRIEF_ERRORS.legacyDoc : BRIEF_ERRORS.unsupported;
+      return mime === "application/msword" || mime === "application/vnd.ms-powerpoint"
+        ? rules.errors.legacyDoc
+        : rules.errors.unsupported;
     }
   }
 
-  if (file.size === 0) return BRIEF_ERRORS.noText;
-  if (file.size > BRIEF_MAX_BYTES) return BRIEF_ERRORS.tooLarge;
+  if (file.size === 0) return rules.errors.noText;
+  if (file.size > rules.maxBytes) return rules.errors.tooLarge;
   return null;
+}
+
+export function validateBriefFileMeta(file: BriefFileMeta): string | null {
+  return validateUploadMeta(file, BRIEF_RULES);
 }

@@ -27,14 +27,11 @@ vi.mock("@/lib/auth", () => ({ auth: vi.fn().mockResolvedValue(null) }));
 const { anthropic } = await import("@/lib/anthropic");
 const mockParse = anthropic.messages.parse as ReturnType<typeof vi.fn>;
 
-const {
-  saveBriefAttributeAction,
-  generateSowAction,
-  startSowDevelopmentAction,
-  rereadBriefAttributesAction,
-  updateProjectSummaryAction,
-  uploadKnowledgeItemAction,
-} = await import("@/app/(dashboard)/projects/[projectId]/actions");
+const { saveBriefAttributeAction, generateSowAction, startSowDevelopmentAction, rereadBriefAttributesAction, updateProjectSummaryAction } = await import(
+  "@/app/(dashboard)/projects/[projectId]/actions"
+);
+// FB-010: the old update action, through the new Add project information action.
+const { uploadKnowledgeItemAction } = await import("./helpers/addInformation");
 const { getBriefCompleteness } = await import("@/lib/briefCompleteness");
 const { keyAttributeFacts } = await import("./fixtures/keyAttributeFacts");
 

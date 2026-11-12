@@ -26,11 +26,11 @@ const { keyAttributeFacts } = await import("./fixtures/keyAttributeFacts");
 const { getProjectContext } = await import("@/lib/projectContext");
 const { assembleSowContext } = await import("@/lib/sow-context");
 const { assembleProjectContext } = await import("@/services/agents/chatbot");
-const {
-  uploadKnowledgeItemAction,
-  suggestCapabilitiesAction,
-  submitSpecialistFeedbackAction,
-} = await import("@/app/(dashboard)/projects/[projectId]/actions");
+const { suggestCapabilitiesAction, submitSpecialistFeedbackAction } = await import(
+  "@/app/(dashboard)/projects/[projectId]/actions"
+);
+// FB-010: the old update action, through the new Add project information action.
+const { uploadKnowledgeItemAction } = await import("./helpers/addInformation");
 const { redraftClarificationEmail } = await import("@/lib/outputRegeneration");
 
 const prisma = new PrismaClient({
