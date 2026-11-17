@@ -1,7 +1,7 @@
 "use client";
 
 import type { BriefAttributeCompleteness, BriefCompleteness } from "@/lib/briefCompleteness";
-import { KeyAttributeRow, STATUS_LABEL } from "./KeyAttributeRow";
+import { KeyAttributeRow, STATUS_WORD } from "./KeyAttributeRow";
 
 /**
  * Shown where a gated step is refused (today: Generate SOW) — lists exactly
@@ -30,7 +30,7 @@ export function BriefGateAlert({
               : `These ${outstanding.length} key details need`}{" "}
             adding first:{" "}
             {outstanding
-              .map((a) => `${a.label} (${STATUS_LABEL[a.status].toLowerCase()})`)
+              .map((a) => `${a.label} (${STATUS_WORD[a.status]})`)
               .join(", ")}
             .
           </p>

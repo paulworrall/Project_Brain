@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState, useTransition } from "react";
+import { StatusBadge, type StatusBadgeState } from "@/components/ui/StatusBadge";
 import { updateSpecialistInputAction } from "@/app/(dashboard)/projects/[projectId]/step-actions";
 import {
   SPECIALIST_STATUS_LABEL,
@@ -10,6 +11,12 @@ import {
 } from "@/lib/project/readiness";
 
 const STATUSES: SpecialistInputStatusName[] = ["not_requested", "requested", "received"];
+
+const SPECIALIST_BADGE_STATE: Record<SpecialistInputStatusName, StatusBadgeState> = {
+  not_requested: "not_started",
+  requested: "in_progress",
+  received: "done",
+};
 
 /**
  * FB-008 specialist input tracker — replaces the Specialist consultation
@@ -92,6 +99,11 @@ function SpecialistRowEditor({
             </option>
           ))}
         </select>
+        <StatusBadge
+          state={SPECIALIST_BADGE_STATE[status]}
+          text={SPECIALIST_STATUS_LABEL[status]}
+          className="mt-1"
+        />
       </div>
       {error && (
         <p role="alert" className="text-xs text-danger sm:col-span-2">
