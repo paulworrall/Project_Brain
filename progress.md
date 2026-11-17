@@ -726,4 +726,4 @@ Ten commits on `feat/fb-012-ux-refresh`, in the order of the brief. Front end on
 | `BriefChecklist.tsx` | What We Need to Find Out | What we need to find out |
 | `AddProjectInformationPanel.tsx` | Paste meeting notes, a client's reply or other information… | Paste notes or a client reply |
 
-- **Verification**: type check and lint clean; full suite passing (see the final run below). `next build` was run after step 1 only.
+- **Verification**: type check clean; eslint 0 errors; full suite 124 files, 1072 tests passing (including the real-DB tests; `tests/services/brief-upload.test.ts` has a PDF-parse timeout that appears only under parallel load and passes on its own, as noted at FB-001); `next build` clean. Not done: screenshots and a browser check at 375px / 200% zoom (they need a sign-in on the shared production database).
