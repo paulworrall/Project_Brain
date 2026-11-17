@@ -102,55 +102,10 @@ export const PositionDocumentFieldsSchema = PositionDocumentExtractionSchema.ext
 export type PositionDocumentFields = z.infer<typeof PositionDocumentFieldsSchema>;
 export type PositionDocumentExtraction = z.infer<typeof PositionDocumentExtractionSchema>;
 
-export const ClarificationEmailSchema = z.object({
-  subject: z.string(),
-  bodyText: z
-    .string()
-    .describe(
-      "Plain-text email body. Polite, professional, references the client by name if known. Lists the key details still needed, the key details to confirm, and client-flagged open items in separate, clearly labeled sections."
-    ),
-});
-export type ClarificationEmail = z.infer<typeof ClarificationEmailSchema>;
-
-/** The stored Set-Up Checklist document (DocumentType CHECKLIST): labels only. */
-export const SetupChecklistSchema = z.object({
-  items: z.array(z.string()),
-});
-export type SetupChecklist = z.infer<typeof SetupChecklistSchema>;
-
-/**
- * One checklist item as intake creates it (FB-008): its label and the step
- * whose "Before you move on" list it belongs to.
- */
-export const SetupChecklistItemSchema = z.object({
-  label: z.string(),
-  step: z.enum(["brief", "estimate", "sow"]),
-});
-export type SetupChecklistItem = z.infer<typeof SetupChecklistItemSchema>;
-
-export interface IntakeSetupChecklist {
-  items: SetupChecklistItem[];
-}
-
-/**
- * The fixed set-up items every new project starts with (not AI-generated).
- * All are early admin tasks, so all belong to the Brief step; PMs can move
- * any of them to another step when editing.
- */
-export const DEFAULT_SETUP_CHECKLIST_ITEMS: readonly SetupChecklistItem[] = [
-  { label: "Set up Workbook entry", step: "brief" },
-  { label: "Create project folder", step: "brief" },
-  { label: "Assign job code", step: "brief" },
-  { label: "Assign Project Manager", step: "brief" },
-  { label: "Create Teams channel", step: "brief" },
-];
-
 export interface IntakeAgentResult {
   classification: BriefClassification;
   /** FB-009: replaces the Position Document as intake's scope output. */
   scopeSummary: ScopeSummaryContent;
-  clarificationEmail: ClarificationEmail;
-  checklist: IntakeSetupChecklist;
   /** Key details read from the brief (stored as suggestions), or null if that step failed. */
   keyAttributes: KeyAttributeExtraction | null;
   /** Why key-detail extraction failed — recorded on the project, never blocks intake. */

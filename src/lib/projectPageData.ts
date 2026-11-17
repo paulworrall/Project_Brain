@@ -4,10 +4,7 @@ import { getSowChangeStatus } from "@/lib/sowChangeStatus";
 import { prisma } from "@/lib/prisma";
 import { getSOWTemplatesForClientAction } from "@/app/(dashboard)/sow-templates/actions";
 import { getRateCardsForWorkstreamAction } from "@/app/(dashboard)/projects/new/actions";
-import {
-  ClarificationEmailSchema,
-  PositionDocumentFieldsSchema,
-} from "@/types/intake";
+import { PositionDocumentFieldsSchema } from "@/types/intake";
 import { DeliverablesServicesDocumentSchema } from "@/types/deliverables-services";
 import { getBriefCompleteness } from "@/lib/briefCompleteness";
 import { getPmPerspective } from "@/lib/pmPerspectiveStore";
@@ -25,7 +22,8 @@ import {
   getCurrentStepId,
   isProjectComplete,
 } from "@/lib/projectSteps";
-import { buildSpecialistRows, buildSystemChecks } from "@/lib/project/readiness";
+import { buildSpecialistRows } from "@/lib/project/readiness";
+import { openQuestionsText } from "@/lib/openQuestionsText";
 import { latestScopeSummary, scopeSummaryVersion } from "@/lib/scopeSummary";
 import { buildScopeView, openQuestionCount } from "@/lib/scopeSummaryView";
 import { getEstimateScopeSyncStatus } from "@/lib/estimateScopeSync";
@@ -68,9 +66,6 @@ async function fetchProjectPageData(projectId: string) {
           },
         },
       },
-      checklistItems: {
-        orderBy: { order: "asc" },
-      },
       touchpointNotes: {
         orderBy: { createdAt: "desc" },
         include: { createdBy: true },
@@ -111,7 +106,6 @@ async function fetchProjectPageData(projectId: string) {
   const {
     workstream,
     documents,
-    checklistItems,
     touchpointNotes,
     capabilities,
     estimateBrief,
@@ -138,8 +132,6 @@ async function fetchProjectPageData(projectId: string) {
     getRateCardsForWorkstreamAction(workstream.id),
   ]);
 
-  const clarificationEmailVersion = documents.find((d) => d.type === "CLARIFICATION_EMAIL")?.versions[0];
-  const clarificationEmailContent = clarificationEmailVersion?.content;
   const positionDocumentContent = documents.find(
     (d) => d.type === "POSITION_DOCUMENT"
   )?.versions[0]?.content;
@@ -147,7 +139,6 @@ async function fetchProjectPageData(projectId: string) {
     (d) => d.type === "DELIVERABLES_SERVICES_DOCUMENT"
   )?.versions[0]?.content;
 
-  const clarificationEmail = ClarificationEmailSchema.safeParse(clarificationEmailContent);
   const positionDocument = PositionDocumentFieldsSchema.safeParse(positionDocumentContent);
   const deliverablesServicesDocument = DeliverablesServicesDocumentSchema.safeParse(
     deliverablesServicesDocumentContent
@@ -237,18 +228,9 @@ async function fetchProjectPageData(projectId: string) {
       ? { ...approvals.summary.sow, clientApprovedOn: approvals.summary.sow.approval.clientApprovedOn }
       : null,
   });
-  const systemChecks = buildSystemChecks({
-    // v1 of the version history is the brief (empty if none was submitted).
-    briefSubmitted: !!versionHistory.find((v) => v.id === "brief")?.content.trim(),
-    hasMasterServiceAgreement: project.masterServiceAgreementId !== null,
-    hasRateCard: project.rateCardId !== null,
-    scopeConfirmed: project.scopeConfirmedAt !== null,
-    confirmedCapabilityCount: confirmedCapabilities.length,
-    estimateApproved: approvals.summary.estimate !== null,
-    sowFromApprovedEstimate:
-      approvals.approvedEstimateVersionId !== null &&
-      sowVersions[0]?.sourceEstimateVersionId === approvals.approvedEstimateVersionId,
-  });
+  // FB-011: the one derived check that still matters (it needs a new home —
+  // the Next step banner and the Confirm scope dialog): can the estimate be priced?
+  const hasMsaAndRateCard = project.masterServiceAgreementId !== null && project.rateCardId !== null;
   const specialistRows = buildSpecialistRows(
     confirmedCapabilities,
     project.specialistInputs.map((i) => ({ capability: i.capability, status: i.status, note: i.note }))
@@ -265,6 +247,7 @@ async function fetchProjectPageData(projectId: string) {
       }
     : null;
   const openQuestions = openQuestionCount(scopeLatest?.content ?? null, briefCompleteness);
+  const questionsText = openQuestionsText(scopeSummary?.sections);
   const earlierDocuments = {
     positionDocument: positionDocument.success ? positionDocument.data : null,
     draftScopeDocument: draftScopeDocument.success ? draftScopeDocument.data : null,
@@ -273,12 +256,14 @@ async function fetchProjectPageData(projectId: string) {
   const briefAssessment = normaliseBriefAssessment(project.briefAssessment);
   const nextAction = deriveNextAction({
     projectId: project.id,
+    clientId: client.id,
+    clientName: client.name,
     projectComplete,
     approvedSowHref: approvals.summary.sow?.downloadHref ?? null,
     hasScopeSummary: scopeLatest !== null,
     hasEarlierDocuments: earlierDocuments.positionDocument !== null || earlierDocuments.draftScopeDocument !== null,
     openQuestions,
-    clarificationSent: project.clarificationSentAt !== null,
+    hasMsaAndRateCard,
     briefAssessment: briefAssessment?.level ?? null,
     scopeConfirmed: project.scopeConfirmedAt !== null,
     scopeNewerThanConfirmed:
@@ -301,13 +286,14 @@ async function fetchProjectPageData(projectId: string) {
     estimateScopeSync,
     scopeSummary,
     openQuestions,
+    openQuestionsText: questionsText,
+    missingMsaRateCard: !hasMsaAndRateCard,
     earlierDocuments,
     project,
     workstream,
     client,
     hub,
     documents,
-    checklistItems,
     capabilities,
     estimateBrief,
     estimates,
@@ -318,10 +304,8 @@ async function fetchProjectPageData(projectId: string) {
     projectManagerOptions,
     sowTemplateOptions,
     rateCardOptions,
-    clarificationEmail,
     positionDocument,
     deliverablesServicesDocument,
-    clarificationEmailVersion,
     specialistFeedback,
     permissions,
     approvals,
@@ -336,7 +320,6 @@ async function fetchProjectPageData(projectId: string) {
     stepSummaries,
     currentStepId,
     projectComplete,
-    systemChecks,
     specialistRows,
   };
 }

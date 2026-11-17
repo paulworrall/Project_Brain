@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { ScopeViewSection } from "@/lib/scopeSummaryView";
 
 /**
@@ -9,19 +10,23 @@ import type { ScopeViewSection } from "@/lib/scopeSummaryView";
 export function ScopeSummarySections({
   sections,
   headingLevel = 4,
+  openQuestionsAction,
 }: {
   sections: ScopeViewSection[];
   headingLevel?: 3 | 4;
+  /** Shown beside the Open questions heading (the Brief step's "Copy questions"). */
+  openQuestionsAction?: ReactNode;
 }) {
   const Heading = headingLevel === 3 ? "h3" : "h4";
   return (
     <dl className="grid gap-4 sm:grid-cols-2">
       {sections.map((section) => (
         <div key={section.id} className={section.id === "context" ? "sm:col-span-2" : undefined}>
-          <dt>
+          <dt className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <Heading className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
               {section.label}
             </Heading>
+            {section.id === "openQuestions" && section.items.length > 0 && openQuestionsAction}
           </dt>
           <dd className="mt-1 text-sm text-foreground">
             {section.items.length === 0 ? (

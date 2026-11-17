@@ -33,6 +33,7 @@ export function ProjectShell({
   stepSummaries,
   attention,
   nextAction,
+  openQuestionsText = "",
   steps,
   sidebar,
   children,
@@ -44,6 +45,8 @@ export function ProjectShell({
   attention?: Partial<Record<StepId, string>>;
   /** FB-009 C: the one next action, shown under the stepper. */
   nextAction?: NextAction;
+  /** FB-011: the open questions as a numbered list, for the banner's "Copy questions". */
+  openQuestionsText?: string;
   steps: Record<StepId, ReactNode>;
   sidebar: ReactNode;
   children: ReactNode;
@@ -127,7 +130,7 @@ export function ProjectShell({
         </button>
       </div>
 
-      {nextAction && <NextStepBanner action={nextAction} />}
+      {nextAction && <NextStepBanner action={nextAction} openQuestionsText={openQuestionsText} />}
 
       <p role="status" aria-live="polite" className="sr-only">
         {announcement}

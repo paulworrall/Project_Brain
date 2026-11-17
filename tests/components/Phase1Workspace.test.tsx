@@ -1,10 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
-  updateChecklistItemDetailAction: vi.fn(),
-  toggleChecklistItemAction: vi.fn(),
   suggestCapabilitiesAction: vi.fn(),
   updateConfirmedCapabilitiesAction: vi.fn(),
   generateEstimateBriefAction: vi.fn(),
@@ -27,6 +26,7 @@ const positionDocument = {
 };
 
 const { buildScopeView } = await import("@/lib/scopeSummaryView");
+const { openQuestionsText } = await import("@/lib/openQuestionsText");
 const scopeContent = {
   context: "Fizzy wants to refresh the campaign.",
   outOfScope: [],
@@ -46,15 +46,12 @@ function scopeSummary(confirmedVersionNumber: number | null = null) {
   };
 }
 
-const clarificationEmail = { subject: "Quick questions", bodyText: "Hi Jamie," };
-
 function baseProps() {
   return {
     projectId: "proj_1",
     scopeSummary: scopeSummary(),
     openQuestions: 1,
     clientUpdates: [],
-    clarificationEmail,
     briefCompleteness: briefCompleteness(),
     pmPerspective: pmPerspectiveView(),
   };
@@ -123,24 +120,44 @@ describe("Phase1Workspace", () => {
     expect(screen.queryByLabelText("Add a client update")).not.toBeInTheDocument();
   });
 
-  it("shows the Clarification Email as an action card only while there are open questions", () => {
-    const { rerender } = render(<Phase1Workspace {...baseProps()} />);
+  it("has no Clarification email card, Mark as sent or Download any more (FB-011)", () => {
+    render(<Phase1Workspace {...baseProps()} />);
 
-    expect(screen.getByText("Clarification email")).toBeInTheDocument();
-    expect(screen.getByText("Quick questions")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Mark as sent" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Copy" })).toBeInTheDocument();
-
-    rerender(<Phase1Workspace {...baseProps()} openQuestions={0} />);
     expect(screen.queryByText("Clarification email")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mark as sent" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Download" })).not.toBeInTheDocument();
   });
 
-  it("says when the email was marked as sent, and offers to undo it", () => {
-    render(<Phase1Workspace {...baseProps()} clarificationSentAt="2026-11-03T10:00:00.000Z" />);
+  it("copies the open questions as a numbered list and announces Copied (FB-011)", async () => {
+    const user = userEvent.setup();
+    render(<Phase1Workspace {...baseProps()} />);
 
-    expect(screen.getByText(/Drafts are no longer rewritten automatically/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Mark as not sent" })).toBeInTheDocument();
+    const expected = openQuestionsText(scopeSummary().sections);
+    expect(expected).toMatch(/^1\. /);
+    expect(expected).toContain("Which markets first?");
+
+    await user.click(screen.getByRole("button", { name: "Copy questions" }));
+    expect(await navigator.clipboard.readText()).toBe(expected);
+    expect(within(screen.getByRole("region", { name: "Scope summary" })).getByText("Copied")).toBeInTheDocument();
   });
+
+  it("offers no Copy questions button when there are no open questions", () => {
+    const empty = { ...scopeContent, openQuestions: [] };
+    render(
+      <Phase1Workspace
+        {...baseProps()}
+        openQuestions={0}
+        briefCompleteness={briefCompleteness(ALL_REQUIRED_CONFIRMED)}
+        scopeSummary={{
+          ...scopeSummary(),
+          content: empty,
+          sections: buildScopeView(empty, briefCompleteness(ALL_REQUIRED_CONFIRMED)),
+        }}
+      />
+    );
+    expect(screen.queryByRole("button", { name: "Copy questions" })).not.toBeInTheDocument();
+  });
+
   it("offers Confirm vN when a newer version than the confirmed one exists", () => {
     render(<Phase1Workspace {...baseProps()} scopeSummary={scopeSummary(1)} />);
 

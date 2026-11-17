@@ -79,12 +79,11 @@ describe("runIntakeAgent — each key detail recorded once (FB-009)", () => {
           assumptions: [],
           openQuestions: [],
         },
-      })
-      .mockResolvedValueOnce({ parsed_output: { subject: "Hi", bodyText: "Hello," } });
+      });
 
     const result = await runIntakeAgent("brief text");
 
-    expect(mockParse).toHaveBeenCalledTimes(4);
+    expect(mockParse).toHaveBeenCalledTimes(3);
     const scopePrompt = mockParse.mock.calls[2][0].messages[0].content as string;
     expect(scopePrompt).toMatch(/tracked separately/);
     expect(result.scopeSummary.context).toBe("Fizzy wants real-time offers.");

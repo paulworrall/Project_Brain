@@ -35,7 +35,7 @@ function ok(versionNumber: number, fileName: string | null = null) {
       versionNumber,
       fileName,
       confirmation: `Added as v${versionNumber} · Updated: budget`,
-      notice: `Saved as v${versionNumber}. A fresh client email draft is being written from it — refresh in a moment to see it.`,
+      notice: `Saved as v${versionNumber}.`,
     },
   };
 }
@@ -43,7 +43,7 @@ function ok(versionNumber: number, fileName: string | null = null) {
 function sent(call: number) {
   const formData = addProjectInformationAction.mock.calls[call][1] as FormData;
   return Object.fromEntries(
-    ["category", "source", "occurredOn", "content", "finalInBatch"].map((k) => [k, formData.get(k)])
+    ["category", "source", "occurredOn", "content"].map((k) => [k, formData.get(k)])
   );
 }
 
@@ -101,11 +101,10 @@ describe("AddProjectInformationPanel", () => {
       source: "INTERNAL_TEAM",
       occurredOn: "2026-11-03",
       content: "Budget is now £60k.",
-      finalInBatch: "true",
     });
     const status = await screen.findByRole("status");
     expect(status).toHaveTextContent("Added as v3 · Updated: budget");
-    expect(status).toHaveTextContent(/fresh client email draft/);
+    expect(status).not.toHaveTextContent(/email/i);
     expect(screen.getByLabelText("Text to add")).toHaveValue("");
   });
 
@@ -142,7 +141,7 @@ describe("AddProjectInformationPanel", () => {
     expect(formatFileSize(500)).toBe("500 B");
   });
 
-  it("saves each file as its own version in order, redrafting the email only after the last", async () => {
+  it("saves each file as its own version, in order", async () => {
     addProjectInformationAction
       .mockResolvedValueOnce(ok(3, "a.docx"))
       .mockResolvedValueOnce(ok(4, "b.docx"));
@@ -158,9 +157,7 @@ describe("AddProjectInformationPanel", () => {
     const first = addProjectInformationAction.mock.calls[0][1] as FormData;
     const second = addProjectInformationAction.mock.calls[1][1] as FormData;
     expect((first.get("file") as File).name).toBe("a.docx");
-    expect(first.get("finalInBatch")).toBe("false");
     expect((second.get("file") as File).name).toBe("b.docx");
-    expect(second.get("finalInBatch")).toBe("true");
     expect(screen.queryByRole("list", { name: "Files to add" })).toBeNull();
   });
 

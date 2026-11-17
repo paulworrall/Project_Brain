@@ -24,5 +24,4 @@ const result = await runIntakeAgent(brief);
 console.log("KEY DETAILS:", JSON.stringify(result.keyAttributes, null, 1));
 console.log("KEY DETAILS ERROR:", result.keyAttributesError);
 console.log("SCOPE SUMMARY:", JSON.stringify(result.scopeSummary, null, 1));
-console.log("CLARIFICATION EMAIL:", result.clarificationEmail.bodyText);
 console.log("SCOPE SUMMARY KEYS:", Object.keys(result.scopeSummary));

@@ -9,7 +9,7 @@ import { ScopeSummaryContentSchema, changedScopeSections, normaliseScopeSummary 
 import type { ActionResult, ApprovalErrorCode } from "@/types/approvals";
 
 /**
- * FB-008 step rules (scope gate, specialist rows, checklist steps), free of
+ * FB-008 step rules (scope gate, specialist rows, scope summary edits), free of
  * Next/auth so they can be tested against the database directly. The server
  * actions in step-actions.ts are thin wrappers (session -> actor,
  * revalidatePath), following FB-005's approvalService.
@@ -174,76 +174,7 @@ export async function updateSpecialistInput(
 }
 
 // ---------------------------------------------------------------------------
-// Checklist items: step assignment and adding
-// ---------------------------------------------------------------------------
-
-const StepEnum = z.enum(["brief", "estimate", "sow"]);
-
-export const ChecklistItemStepSchema = z.object({
-  projectId: z.string().min(1),
-  itemId: z.string().min(1),
-  step: StepEnum,
-});
-
-export interface ChecklistItemResultData {
-  projectId: string;
-  itemId: string;
-  step: "brief" | "estimate" | "sow";
-}
-
-export async function setChecklistItemStep(
-  db: ApprovalDb,
-  actor: ApprovalActor | null | undefined,
-  input: unknown
-): Promise<ActionResult<ChecklistItemResultData>> {
-  const parsed = ChecklistItemStepSchema.safeParse(input);
-  if (!parsed.success) return validationFailure(parsed.error);
-  const { projectId, itemId, step } = parsed.data;
-  const blocked = await precheck(db, actor, projectId);
-  if (blocked) return blocked;
-
-  const result = await db.checklistItem.updateMany({
-    where: { id: itemId, projectId },
-    data: { step },
-  });
-  if (result.count === 0) return fail("NOT_FOUND", "Checklist item not found.");
-  return { ok: true, data: { projectId, itemId, step } };
-}
-
-export const AddChecklistItemSchema = z.object({
-  projectId: z.string().min(1),
-  label: z
-    .string()
-    .trim()
-    .min(1, { error: "Name the item before adding it." })
-    .max(200, { error: "Keep the item under 200 characters." }),
-  step: StepEnum,
-});
-
-export async function addChecklistItem(
-  db: ApprovalDb,
-  actor: ApprovalActor | null | undefined,
-  input: unknown
-): Promise<ActionResult<ChecklistItemResultData>> {
-  const parsed = AddChecklistItemSchema.safeParse(input);
-  if (!parsed.success) return validationFailure(parsed.error);
-  const { projectId, label, step } = parsed.data;
-  const blocked = await precheck(db, actor, projectId);
-  if (blocked) return blocked;
-
-  const last = await db.checklistItem.findFirst({
-    where: { projectId },
-    orderBy: { order: "desc" },
-    select: { order: true },
-  });
-  const item = await db.checklistItem.create({
-    data: { projectId, label, step, order: (last?.order ?? -1) + 1 },
-  });
-  return { ok: true, data: { projectId, itemId: item.id, step } };
-}
-
-// ---------------------------------------------------------------------------
-// FB-009: Scope summary edits and the clarification email's sent flag
+// FB-009: Scope summary edits
 // ---------------------------------------------------------------------------
 
 export const EditScopeSummarySchema = z.object({
@@ -285,36 +216,4 @@ export async function editScopeSummary(
   }
   const saved = await appendScopeSummaryVersion(projectId, content, { userId: actor!.id }, db);
   return { ok: true, data: { projectId, versionNumber: saved.versionNumber, changedSections } };
-}
-
-export const ClarificationSentSchema = z.object({
-  projectId: z.string().min(1),
-  sent: z.boolean(),
-});
-
-export interface ClarificationSentResultData {
-  projectId: string;
-  clarificationSentAt: string | null;
-}
-
-/** "Mark as sent" (or undo it). The app never sends anything itself. */
-export async function setClarificationSent(
-  db: ApprovalDb,
-  actor: ApprovalActor | null | undefined,
-  input: unknown
-): Promise<ActionResult<ClarificationSentResultData>> {
-  const parsed = ClarificationSentSchema.safeParse(input);
-  if (!parsed.success) return validationFailure(parsed.error);
-  const { projectId, sent } = parsed.data;
-  const blocked = await precheck(db, actor, projectId);
-  if (blocked) return blocked;
-  const updated = await db.project.update({
-    where: { id: projectId },
-    data: { clarificationSentAt: sent ? new Date() : null },
-    select: { clarificationSentAt: true },
-  });
-  return {
-    ok: true,
-    data: { projectId, clarificationSentAt: updated.clarificationSentAt?.toISOString() ?? null },
-  };
 }

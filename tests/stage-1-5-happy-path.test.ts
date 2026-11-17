@@ -76,11 +76,6 @@ const scopeV2 = {
   openQuestions: [] as string[],
 };
 
-const clarificationEmail = {
-  subject: "Quick questions on the Acme loyalty app refresh",
-  bodyText: "Hi Jamie, following up on one open item...",
-};
-
 const estimateBrief = {
   projectOverview: {
     context: "Refresh the loyalty app before the holidays.",
@@ -183,8 +178,8 @@ function keyAttributes(attributes: Record<string, Record<string, unknown> | null
 
 describe("Stage 1-5 happy path", () => {
   it("carries a project from brief upload through the Deliverables + Services Document", async () => {
-    // Stage 1 — Intake: classify, key details, Scope summary, draft email
-    // (4 Claude calls).
+    // Stage 1 — Intake: classify, key details, Scope summary (3 Claude calls;
+    // FB-011: no clarification email or set-up checklist).
     mockParse
       .mockResolvedValueOnce({ parsed_output: briefClassification })
       .mockResolvedValueOnce({
@@ -192,8 +187,7 @@ describe("Stage 1-5 happy path", () => {
           budget: { amount: "50,000", currency: "GBP", evidence: "budget of £50,000" },
         }),
       })
-      .mockResolvedValueOnce({ parsed_output: scopeV1 })
-      .mockResolvedValueOnce({ parsed_output: clarificationEmail });
+      .mockResolvedValueOnce({ parsed_output: scopeV1 });
 
     await expect(createProjectAction(undefined, briefFormData())).rejects.toThrow(
       "NEXT_REDIRECT_MOCK"
@@ -233,10 +227,10 @@ describe("Stage 1-5 happy path", () => {
       feedbackFormData("Design and Tech & Data are needed; no dedicated architecture work.")
     );
 
-    // Final state: all 8 Claude calls consumed in order, nothing left over (FB-009: intake and the update each lost a de-dup call).
-    expect(mockParse).toHaveBeenCalledTimes(8);
+    // Final state: all 7 Claude calls consumed in order, nothing left over (FB-009: intake and the update each lost a de-dup call; FB-011: intake lost the email call).
+    expect(mockParse).toHaveBeenCalledTimes(7);
     // Specialist review read the Estimate Brief.
-    const reviewPrompt = mockParse.mock.calls[7][0].messages[0].content as string;
+    const reviewPrompt = mockParse.mock.calls[6][0].messages[0].content as string;
     expect(reviewPrompt).toContain("Estimate the referral feature build");
 
     // The brief's budget was captured as a suggestion only — never confirmed.
@@ -272,18 +266,16 @@ describe("Stage 1-5 happy path", () => {
     });
     const documentsByType = new Map(documents.map((d) => [d.type, d]));
 
-    expect(documentsByType.get("CLARIFICATION_EMAIL")?.versions[0]?.content).toEqual(
-      clarificationEmail
-    );
+    // FB-011: nothing generates a clarification email or a checklist.
+    expect(documentsByType.has("CLARIFICATION_EMAIL")).toBe(false);
+    expect(documentsByType.has("CHECKLIST")).toBe(false);
     expect(documentsByType.get("SCOPE_SUMMARY")?.versions[0]?.content).toEqual(scopeV2);
     expect(documentsByType.get("SCOPE_SUMMARY")?.versions[0]?.versionNumber).toBe(2);
     // No Position Document for a project created after FB-009.
     expect(documentsByType.has("POSITION_DOCUMENT")).toBe(false);
-    // Each output records the brief version it was built from: the email at
-    // intake (v1, the brief), the Scope summary updated by update v2.
-    expect(documentsByType.get("CLARIFICATION_EMAIL")?.versions[0]?.builtFromVersion).toBe(1);
+    // Each output records the brief version it was built from: the Scope
+    // summary updated by update v2.
     expect(documentsByType.get("SCOPE_SUMMARY")?.versions[0]?.builtFromVersion).toBe(2);
-    expect(documentsByType.get("CHECKLIST")).toBeDefined();
     // FB-009 D: the brief assessment is stored on the project.
     expect(
       (await prisma.project.findUniqueOrThrow({ where: { id: project.id } })).briefAssessment
@@ -312,6 +304,6 @@ describe("Stage 1-5 happy path", () => {
     const checklistItems = await prisma.checklistItem.findMany({
       where: { projectId: project.id },
     });
-    expect(checklistItems.length).toBeGreaterThan(0);
+    expect(checklistItems).toHaveLength(0);
   });
 });

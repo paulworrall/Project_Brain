@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 
 const { confirmScopeAction, reopenScopeAction } =
   await import("@/app/(dashboard)/projects/[projectId]/step-actions");
-const { ScopeGate } = await import("@/components/features/ScopeGate");
+const { ScopeGate, scopeGateWarnings } = await import("@/components/features/ScopeGate");
 
 const confirm = confirmScopeAction as ReturnType<typeof vi.fn>;
 const reopen = reopenScopeAction as ReturnType<typeof vi.fn>;
@@ -19,37 +19,64 @@ const base = {
   projectId: "p1",
   scopeConfirmedAt: null,
   scopeConfirmedByName: null,
-  outstanding: [] as string[],
+  openQuestions: 0,
+  missingMsaRateCard: false,
+  clientName: "Fizzy",
   estimateApproved: false,
   projectComplete: false,
 };
 
 describe("ScopeGate", () => {
-  it("opens a confirmation dialog listing unticked readiness items as a warning, and still confirms", async () => {
+  it("warns about open questions, and still confirms", async () => {
     const user = userEvent.setup();
-    render(
-      <ScopeGate
-        {...base}
-        outstanding={["MSA and rate card set on the project", "Assign job code"]}
-      />
-    );
+    render(<ScopeGate {...base} openQuestions={3} />);
     await user.click(screen.getByRole("button", { name: "Confirm scope is ready to estimate" }));
     const dialog = screen.getByRole("dialog", { name: "Confirm the scope is ready to estimate?" });
-    expect(dialog).toHaveTextContent("2 readiness items aren't done yet:");
-    expect(within(dialog).getByText("Assign job code")).toBeInTheDocument();
+    expect(dialog).toHaveTextContent("3 open questions are still in the scope summary.");
+    expect(dialog).not.toHaveTextContent("MSA");
     expect(dialog).toHaveTextContent("You can still confirm.");
     await user.click(within(dialog).getByRole("button", { name: "Confirm scope" }));
     expect(confirm).toHaveBeenCalledWith({ projectId: "p1" });
   });
 
-  it("says when every readiness item is done, and Cancel confirms nothing", async () => {
+  it("warns about a missing MSA and rate card, naming the client", async () => {
+    const user = userEvent.setup();
+    render(<ScopeGate {...base} missingMsaRateCard />);
+    await user.click(screen.getByRole("button", { name: "Confirm scope is ready to estimate" }));
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveTextContent(
+      "No MSA and rate card are set for Fizzy, so the estimate can't be priced yet."
+    );
+    expect(dialog).not.toHaveTextContent("open question");
+    await user.click(within(dialog).getByRole("button", { name: "Confirm scope" }));
+    expect(confirm).toHaveBeenCalledWith({ projectId: "p1" });
+  });
+
+  it("lists both warnings together when both apply", async () => {
+    const user = userEvent.setup();
+    render(<ScopeGate {...base} openQuestions={1} missingMsaRateCard />);
+    await user.click(screen.getByRole("button", { name: "Confirm scope is ready to estimate" }));
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveTextContent("1 open question is still in the scope summary.");
+    expect(dialog).toHaveTextContent("No MSA and rate card are set for Fizzy");
+  });
+
+  it("shows no warning when there are no open questions and the MSA and rate card are set, and Cancel confirms nothing", async () => {
     const user = userEvent.setup();
     render(<ScopeGate {...base} />);
     await user.click(screen.getByRole("button", { name: "Confirm scope is ready to estimate" }));
-    expect(screen.getByRole("dialog")).toHaveTextContent("Every Brief readiness item is done.");
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveTextContent("No open questions, and the MSA and rate card are in place.");
+    expect(dialog).not.toHaveTextContent("You can still confirm.");
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it("scopeGateWarnings is empty when nothing is outstanding", () => {
+    expect(scopeGateWarnings({ openQuestions: 0, missingMsaRateCard: false, clientName: "Fizzy" })).toEqual(
+      []
+    );
   });
 
   it("after confirmation shows when and who, with a low-emphasis Reopen scope", async () => {

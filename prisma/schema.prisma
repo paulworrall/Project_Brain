@@ -123,8 +123,8 @@ model Project {
   // cleared by reopen). Estimates and the SOW read this version as their scope.
   confirmedScopeVersionId String?
 
-  // FB-009: when the PM marked the clarification email as sent (drafts stop
-  // being rewritten automatically after that). Null = not sent.
+  // DEPRECATED (FB-011): the clarification email is gone, so nothing reads or
+  // writes this any more. Kept as data. (FB-009: when the PM marked it as sent.)
   clarificationSentAt DateTime?
 
   // FB-009: the Intake Agent's judgement of how complete the brief is:
@@ -350,8 +350,10 @@ model ProjectStageStatus {
 // ---------------------------------------------------------------------------
 
 enum DocumentType {
+  // DEPRECATED (FB-011): no longer generated, shown or read. Existing rows are kept.
   CLARIFICATION_EMAIL
   POSITION_DOCUMENT
+  // DEPRECATED (FB-011): no longer generated, shown or read. Existing rows are kept.
   CHECKLIST
   DRAFT_SCOPE_DOCUMENT
   DELIVERABLES_SERVICES_DOCUMENT
@@ -385,7 +387,8 @@ model DocumentVersion {
   // createdAt instead). Provenance only: kept for audit; no longer drives any staleness flag.
   builtFromVersion         Int?
   // Set when this version was drafted automatically because an update was
-  // saved (the clarification email): that update's version number.
+  // saved: that update's version number. (FB-011: no longer set for the
+  // clarification email, which is gone; Scope summary versions still set it.)
   triggeredByUpdateVersion Int?
   createdById              String?
   createdAt                DateTime @default(now())
@@ -866,8 +869,11 @@ model EstimateLineItem {
 }
 
 // ---------------------------------------------------------------------------
-// Manual checklist (interactive tick-box state, distinct from the versioned
-// CHECKLIST Document artifact that generated the initial items)
+// DEPRECATED (FB-011): the per-step readiness checklist is gone — project set-up
+// admin is handled outside this site. ChecklistItem rows (and the CHECKLIST
+// Document) are kept as data, but nothing reads or writes them any more.
+// (Was: manual checklist, interactive tick-box state, distinct from the
+// versioned CHECKLIST Document artifact that generated the initial items.)
 // ---------------------------------------------------------------------------
 
 // FB-008: the three steps of the SOW journey (src/lib/projectSteps.ts).
@@ -877,6 +883,7 @@ enum ProjectStep {
   sow
 }
 
+// DEPRECATED (FB-011) — see the note above. Do not read or write.
 model ChecklistItem {
   id          String      @id @default(cuid())
   projectId   String

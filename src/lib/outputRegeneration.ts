@@ -1,12 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { getProjectContext } from "@/lib/projectContext";
-import { latestPositionDocumentContent } from "@/lib/positionDocument";
-import { clarificationQuestionsFrom } from "@/lib/clarificationQuestions";
-import { currentText, describeKnownKeyDetails } from "@/lib/keyDetailsContext";
-import { CLIENT_CONTACT_FIELDS } from "@/lib/briefAttributes";
-import { emailFieldsFromScopeSummary, generateClarificationEmail } from "@/services/agents/intake-agent";
-import { latestScopeSummary } from "@/lib/scopeSummary";
+import { describeKnownKeyDetails } from "@/lib/keyDetailsContext";
 import { rebuildPositionDocument } from "@/services/agents/clarification-extraction";
 import { removeItemsCoveredByKeyDetails } from "@/services/agents/position-key-detail-filter";
 
@@ -22,11 +17,10 @@ export interface RegeneratedVersion {
 
 async function appendDocumentVersion(
   projectId: string,
-  type: "CLARIFICATION_EMAIL" | "POSITION_DOCUMENT",
+  type: "POSITION_DOCUMENT",
   content: Prisma.InputJsonValue,
   builtFromVersion: number,
-  userId: string | null,
-  triggeredByUpdateVersion: number | null = null
+  userId: string | null
 ): Promise<RegeneratedVersion> {
   return prisma.$transaction(async (tx) => {
     const project = await tx.project.findUniqueOrThrow({
@@ -46,53 +40,11 @@ async function appendDocumentVersion(
         stageNumber: project.currentStageNumber,
         content,
         builtFromVersion,
-        triggeredByUpdateVersion,
         createdById: userId,
       },
     });
     return { versionNumber, builtFromVersion };
   });
-}
-
-/**
- * A new draft of the client clarification email from the latest context:
- * it asks for the key details still missing, asks the client to confirm
- * what we took from their own brief and updates, and lists their
- * still-deciding items — the same structure as at intake. Only ever a
- * draft; nothing is sent. `triggeredByUpdateVersion` is set when it's
- * drafted automatically because that update was saved (userId is then null).
- * Throws IntakeAgentError if drafting fails.
- */
-export async function redraftClarificationEmail(
-  projectId: string,
-  userId: string | null,
-  triggeredByUpdateVersion: number | null = null
-): Promise<RegeneratedVersion> {
-  const [context, scope, position] = await Promise.all([
-    getProjectContext(projectId),
-    latestScopeSummary(projectId),
-    latestPositionDocumentContent(projectId),
-  ]);
-  // FB-009: the Scope summary's open questions when there is one; a legacy
-  // project's Position Document otherwise.
-  const fields = scope
-    ? emailFieldsFromScopeSummary(scope.content)
-    : { whatWeKnow: position?.whatWeKnow ?? [], clientFlaggedOpenItems: position?.clientFlaggedOpenItems ?? [] };
-  const email = await generateClarificationEmail(
-    fields,
-    clarificationQuestionsFrom(context.keyDetails),
-    context.pmPerspective,
-    currentText(context.keyDetails, CLIENT_CONTACT_FIELDS.attributeId, CLIENT_CONTACT_FIELDS.name),
-    context.text
-  );
-  return appendDocumentVersion(
-    projectId,
-    "CLARIFICATION_EMAIL",
-    email,
-    context.latestVersion,
-    userId,
-    triggeredByUpdateVersion
-  );
 }
 
 /**

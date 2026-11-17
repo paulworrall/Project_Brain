@@ -15,12 +15,9 @@ const { anthropic } = await import("@/lib/anthropic");
 const {
   classifyBrief,
   extractPositionFields,
-  generateClarificationEmail,
-  generateSetupChecklist,
   runIntakeAgent,
   IntakeAgentError,
 } = await import("@/services/agents/intake-agent");
-const { DEFAULT_SETUP_CHECKLIST_ITEMS } = await import("@/types/intake");
 const { BRIEF_ATTRIBUTES } = await import("@/lib/briefAttributes");
 
 const mockParse = anthropic.messages.parse as ReturnType<typeof vi.fn>;
@@ -94,47 +91,12 @@ describe("extractPositionFields", () => {
   });
 });
 
-describe("generateClarificationEmail", () => {
-  it("returns the parsed email draft, addressed to the contact it's given", async () => {
-    const email = { subject: "Quick questions", bodyText: "Hi Jamie," };
-    mockParse.mockResolvedValueOnce({ parsed_output: email });
-
-    const result = await generateClarificationEmail(
-      { whatWeKnow: [], clientFlaggedOpenItems: [] },
-      { toAsk: ["Budget — What is the budget for the project?"], toConfirm: [] },
-      {},
-      "Jamie Chen"
-    );
-
-    expect(result).toEqual(email);
-    expect(mockParse.mock.calls[0][0].messages[0].content).toContain("Address it to Jamie Chen");
-  });
-
-  it("asks only the fixed key-detail questions it's given, plus the client's own open items", async () => {
-    mockParse.mockResolvedValueOnce({ parsed_output: { subject: "Hi", bodyText: "Hello," } });
-
-    await generateClarificationEmail(
-      { whatWeKnow: [], clientFlaggedOpenItems: ["Launch market TBC"] },
-      {
-        toAsk: ["Budget — What is the budget for the project?"],
-        toConfirm: ["Objective — we understood: Objective: Drive repeat purchases"],
-      }
-    );
-
-    const prompt = mockParse.mock.calls[0][0].messages[0].content as string;
-    expect(prompt).toContain("Budget — What is the budget for the project?");
-    expect(prompt).toContain("we understood: Objective: Drive repeat purchases");
-    expect(prompt).toContain("Launch market TBC");
-    expect(prompt).toMatch(/don't add questions of your own/);
-  });
-});
-
-describe("generateSetupChecklist", () => {
-  it("returns the fixed checklist without calling Claude", () => {
-    const result = generateSetupChecklist();
-
-    expect(result.items).toEqual([...DEFAULT_SETUP_CHECKLIST_ITEMS]);
-    expect(mockParse).not.toHaveBeenCalled();
+describe("the Intake Agent no longer drafts an email or a checklist (FB-011)", () => {
+  it("exports no email or checklist generators", async () => {
+    const intake = await import("@/services/agents/intake-agent");
+    expect(intake).not.toHaveProperty("generateClarificationEmail");
+    expect(intake).not.toHaveProperty("generateSetupChecklist");
+    expect(intake).not.toHaveProperty("emailFieldsFromScopeSummary");
   });
 });
 
@@ -152,12 +114,11 @@ function queueIntake(keyFacts: unknown = { facts: [] }) {
   mockParse
     .mockResolvedValueOnce({ parsed_output: { briefType: "PDF", summary: "A brief." } })
     .mockResolvedValueOnce({ parsed_output: keyFacts })
-    .mockResolvedValueOnce({ parsed_output: emptyScope })
-    .mockResolvedValueOnce({ parsed_output: { subject: "Hi", bodyText: "Hello," } });
+    .mockResolvedValueOnce({ parsed_output: emptyScope });
 }
 
 describe("runIntakeAgent", () => {
-  it("runs classify -> key details -> Scope summary -> email, and returns the key details and the Scope summary", async () => {
+  it("runs classify -> key details -> Scope summary only, and returns the key details and the Scope summary — no email, no checklist", async () => {
     queueIntake({
       facts: [
         {
@@ -172,7 +133,7 @@ describe("runIntakeAgent", () => {
 
     const result = await runIntakeAgent("brief text");
 
-    expect(mockParse).toHaveBeenCalledTimes(4);
+    expect(mockParse).toHaveBeenCalledTimes(3);
     const prompts = mockParse.mock.calls.map((call) => call[0].messages[0].content as string);
     expect(prompts[0]).toMatch(/Classify this client brief/);
     // FB-009 D: the same call assesses how complete the brief is.
@@ -181,23 +142,11 @@ describe("runIntakeAgent", () => {
     expect(prompts[1]).toMatch(/key details/);
     expect(prompts[2]).toMatch(/Write the scope summary/);
     expect(prompts[2]).toMatch(/tracked separately/);
-    // The email is addressed to the contact the key details found.
-    expect(prompts[3]).toContain("Address it to Jamie Chen");
-    // Its questions are the fixed required key details: what the brief gave is
-    // there to confirm, what it didn't is asked for — never free-form gaps.
-    expect(prompts[3]).toContain(
-      "Objective — we understood: Objective: Drive more frequent purchases"
-    );
-    expect(prompts[3]).toContain("Objective — still need: Success measures (OKRs/KPIs)");
-    expect(prompts[3]).toContain("Budget — What is the budget for the project?");
-    expect(prompts[3]).toContain("Client Contact — still need: Email");
-    // Optional details never make it into the email.
-    expect(prompts[3]).not.toContain("Which markets or regions");
-
     expect(result.classification.briefType).toBe("PDF");
     expect(result.keyAttributes?.objective.values.objective).toBe("Drive more frequent purchases");
     expect(result.keyAttributesError).toBeNull();
-    expect(result.checklist.items).toEqual([...DEFAULT_SETUP_CHECKLIST_ITEMS]);
+    expect(result).not.toHaveProperty("checklist");
+    expect(result).not.toHaveProperty("clarificationEmail");
     expect(result.scopeSummary.context).toBe("A brief.");
   });
 
@@ -205,17 +154,13 @@ describe("runIntakeAgent", () => {
     mockParse
       .mockResolvedValueOnce({ parsed_output: { briefType: "PDF", summary: "A brief." } })
       .mockRejectedValueOnce(new Error("400 compiled grammar is too large"))
-      .mockResolvedValueOnce({ parsed_output: emptyScope })
-      .mockResolvedValueOnce({ parsed_output: { subject: "Hi", bodyText: "Hello," } });
+      .mockResolvedValueOnce({ parsed_output: emptyScope });
 
     const result = await runIntakeAgent("brief text");
 
     expect(result.keyAttributes).toBeNull();
     expect(result.keyAttributesError).toMatch(/key details/i);
-    expect(result.clarificationEmail.subject).toBe("Hi");
-    expect(mockParse.mock.calls[3][0].messages[0].content).toContain(
-      "Address it to the client contact"
-    );
+    expect(result.scopeSummary.context).toBe("A brief.");
   });
 });
 
@@ -225,11 +170,11 @@ describe("runIntakeAgent — PM perspective", () => {
     proposedSolution: "PM_SOLUTION_MARKER: a phased rollout",
   };
 
-  it("gives the Scope summary and clarification email the PM perspective as its own labelled block, separate from the brief", async () => {
+  it("gives the Scope summary the PM perspective as its own labelled block, separate from the brief", async () => {
     queueIntake();
     await runIntakeAgent("CLIENT_BRIEF_MARKER", pmPerspective);
 
-    const [classifyPrompt, keyDetailsPrompt, scopePrompt, emailPrompt] = mockParse.mock.calls.map(
+    const [classifyPrompt, keyDetailsPrompt, scopePrompt] = mockParse.mock.calls.map(
       (call) => call[0].messages[0].content as string
     );
 
@@ -238,11 +183,8 @@ describe("runIntakeAgent — PM perspective", () => {
     expect(keyDetailsPrompt).toContain("CLIENT_BRIEF_MARKER");
     expect(keyDetailsPrompt).not.toContain("PM_CONTEXT_MARKER");
 
-    for (const prompt of [scopePrompt, emailPrompt]) {
-      expect(prompt).toContain("<pm_perspective>");
-      expect(prompt).toContain("PM_CONTEXT_MARKER");
-      expect(prompt).toMatch(/never present anything in it as something the client said/i);
-    }
+    expect(scopePrompt).toContain("<pm_perspective>");
+    expect(scopePrompt).toContain("PM_CONTEXT_MARKER");
     // The PM's words sit in their own block, never inside the brief.
     const briefBlock = scopePrompt.slice(
       scopePrompt.indexOf("<brief>"),

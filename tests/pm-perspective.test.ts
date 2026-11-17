@@ -65,13 +65,12 @@ const scopeFields = {
   openQuestions: [],
 };
 
-/** Intake order: classify, key details, Scope summary, email. */
+/** Intake order: classify, key details, Scope summary (FB-011: no email). */
 function queueIntakeCalls() {
   mockParse
     .mockResolvedValueOnce({ parsed_output: { briefType: "WORD_DOC", summary: "A brief." } })
     .mockResolvedValueOnce({ parsed_output: noKeyAttributes })
-    .mockResolvedValueOnce({ parsed_output: scopeFields })
-    .mockResolvedValueOnce({ parsed_output: { subject: "Questions", bodyText: "Hi," } });
+    .mockResolvedValueOnce({ parsed_output: scopeFields });
 }
 
 function createFormData(name: string, pm: Record<string, string> = {}) {
@@ -179,16 +178,15 @@ describe("PM perspective at intake", () => {
     expect(thoughts.content).toContain("PM_THOUGHTS_MARKER");
   });
 
-  it("passes the PM perspective to the Scope summary and email as a labelled block — but never to key-attribute extraction", async () => {
+  it("passes the PM perspective to the Scope summary as a labelled block — but never to key-attribute extraction", async () => {
     await createProject("Prompt PM Perspective Project", {
       initialThoughts: "PM_CONTEXT_MARKER: known client",
     });
 
-    const [classify, keyAttributes, position, email] = [0, 1, 2, 3].map(promptOf);
+    const [classify, keyAttributes, position] = [0, 1, 2].map(promptOf);
     expect(classify).not.toContain("PM_CONTEXT_MARKER");
     expect(position).toContain("<pm_perspective>");
     expect(position).toContain("PM_CONTEXT_MARKER");
-    expect(email).toContain("<pm_perspective>");
     // Budget, timeline and client contact must come from the client.
     expect(keyAttributes).toContain("CLIENT_BRIEF_MARKER");
     expect(keyAttributes).not.toContain("PM_CONTEXT_MARKER");

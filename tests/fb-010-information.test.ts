@@ -128,8 +128,8 @@ describeDb("addProjectInformationAction", () => {
       content: "Budget is now £60k.",
     });
     expect(item.occurredOn?.toISOString().slice(0, 10)).toBe("2026-11-03");
-    // AI summary + email redraft queued.
-    expect(afterResponseQueue().length).toBe(2);
+    // Only the AI summary is queued (FB-011: no email redraft).
+    expect(afterResponseQueue().length).toBe(1);
 
     // The history and the agents' context say what it is and when it happened.
     const history = await getVersionHistory(projectId);
@@ -146,7 +146,7 @@ describeDb("addProjectInformationAction", () => {
     expect(item.occurredOn?.toISOString().slice(0, 10)).toBe(new Date().toISOString().slice(0, 10));
   });
 
-  it("saves files sent one by one as consecutive versions; the email is redrafted once, after the last", async () => {
+  it("saves files sent one by one as consecutive versions, each with its own AI summary queued", async () => {
     const projectId = await newProject();
     const docx = new File(
       [readFileSync(path.join(FIXTURES, "brief-structured.docx"))],
@@ -157,25 +157,24 @@ describeDb("addProjectInformationAction", () => {
     );
     const first = await addProjectInformationAction(
       projectId,
-      form({ category: "PRESENTATION_OR_DOCUMENT", file: docx, finalInBatch: "false" })
+      form({ category: "PRESENTATION_OR_DOCUMENT", file: docx })
     );
     expect(first).toMatchObject({ ok: true, data: { versionNumber: 2, fileName: "minutes.docx" } });
     expect(afterResponseQueue().length).toBe(1); // summary only
-    expect(first.ok && first.data.notice).not.toMatch(/email draft/);
+    expect(first.ok && first.data.notice).not.toMatch(/email/i);
 
     const second = await addProjectInformationAction(
       projectId,
       form({
         category: "PRESENTATION_OR_DOCUMENT",
         file: txt("follow-up.txt", "Second file."),
-        finalInBatch: "true",
       })
     );
     expect(second).toMatchObject({
       ok: true,
       data: { versionNumber: 3, fileName: "follow-up.txt" },
     });
-    expect(afterResponseQueue().length).toBe(3); // + summary + one redraft
+    expect(afterResponseQueue().length).toBe(2); // one summary per file, no email redraft
 
     const items = await prisma.knowledgeItem.findMany({
       where: { projectId },

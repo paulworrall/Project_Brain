@@ -26,7 +26,7 @@ const mockParse = anthropic.messages.parse as ReturnType<typeof vi.fn>;
 const { keyAttributeFacts } = await import("./fixtures/keyAttributeFacts");
 const { appendScopeSummaryVersion, latestScopeSummary, scopeInputSection } =
   await import("@/lib/scopeSummary");
-const { confirmScope, reopenScope, editScopeSummary, setClarificationSent } =
+const { confirmScope, reopenScope, editScopeSummary } =
   await import("@/lib/project/stepService");
 // FB-010: the old update action, through the new Add project information action.
 const { uploadKnowledgeItemAction } = await import("./helpers/addInformation");
@@ -221,7 +221,7 @@ describeDb("confirming a version", () => {
   });
 });
 
-describeDb("updates and the clarification email", () => {
+describeDb("updates (no clarification email, FB-011)", () => {
   it("an update creates a new Scope summary version and says which sections changed", async () => {
     const projectId = await newProject();
     mockParse
@@ -241,29 +241,11 @@ describeDb("updates and the clarification email", () => {
     expect(await prisma.document.count({ where: { projectId, type: "POSITION_DOCUMENT" } })).toBe(
       0
     );
-    // The email redraft is queued while the email isn't marked as sent.
-    expect(afterResponseQueue().length).toBe(2);
-  });
-
-  it("after Mark as sent, updates no longer queue an automatic email redraft", async () => {
-    const projectId = await newProject();
-    expect(await setClarificationSent(prisma, pm, { projectId, sent: true })).toMatchObject({
-      ok: true,
-    });
-    mockParse
-      .mockResolvedValueOnce({ parsed_output: v1 })
-      .mockResolvedValueOnce({ parsed_output: keyAttributeFacts() });
-    const form = new FormData();
-    form.set("content", "Nothing new really.");
-    const result = await uploadKnowledgeItemAction(projectId, undefined, form);
-    expect(result?.notice).not.toMatch(/client email draft/);
-    // Only the AI summary is queued.
+    // FB-011: no clarification email is drafted or redrafted — only the AI
+    // summary is queued after the response.
     expect(afterResponseQueue().length).toBe(1);
-
-    await setClarificationSent(prisma, pm, { projectId, sent: false });
-    expect(
-      (await prisma.project.findUniqueOrThrow({ where: { id: projectId } })).clarificationSentAt
-    ).toBeNull();
+    expect(result?.notice).not.toMatch(/email/i);
+    expect(await prisma.document.count({ where: { projectId, type: "CLARIFICATION_EMAIL" } })).toBe(0);
   });
 });
 

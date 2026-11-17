@@ -19,7 +19,7 @@ import { VersionHistoryDrawer, type VersionView } from "./VersionHistoryDrawer";
  * notes, client clarifications, presentations and documents — above the
  * Project assistant. Pasted text or one or more files; each file is saved as
  * its own version, in order (one request each, under the 10 MB server action
- * limit), and the clarification email is redrafted once, after the last.
+ * limit). (FB-011: no clarification email is redrafted any more.)
  * Errors keep what was entered; files already saved leave the list.
  */
 
@@ -83,12 +83,11 @@ export function AddProjectInformationPanel({
     setFileError(problems.length > 0 ? problems.join(" ") : null);
   }
 
-  function baseForm(finalInBatch: boolean): FormData {
+  function baseForm(): FormData {
     const formData = new FormData();
     formData.set("category", category);
     formData.set("source", source);
     formData.set("occurredOn", occurredOn);
-    formData.set("finalInBatch", String(finalInBatch));
     return formData;
   }
 
@@ -97,7 +96,7 @@ export function AddProjectInformationPanel({
     startTransition(async () => {
       const lines: ResultLine[] = [];
       if (mode === "paste") {
-        const formData = baseForm(true);
+        const formData = baseForm();
         formData.set("content", text);
         const result = await addProjectInformationAction(projectId, formData);
         if (result.ok) {
@@ -118,7 +117,7 @@ export function AddProjectInformationPanel({
       let lastNotice: string | null = null;
       while (remaining.length > 0) {
         const file = remaining[0];
-        const formData = baseForm(remaining.length === 1);
+        const formData = baseForm();
         formData.set("file", file);
         const result = await addProjectInformationAction(projectId, formData);
         if (!result.ok) {

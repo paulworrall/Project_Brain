@@ -23,7 +23,7 @@ vi.mock("@/lib/auth", () => ({ auth: vi.fn().mockResolvedValue(null) }));
 const { anthropic } = await import("@/lib/anthropic");
 const mockParse = anthropic.messages.parse as ReturnType<typeof vi.fn>;
 const { keyAttributeFacts } = await import("./fixtures/keyAttributeFacts");
-const { redraftClarificationEmail, rebuildPositionDocumentVersion } = await import("@/lib/outputRegeneration");
+const { rebuildPositionDocumentVersion } = await import("@/lib/outputRegeneration");
 const { generateEstimateBriefAction, updatePmPerspectiveFieldAction, saveBriefAttributeAction } = await import(
   "@/app/(dashboard)/projects/[projectId]/actions"
 );
@@ -143,28 +143,12 @@ describe("outputs record the brief version they were built from", () => {
     expect(latest.builtFromVersion).toBe(2);
   });
 
-  it("a regenerated Position Document or email is a new version built from the latest — earlier versions untouched", async () => {
+  it("a regenerated Position Document is a new version built from the latest — earlier versions untouched", async () => {
     const projectId = await newProject("Regenerates");
-    await prisma.document.create({
-      data: {
-        projectId,
-        type: "CLARIFICATION_EMAIL",
-        versions: {
-          create: {
-            versionNumber: 1,
-            stageNumber: 1,
-            content: { subject: "Original", bodyText: "Original body" },
-            builtFromVersion: 1,
-          },
-        },
-      },
-    });
     await addUpdate(projectId, "Budget is now £120k.");
 
     mockParse.mockResolvedValueOnce({ parsed_output: positionFields }); // rebuild
     await rebuildPositionDocumentVersion(projectId, null);
-    mockParse.mockResolvedValueOnce({ parsed_output: { subject: "Redraft", bodyText: "New body" } });
-    await redraftClarificationEmail(projectId, null);
 
     const versions = await prisma.documentVersion.findMany({
       where: { document: { projectId } },
@@ -178,11 +162,8 @@ describe("outputs record the brief version they were built from", () => {
       [2, 2],
       [3, 2],
     ]);
-    expect(of("CLARIFICATION_EMAIL").map((v) => [v.versionNumber, v.builtFromVersion])).toEqual([
-      [1, 1],
-      [2, 2],
-    ]);
-    expect(of("CLARIFICATION_EMAIL")[0].content).toEqual({ subject: "Original", bodyText: "Original body" });
+    // FB-011: nothing drafts a clarification email any more.
+    expect(of("CLARIFICATION_EMAIL")).toEqual([]);
   });
 });
 

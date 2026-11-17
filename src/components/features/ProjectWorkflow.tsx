@@ -1,11 +1,10 @@
 import type { ReactNode } from "react";
-import type { ClarificationEmail } from "@/types/intake";
 import type { Capability } from "@/generated/prisma/enums";
 import type { ApprovalPermissions } from "@/types/approvals";
 import type { BriefCompleteness } from "@/lib/briefCompleteness";
 import type { PmPerspectiveFieldView } from "@/lib/pmPerspectiveStore";
 import type { SowChangeStatus } from "@/lib/sowChangeView";
-import type { SpecialistRow, SystemCheck } from "@/lib/project/readiness";
+import type { SpecialistRow } from "@/lib/project/readiness";
 import {
   getStep,
   PROJECT_COMPLETE_MESSAGE,
@@ -17,15 +16,12 @@ import { Phase1Workspace, type ClientUpdateLogEntry, type EarlierDocuments } fro
 import type { ScopeSummaryCardData } from "./ScopeSummaryCard";
 import type { BriefAssessment } from "@/types/intake";
 import { BriefAssessmentCallout, BriefAssessmentLabel } from "./BriefAssessmentNotice";
-import type { ClarificationEmailDraftMeta } from "./ClarificationEmailCard";
 import {
   CapabilitiesAndEstimateBriefPanel,
   type EstimateBriefVersionMeta,
 } from "./CapabilitiesAndEstimateBriefPanel";
 import { BriefReadinessIndicator } from "./BriefReadinessIndicator";
 import { BriefCompletenessWarning } from "./BriefGateNotice";
-import type { ChecklistItemView } from "./ChecklistView";
-import { EditableChecklist } from "./EditableChecklist";
 import { EstimatesListPanel, type EstimateListItem, type EstimateLock } from "./EstimatesListPanel";
 import { ScopeGate } from "./ScopeGate";
 import { SpecialistInputTracker } from "./SpecialistInputTracker";
@@ -38,16 +34,15 @@ import {
 
 /**
  * The three steps' content (FB-008): Brief, Estimate, Statement of Work. Each
- * is a StepSection — heading, an optional prerequisite note, the step's
- * "Before you move on" readiness list, then the step's own cards. The project
- * layout renders all three and ProjectShell shows the active one.
+ * is a StepSection — heading, an optional prerequisite note, then the step's
+ * own cards. (FB-011: the per-step "Before you move on" readiness lists were
+ * removed.) The project layout renders all three and ProjectShell shows the
+ * active one.
  */
 
-/** What every step needs to render its readiness list and lock state. */
+/** What every step needs to render its lock state. */
 export interface StepCommonProps {
   projectId: string;
-  checklistItems: ChecklistItemView[];
-  systemChecks: SystemCheck[];
   projectComplete: boolean;
 }
 
@@ -60,14 +55,12 @@ export function StepSection({
   stepId,
   prerequisiteNote = null,
   projectComplete,
-  readiness,
   children,
 }: {
   stepId: StepId;
   /** Quiet inline note shown when the step's prerequisite isn't met. No step is locked. */
   prerequisiteNote?: string | null;
   projectComplete: boolean;
-  readiness: ReactNode;
   children: ReactNode;
 }) {
   const step = getStep(stepId);
@@ -88,21 +81,8 @@ export function StepSection({
           {prerequisiteNote}
         </p>
       )}
-      {readiness}
       {children}
     </section>
-  );
-}
-
-function Readiness({ stepId, common }: { stepId: StepId; common: StepCommonProps }) {
-  return (
-    <EditableChecklist
-      projectId={common.projectId}
-      step={stepId}
-      items={common.checklistItems.filter((item) => (item.step ?? "brief") === stepId)}
-      systemChecks={common.systemChecks}
-      readOnly={common.projectComplete}
-    />
   );
 }
 
@@ -116,10 +96,10 @@ export interface BriefStepProps extends StepCommonProps {
   /** FB-009 D: the Intake Agent's judgement of the brief (null for older projects). */
   briefAssessment?: BriefAssessment | null;
   openQuestions: number;
-  clarificationSentAt: string | null;
+  /** FB-011: the project has no MSA and rate card yet (warned about when confirming scope). */
+  missingMsaRateCard: boolean;
+  clientName: string;
   clientUpdates: ClientUpdateLogEntry[];
-  clarificationEmail: ClarificationEmail | null;
-  clarificationEmailDraft: ClarificationEmailDraftMeta | null;
   briefCompleteness: BriefCompleteness;
   pmPerspective: PmPerspectiveFieldView[];
   scopeConfirmedAt: string | null;
@@ -128,18 +108,8 @@ export interface BriefStepProps extends StepCommonProps {
 }
 
 export function BriefStep(props: BriefStepProps) {
-  const outstanding = [
-    ...props.systemChecks.filter((c) => !c.met).map((c) => c.label),
-    ...props.checklistItems
-      .filter((i) => (i.step ?? "brief") === "brief" && !i.isComplete)
-      .map((i) => i.label),
-  ];
   return (
-    <StepSection
-      stepId="brief"
-      projectComplete={props.projectComplete}
-      readiness={<Readiness stepId="brief" common={props} />}
-    >
+    <StepSection stepId="brief" projectComplete={props.projectComplete}>
       <BriefAssessmentCallout
         projectId={props.projectId}
         assessment={props.briefAssessment ?? null}
@@ -154,10 +124,7 @@ export function BriefStep(props: BriefStepProps) {
         assessment={<BriefAssessmentLabel assessment={props.briefAssessment ?? null} />}
         earlierDocuments={props.earlierDocuments}
         openQuestions={props.openQuestions}
-        clarificationSentAt={props.clarificationSentAt}
         clientUpdates={props.clientUpdates}
-        clarificationEmail={props.clarificationEmail}
-        clarificationEmailDraft={props.clarificationEmailDraft}
         briefCompleteness={props.briefCompleteness}
         pmPerspective={props.pmPerspective}
         readOnly={props.projectComplete}
@@ -166,7 +133,9 @@ export function BriefStep(props: BriefStepProps) {
         projectId={props.projectId}
         scopeConfirmedAt={props.scopeConfirmedAt}
         scopeConfirmedByName={props.scopeConfirmedByName}
-        outstanding={outstanding}
+        openQuestions={props.openQuestions}
+        missingMsaRateCard={props.missingMsaRateCard}
+        clientName={props.clientName}
         estimateApproved={props.estimateApproved}
         projectComplete={props.projectComplete}
       />
@@ -196,7 +165,6 @@ export function EstimateStep(props: EstimateStepProps) {
       stepId="estimate"
       prerequisiteNote={prerequisiteNote}
       projectComplete={props.projectComplete}
-      readiness={<Readiness stepId="estimate" common={props} />}
     >
       <fieldset id="capabilities" disabled={props.projectComplete} className="min-w-0 scroll-mt-6">
         <legend className="sr-only">Capabilities and estimate brief</legend>
@@ -256,7 +224,6 @@ export function SowStep(props: SowStepProps) {
       stepId="sow"
       prerequisiteNote={prerequisiteNote}
       projectComplete={props.projectComplete}
-      readiness={<Readiness stepId="sow" common={props} />}
     >
       <div className="border border-border bg-surface px-4 py-3">
         <StartSowDevelopmentPanel

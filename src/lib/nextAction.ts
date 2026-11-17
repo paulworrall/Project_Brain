@@ -11,6 +11,9 @@ export type BriefAssessmentLevel = "complete" | "partial" | "thin";
 
 export interface NextActionInput {
   projectId: string;
+  /** For the missing MSA / rate card rule: the client's admin page and name. */
+  clientId: string;
+  clientName: string;
   projectComplete: boolean;
   /** The approved SOW's download link (for the complete state). */
   approvedSowHref: string | null;
@@ -19,7 +22,8 @@ export interface NextActionInput {
   hasEarlierDocuments: boolean;
   /** Stored open questions plus required key details outstanding. */
   openQuestions: number;
-  clarificationSent: boolean;
+  /** FB-011: the project has both a master service agreement and a rate card. */
+  hasMsaAndRateCard: boolean;
   /** The Intake Agent's judgement (FB-009 D); null for older projects. */
   briefAssessment: BriefAssessmentLevel | null;
   scopeConfirmed: boolean;
@@ -40,7 +44,8 @@ export interface NextActionInput {
 export type NextActionId =
   | "complete"
   | "create_scope_summary"
-  | "send_clarification"
+  | "add_msa_rate_card"
+  | "resolve_questions"
   | "confirm_scope"
   | "confirm_latest_scope"
   | "choose_capabilities"
@@ -58,7 +63,8 @@ export interface NextAction {
   reason: string;
   /** The step the action belongs to. */
   step: StepId;
-  button: { label: string; href: string };
+  /** `action: "copy_questions"` makes the banner copy the open questions instead of only linking. */
+  button: { label: string; href: string; action?: "copy_questions" };
 }
 
 function plural(n: number, noun: string): string {
@@ -91,19 +97,27 @@ export function deriveNextAction(p: NextActionInput): NextAction {
   // Brief and estimate rules apply until the estimate is approved; after
   // that, earlier gaps are a change request, not the next step.
   const preApproval = !p.estimateApproved;
-  if (
-    preApproval &&
-    p.openQuestions > 0 &&
-    !p.clarificationSent &&
-    !p.scopeConfirmed &&
-    p.briefAssessment !== "complete"
-  ) {
+  // Only until an estimate exists: once one is built it has already been priced.
+  if (preApproval && !p.hasEstimate && !p.hasMsaAndRateCard) {
     return {
-      id: "send_clarification",
-      title: "Send the clarification email",
-      reason: `${plural(p.openQuestions, "open question")} still need the client's answer.`,
+      id: "add_msa_rate_card",
+      title: `Add an MSA and rate card for ${p.clientName}`,
+      reason: "An Admin needs to add these before the estimate can be priced.",
       step: "brief",
-      button: { label: "Open the email", href: at("brief", "clarification-email") },
+      button: { label: "Open the client page", href: `/clients/${p.clientId}` },
+    };
+  }
+  if (preApproval && p.openQuestions > 0 && !p.scopeConfirmed && p.briefAssessment !== "complete") {
+    return {
+      id: "resolve_questions",
+      title: "Resolve open questions with the client",
+      reason: `${plural(p.openQuestions, "open question")} in the scope summary. Tell the assistant the answers when you have them.`,
+      step: "brief",
+      button: {
+        label: "Copy questions",
+        href: at("brief", "scope-summary"),
+        action: "copy_questions",
+      },
     };
   }
   if (preApproval && !p.scopeConfirmed) {
