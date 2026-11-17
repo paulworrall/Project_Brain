@@ -55,18 +55,43 @@ const docx = (name: string, size = 2048) =>
 beforeEach(() => addProjectInformationAction.mockReset());
 
 describe("AddProjectInformationPanel", () => {
-  it("sits above the Project assistant in the sidebar", () => {
+  it("is the second tab of one sidebar panel, with no helper sentence under its title (FB-012)", async () => {
+    const user = userEvent.setup();
     render(<ProjectSidebar projectId="p1" projectName="Fizzy" versions={versions} />);
-    const panel = screen.getByRole("heading", { name: "Add project information" });
-    const assistant = screen.getByRole("heading", { name: "Project assistant" });
+    expect(screen.getByRole("tab", { name: "Ask" })).toHaveAttribute("aria-selected", "true");
+    await user.click(screen.getByRole("tab", { name: "Add notes or files" }));
+    expect(screen.getByRole("tab", { name: "Add notes or files" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tabpanel", { name: "Add notes or files" })).toBeVisible();
     expect(
-      panel.compareDocumentPosition(assistant) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy();
-    expect(
-      screen.getByText(
+      screen.queryByText(
         "Meeting notes, client clarifications, presentations — anything new about this project."
       )
-    ).toBeInTheDocument();
+    ).toBeNull();
+  });
+
+  it("puts the paste box or file drop first, then Type, From and Date, then Add to project", () => {
+    render(<AddProjectInformationPanel projectId="p1" versions={versions} />);
+    const order = [
+      screen.getByLabelText("Text to add"),
+      screen.getByLabelText("Type"),
+      screen.getByLabelText("Date it happened (optional)"),
+      screen.getByRole("button", { name: "Add to project" }),
+    ];
+    for (let i = 0; i < order.length - 1; i++) {
+      expect(order[i].compareDocumentPosition(order[i + 1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+  });
+
+  it("Add to project is grey and disabled until there is text or a file, then enabled", async () => {
+    const user = userEvent.setup();
+    render(<AddProjectInformationPanel projectId="p1" versions={versions} />);
+    const button = screen.getByRole("button", { name: "Add to project" });
+    expect(button).toBeDisabled();
+    expect(button.className).toContain("cursor-not-allowed");
+    expect(button.className).not.toContain("bg-primary");
+    await user.type(screen.getByLabelText("Text to add"), "Something new.");
+    expect(button).toBeEnabled();
+    expect(button.className).toContain("bg-primary");
   });
 
   it("has labelled Type, From and Date fields with sensible defaults", () => {
@@ -192,11 +217,8 @@ describe("AddProjectInformationPanel", () => {
 
   it("is read-only once the project is complete", () => {
     render(<AddProjectInformationPanel projectId="p1" versions={versions} readOnly />);
-    expect(
-      screen.getByText(
-        "This project is complete. Changes will need a change request (coming soon)."
-      )
-    ).toBeInTheDocument();
+    // The one lock line lives under the stepper; the panel repeats nothing (FB-012).
+    expect(screen.queryByText(/This project is complete/)).toBeNull();
     expect(screen.getByLabelText("Type")).toBeDisabled();
     expect(screen.getByRole("button", { name: "Add to project" })).toBeDisabled();
   });

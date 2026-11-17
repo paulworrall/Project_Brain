@@ -11,7 +11,6 @@ import {
   type InfoCategory,
 } from "@/lib/projectInfoFileRules";
 import { formatUkDateTime } from "@/lib/updateLabel";
-import { PROJECT_COMPLETE_MESSAGE } from "@/lib/projectSteps";
 import { VersionHistoryDrawer, type VersionView } from "./VersionHistoryDrawer";
 
 /**
@@ -48,7 +47,10 @@ export function AddProjectInformationPanel({
   projectId,
   versions,
   readOnly = false,
+  embedded = false,
 }: {
+  /** Inside the tabbed sidebar (FB-012): the tab supplies the card and the title. */
+  embedded?: boolean;
   projectId: string;
   /** The brief and its updates, oldest first; the history drawer shows them newest first. */
   versions: VersionView[];
@@ -146,7 +148,8 @@ export function AddProjectInformationPanel({
   return (
     <SidebarPanel
       headingLevel={2}
-      className="p-4"
+      embedded={embedded}
+      className={embedded ? "" : "p-4"}
       icon={
         <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
           <path
@@ -164,16 +167,8 @@ export function AddProjectInformationPanel({
         </svg>
       }
       title="Add project information"
-      subtitle={
-        <>Meeting notes, client clarifications, presentations — anything new about this project.</>
-      }
+      subtitle={null}
     >
-      {readOnly && (
-        <p className="mt-3 text-sm text-foreground">
-          <span aria-hidden="true">! </span>
-          {PROJECT_COMPLETE_MESSAGE}
-        </p>
-      )}
       <form
         className="mt-3"
         onSubmit={(event) => {
@@ -183,56 +178,6 @@ export function AddProjectInformationPanel({
       >
         <fieldset disabled={readOnly || pending} className="min-w-0 space-y-3">
           <legend className="sr-only">Project information</legend>
-          <div>
-            <label htmlFor={ids.category} className="block text-xs font-medium text-foreground">
-              Type
-            </label>
-            <select
-              id={ids.category}
-              value={category}
-              onChange={(e) => setCategory(e.target.value as InfoCategory)}
-              className="mt-1 min-h-11 w-full border border-border-strong bg-surface px-2 py-1.5 text-sm text-foreground"
-            >
-              {INFO_CATEGORIES.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div role="radiogroup" aria-labelledby={ids.source} className="text-sm text-foreground">
-            <span id={ids.source} className="block text-xs font-medium">
-              From
-            </span>
-            <div className="mt-1 flex flex-wrap gap-x-4">
-              {(["CLIENT", "INTERNAL_TEAM"] as const).map((value) => (
-                <label key={value} className="flex min-h-11 items-center gap-1.5">
-                  <input
-                    type="radio"
-                    name={`${ids.source}-source`}
-                    checked={source === value}
-                    onChange={() => setSource(value)}
-                  />
-                  {value === "CLIENT" ? "Client" : "Internal team"}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor={ids.date} className="block text-xs font-medium text-foreground">
-              Date it happened (optional)
-            </label>
-            <input
-              id={ids.date}
-              type="date"
-              value={occurredOn}
-              onChange={(e) => setOccurredOn(e.target.value)}
-              className="mt-1 min-h-11 w-full border border-border-strong bg-surface px-2 py-1.5 text-sm text-foreground"
-            />
-          </div>
-
           <div
             role="radiogroup"
             aria-label="Add as"
@@ -352,6 +297,61 @@ export function AddProjectInformationPanel({
             </div>
           )}
 
+          <div className="flex flex-wrap gap-3">
+            <div className="min-w-36 flex-1">
+          <div>
+            <label htmlFor={ids.category} className="block text-xs font-medium text-foreground">
+              Type
+            </label>
+            <select
+              id={ids.category}
+              value={category}
+              onChange={(e) => setCategory(e.target.value as InfoCategory)}
+              className="mt-1 min-h-11 w-full border border-border-strong bg-surface px-2 py-1.5 text-sm text-foreground"
+            >
+              {INFO_CATEGORIES.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+            </div>
+            <div className="min-w-36 flex-1">
+          <div role="radiogroup" aria-labelledby={ids.source} className="text-sm text-foreground">
+            <span id={ids.source} className="block text-xs font-medium">
+              From
+            </span>
+            <div className="mt-1 flex flex-wrap gap-x-4">
+              {(["CLIENT", "INTERNAL_TEAM"] as const).map((value) => (
+                <label key={value} className="flex min-h-11 items-center gap-1.5">
+                  <input
+                    type="radio"
+                    name={`${ids.source}-source`}
+                    checked={source === value}
+                    onChange={() => setSource(value)}
+                  />
+                  {value === "CLIENT" ? "Client" : "Internal team"}
+                </label>
+              ))}
+            </div>
+          </div>
+            </div>
+            <div className="min-w-36 flex-1">
+          <div>
+            <label htmlFor={ids.date} className="block text-xs font-medium text-foreground">
+              Date it happened (optional)
+            </label>
+            <input
+              id={ids.date}
+              type="date"
+              value={occurredOn}
+              onChange={(e) => setOccurredOn(e.target.value)}
+              className="mt-1 min-h-11 w-full border border-border-strong bg-surface px-2 py-1.5 text-sm text-foreground"
+            />
+          </div>
+            </div>
+          </div>
           <Button type="submit" disabled={!canSubmit} className="min-h-11 w-full">
             {pending ? "Adding…" : "Add to project"}
           </Button>

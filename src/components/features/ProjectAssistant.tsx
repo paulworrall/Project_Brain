@@ -34,9 +34,12 @@ interface PendingChoice {
 export function ProjectAssistant({
   projectId,
   projectName,
+  embedded = false,
 }: {
   projectId: string;
   projectName: string;
+  /** Inside the tabbed sidebar (FB-012): the tab supplies the card and the title. */
+  embedded?: boolean;
 }) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [message, setMessage] = useState("");
@@ -111,7 +114,8 @@ export function ProjectAssistant({
   return (
     <SidebarPanel
       headingLevel={2}
-      className="flex h-full flex-col p-4"
+      embedded={embedded}
+      className={embedded ? "flex flex-col" : "flex h-full flex-col p-4"}
       icon={
         <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
           <path
@@ -255,7 +259,7 @@ export function ProjectAssistant({
               submit();
             }
           }}
-          placeholder="Ask a question, or tell me something new about this project"
+          placeholder="Ask a question or tell me what’s changed"
           className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
         />
         <Button type="submit" disabled={pending} className="w-full">
