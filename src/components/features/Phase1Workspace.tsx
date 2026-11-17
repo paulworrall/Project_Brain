@@ -64,11 +64,21 @@ export function Phase1Workspace({
   const hasEarlier =
     earlierDocuments.positionDocument !== null || earlierDocuments.draftScopeDocument !== null;
   const embedded = subTasks !== undefined;
+  const taskFor = (id: string) => subTasks?.find((t) => t.id === id);
 
   return (
     <SubTaskGroup>
       <div className="space-y-4">
-        <SubTaskSection task={subTasks?.[0]} readOnly={readOnly} className="space-y-4">
+        <SubTaskSection task={taskFor("brief.key-details")} readOnly={readOnly} className="space-y-6">
+          {/* A disabled fieldset makes every control inside read-only once the project is complete. */}
+          <fieldset disabled={readOnly} className="min-w-0 space-y-6">
+            <legend className="sr-only">Key details and PM perspective</legend>
+            <BriefChecklist projectId={projectId} completeness={briefCompleteness} />
+            <PmPerspectivePanel projectId={projectId} fields={pmPerspective} />
+          </fieldset>
+        </SubTaskSection>
+
+        <SubTaskSection task={taskFor("brief.scope-summary")} readOnly={readOnly} className="space-y-4">
           <ScopeSummaryCard
             projectId={projectId}
             summary={scopeSummary}
@@ -105,17 +115,8 @@ export function Phase1Workspace({
           )}
         </SubTaskSection>
 
-        <SubTaskSection task={subTasks?.[1]} readOnly={readOnly} className="space-y-6">
-          {/* A disabled fieldset makes every control inside read-only once the project is complete. */}
-          <fieldset disabled={readOnly} className="min-w-0 space-y-6">
-            <legend className="sr-only">Key details and PM perspective</legend>
-            <BriefChecklist projectId={projectId} completeness={briefCompleteness} />
-            <PmPerspectivePanel projectId={projectId} fields={pmPerspective} />
-          </fieldset>
-        </SubTaskSection>
-
         {gate !== undefined && (
-          <SubTaskSection task={subTasks?.[2]} readOnly={readOnly}>
+          <SubTaskSection task={taskFor("brief.confirm-scope")} readOnly={readOnly}>
             {gate}
           </SubTaskSection>
         )}
