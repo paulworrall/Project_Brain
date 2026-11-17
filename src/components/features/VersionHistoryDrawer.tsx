@@ -34,7 +34,7 @@ function VersionRow({ version }: { version: VersionView }) {
           {version.label}
           {showDate && <span className="text-muted-foreground"> · {formatUkDateTime(version.createdAt)}</span>}
         </p>
-        <span className="shrink-0 rounded-full border border-border bg-surface-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+        <span className="shrink-0 rounded-full border border-border bg-surface-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
           {SOURCE_LABEL[version.source]}
         </span>
       </div>
@@ -58,7 +58,7 @@ function VersionRow({ version }: { version: VersionView }) {
         </div>
       )}
       {version.changeSummary && (
-        <p className="mt-1 text-[11px] text-muted-foreground">Changed: {version.changeSummary}</p>
+        <p className="mt-1 text-xs text-muted-foreground">Changed: {version.changeSummary}</p>
       )}
     </li>
   );

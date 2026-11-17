@@ -15,7 +15,7 @@ export function DeliverablesServicesDocumentView({
   return (
     <div className="space-y-4">
       <Card className="p-5">
-        <h3 className="text-sm font-medium text-foreground">Deliverables</h3>
+        <h3 className="text-card font-medium text-foreground">Deliverables</h3>
         <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-foreground">
           {document.deliverables.map((d, i) => (
             <li key={i}>{d}</li>
@@ -24,7 +24,7 @@ export function DeliverablesServicesDocumentView({
       </Card>
 
       <Card className="p-5">
-        <h3 className="text-sm font-medium text-foreground">Services</h3>
+        <h3 className="text-card font-medium text-foreground">Services</h3>
         <div className="mt-3 space-y-3">
           {SERVICE_ROWS.map(({ key, label }) => (
             <div key={key}>
@@ -44,7 +44,7 @@ export function DeliverablesServicesDocumentView({
       </Card>
 
       <Card className="p-5">
-        <h3 className="text-sm font-medium text-foreground">Open Questions / Risks</h3>
+        <h3 className="text-card font-medium text-foreground">Open Questions / Risks</h3>
         {document.openQuestionsRisks.length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground">None raised.</p>
         ) : (
@@ -57,7 +57,7 @@ export function DeliverablesServicesDocumentView({
       </Card>
 
       <Card className="border-warning border-l-4 bg-warning-bg p-5">
-        <h3 className="text-sm font-medium text-foreground">Outstanding Gaps Carried Forward</h3>
+        <h3 className="text-card font-medium text-foreground">Outstanding Gaps Carried Forward</h3>
         {document.outstandingGapsCarriedForward.length === 0 ? (
           <p className="mt-2 text-sm text-foreground">None — all prior gaps were resolved.</p>
         ) : (

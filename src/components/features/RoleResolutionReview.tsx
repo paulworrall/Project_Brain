@@ -187,7 +187,7 @@ export function RoleResolutionReview({
   return (
     <div className="space-y-3 border border-warning border-l-4 bg-warning-bg p-4">
       <div>
-        <h4 className="text-sm font-medium text-foreground">
+        <h4 className="text-card font-medium text-foreground">
           {pendingResolutions.length} role{pendingResolutions.length === 1 ? "" : "s"} need
           {pendingResolutions.length === 1 ? "s" : ""} your review
         </h4>

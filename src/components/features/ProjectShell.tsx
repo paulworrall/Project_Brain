@@ -137,7 +137,7 @@ export function ProjectShell({
       </p>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
-        <div className="min-w-0 space-y-4">
+        <div className="min-w-0 space-y-6">
           {PROJECT_STEPS.map((step) => (
             <div key={step.id} hidden={step.id !== activeStepId} data-step={step.id}>
               {steps[step.id]}

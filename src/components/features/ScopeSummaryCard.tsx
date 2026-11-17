@@ -196,7 +196,7 @@ export function ScopeSummaryCard({
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 id={headingId} className="text-base font-medium text-foreground">
+          <h3 id={headingId} className="text-card font-medium text-foreground">
             Scope summary
           </h3>
           {summary && (

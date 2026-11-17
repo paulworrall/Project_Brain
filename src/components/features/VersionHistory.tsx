@@ -158,7 +158,7 @@ export function VersionHistory({
   return (
     <Card className="p-5">
       <div className="flex items-center justify-between gap-4">
-        <h3 className="text-sm font-medium text-foreground">{title}</h3>
+        <h3 className="text-card font-medium text-foreground">{title}</h3>
         {canManage && (
           <Button type="button" variant="secondary" onClick={() => setIsUploading((prev) => !prev)}>
             {isUploading ? "Cancel" : current ? "Upload new version" : "Upload"}

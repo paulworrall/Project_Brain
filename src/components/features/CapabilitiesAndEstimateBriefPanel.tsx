@@ -187,11 +187,11 @@ export function CapabilitiesAndEstimateBriefPanel({
 
   return (
     <Card className="space-y-5 p-5">
-      <h3 className="text-sm font-medium text-foreground">Ready the Brief for Team Estimates</h3>
+      <h3 className="text-card font-medium text-foreground">Ready the Brief for Team Estimates</h3>
 
       <div>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h4 className="text-sm font-medium text-foreground">
+          <h4 className="text-card font-medium text-foreground">
             Which capability teams are needed?
           </h4>
           {!choosingTeams && (
@@ -320,7 +320,7 @@ export function CapabilitiesAndEstimateBriefPanel({
 
       <div className="border-t border-border pt-4">
         <div className="flex items-center justify-between gap-2">
-          <h4 className="text-sm font-medium text-foreground">Estimate brief</h4>
+          <h4 className="text-card font-medium text-foreground">Estimate brief</h4>
           <form action={generateFormAction}>
             <Button
               type="submit"

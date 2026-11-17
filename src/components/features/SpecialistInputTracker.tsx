@@ -119,7 +119,7 @@ export function SpecialistInputTracker({
       className="border border-border bg-surface px-4 py-3"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 id={headingId} className="text-base font-medium text-foreground">
+        <h3 id={headingId} className="text-card font-medium text-foreground">
           Specialist input
         </h3>
         {rows.length > 0 && (

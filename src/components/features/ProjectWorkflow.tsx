@@ -66,8 +66,8 @@ export function StepSection({
   const step = getStep(stepId);
   const headingId = `step-heading-${stepId}`;
   return (
-    <section aria-labelledby={headingId} className="space-y-4">
-      <h2 id={headingId} tabIndex={-1} className="text-2xl font-light text-foreground outline-none">
+    <section aria-labelledby={headingId} className="space-y-6">
+      <h2 id={headingId} tabIndex={-1} className="text-section font-bold text-foreground outline-none">
         {step.heading}
       </h2>
       {projectComplete && (
@@ -183,7 +183,7 @@ export function EstimateStep(props: EstimateStepProps) {
         aria-labelledby="build-estimate-heading"
         className="space-y-3 border border-border bg-surface px-4 py-3"
       >
-        <h3 id="build-estimate-heading" className="text-base font-medium text-foreground">
+        <h3 id="build-estimate-heading" className="text-card font-medium text-foreground">
           Build The Estimate
         </h3>
         <EstimatesListPanel

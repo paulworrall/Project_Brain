@@ -365,7 +365,7 @@ export function StartSowDevelopmentPanel({
 
       <div className="border-t border-border pt-3">
         <div className="flex items-center justify-between gap-2">
-          <h4 className="text-sm font-medium text-foreground">Statement of Work</h4>
+          <h4 className="text-card font-medium text-foreground">Statement of Work</h4>
           <Button
             type="button"
             onClick={handleGenerateClick}

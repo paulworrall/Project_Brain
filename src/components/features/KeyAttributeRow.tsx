@@ -140,7 +140,7 @@ export function KeyAttributeRow({
             <span aria-hidden="true" className={`text-sm ${STATUS_TEXT_CLASS[status]}`}>
               {STATUS_ICON[status]}
             </span>
-            <h4 className="text-sm font-medium text-foreground">{attribute.label}</h4>
+            <h4 className="text-card font-medium text-foreground">{attribute.label}</h4>
             <span className={`text-xs font-medium ${STATUS_TEXT_CLASS[status]}`}>
               {STATUS_LABEL[status]}
             </span>
