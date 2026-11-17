@@ -7,7 +7,8 @@ import type { BriefAssessment } from "@/types/intake";
  * - `BriefAssessmentLabel` on the Scope summary card;
  * - `BriefAssessmentCallout` at the top of the Brief step: a complete brief's
  *   fast path (Confirm scope is the primary action) or a thin brief's warning
- *   with its reasons (the clarification email is the primary action).
+ *   with its reasons (the open questions in the scope summary are the next
+ *   thing to resolve with the client, FB-011).
  */
 
 const LABEL: Record<BriefAssessment["level"], string> = {
@@ -79,10 +80,10 @@ export function BriefAssessmentCallout({
           </ul>
         )}
         <Link
-          href={`/projects/${projectId}/brief#clarification-email`}
+          href={`/projects/${projectId}/brief#scope-summary`}
           className="inline-flex min-h-11 items-center bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary-hover"
         >
-          Open the clarification email
+          See the open questions
         </Link>
       </div>
     );

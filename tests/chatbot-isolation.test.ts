@@ -154,7 +154,8 @@ describe("assembleProjectContext cross-project isolation", () => {
     expect(context).toContain("UNIQUE_MARKER_ALPHA_9214");
     expect(context).toContain("UNIQUE_MARKER_ALPHA_TOUCHPOINT_7731");
     expect(context).toContain("UNIQUE_MARKER_ALPHA_DOCUMENT_5502");
-    expect(context).toContain("UNIQUE_MARKER_ALPHA_CHECKLIST_2841");
+    // FB-011: the retired set-up checklist is no longer read, for anyone.
+    expect(context).not.toContain("UNIQUE_MARKER_ALPHA_CHECKLIST_2841");
     expect(context).toContain("UNIQUE_MARKER_ALPHA_KEYDETAIL_8812");
     expect(context).toContain("UNIQUE_MARKER_ALPHA_BRIEF_1402");
     expect(context).toContain("UNIQUE_MARKER_ALPHA_PM_7075");
@@ -174,7 +175,7 @@ describe("assembleProjectContext cross-project isolation", () => {
     expect(context).toContain("UNIQUE_MARKER_BETA_3387");
     expect(context).toContain("UNIQUE_MARKER_BETA_TOUCHPOINT_1198");
     expect(context).toContain("UNIQUE_MARKER_BETA_DOCUMENT_6640");
-    expect(context).toContain("UNIQUE_MARKER_BETA_CHECKLIST_4409");
+    expect(context).not.toContain("UNIQUE_MARKER_BETA_CHECKLIST_4409");
     expect(context).toContain("UNIQUE_MARKER_BETA_KEYDETAIL_3306");
     expect(context).toContain("UNIQUE_MARKER_BETA_BRIEF_5520");
     expect(context).toContain("UNIQUE_MARKER_BETA_PM_2217");

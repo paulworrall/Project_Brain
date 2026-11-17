@@ -20,7 +20,6 @@ import { getProjectContext } from "@/lib/projectContext";
 import { latestPositionDocumentContent } from "@/lib/positionDocument";
 import {
   rebuildPositionDocumentVersion,
-  redraftClarificationEmail,
 } from "@/lib/outputRegeneration";
 import { IntakeAgentError } from "@/services/agents/intake-agent";
 import { PositionDocumentFieldsSchema, type PositionDocumentFields } from "@/types/intake";
@@ -640,70 +639,6 @@ export async function submitSpecialistFeedbackAction(
   revalidatePath("/"); // FB-009 F: the pipeline home page
 }
 
-export async function toggleChecklistItemAction(
-  projectId: string,
-  itemId: string,
-  _prevState: ActionState | undefined,
-  formData: FormData
-): Promise<ActionState | undefined> {
-  const completeLock = await projectCompleteMessage(projectId);
-  if (completeLock) {
-    return { message: completeLock };
-  }
-
-  const isComplete = formData.get("isComplete") === "on";
-
-  const result = await prisma.checklistItem.updateMany({
-    where: { id: itemId, projectId },
-    data: { isComplete, completedAt: isComplete ? new Date() : null },
-  });
-
-  if (result.count === 0) {
-    return { message: "Checklist item not found." };
-  }
-
-  revalidatePath(`/projects/${projectId}`, "layout");
-  revalidatePath("/"); // FB-009 F: the pipeline home page
-}
-
-const ChecklistDetailSchema = z.object({
-  detailText: z.string().trim().optional(),
-});
-
-/**
- * Persists a checklist item's freeform detail (e.g. job code, folder URL)
- * independently of its isComplete checkbox — always editable regardless of
- * completion state, via its own action so the two never interfere.
- */
-export async function updateChecklistItemDetailAction(
-  projectId: string,
-  itemId: string,
-  _prevState: ActionState | undefined,
-  formData: FormData
-): Promise<ActionState | undefined> {
-  const completeLock = await projectCompleteMessage(projectId);
-  if (completeLock) {
-    return { message: completeLock };
-  }
-
-  const parsed = ChecklistDetailSchema.safeParse({ detailText: formData.get("detailText") });
-  if (!parsed.success) {
-    return { message: "Invalid detail text." };
-  }
-
-  const result = await prisma.checklistItem.updateMany({
-    where: { id: itemId, projectId },
-    data: { detailText: parsed.data.detailText ? parsed.data.detailText : null },
-  });
-
-  if (result.count === 0) {
-    return { message: "Checklist item not found." };
-  }
-
-  revalidatePath(`/projects/${projectId}`, "layout");
-  revalidatePath("/"); // FB-009 F: the pipeline home page
-}
-
 const OtherLabelSchema = z.object({
   otherLabel: z.string().trim().min(1, { error: "Label can't be empty." }),
 });
@@ -777,11 +712,6 @@ interface ProjectUpdateInput {
   category?: ProjectInfoCategory | null;
   /** FB-010: the day it happened (e.g. the meeting date). */
   occurredOn?: Date | null;
-  /**
-   * FB-010: whether to queue the automatic clarification email redraft. A
-   * batch of files redrafts once, after its last file. Default true.
-   */
-  redraftEmail?: boolean;
 }
 
 interface SavedProjectUpdate {
@@ -796,7 +726,7 @@ interface SavedProjectUpdate {
  * The Keep-This-Project-Up-to-Date flow, shared by uploadKnowledgeItemAction
  * and the Project assistant (FB-008): saves the update as the next brief
  * version, refreshes the Position Document and key details from it, then
- * (after the response) summarises it and redrafts the client email.
+ * (after the response) summarises it.
  * Not exported — a "use server" export would be callable from the client.
  */
 async function saveProjectUpdate(projectId: string, input: ProjectUpdateInput): Promise<SavedProjectUpdate> {
@@ -929,25 +859,6 @@ async function saveProjectUpdate(projectId: string, input: ProjectUpdateInput): 
     }
   });
 
-  // A fresh draft of the client email from the latest context, as a new
-  // version (earlier drafts are kept). Only ever a draft — nothing is sent.
-  // FB-009: once the PM has marked the email as sent, drafts stop being
-  // rewritten automatically (they can still redraft it by hand).
-  const { clarificationSentAt } = await prisma.project.findUniqueOrThrow({
-    where: { id: projectId },
-    select: { clarificationSentAt: true },
-  });
-  const redraft = !clarificationSentAt && input.redraftEmail !== false;
-  if (redraft) {
-    runAfterResponse(async () => {
-      try {
-        await redraftClarificationEmail(projectId, null, knowledgeItem.versionNumber);
-      } catch (error) {
-        console.error("Clarification email redraft after an update failed:", error);
-      }
-    });
-  }
-
   const changedScope = scopeUpdate?.changedSections ?? [];
   const changed = [
     ...Object.keys(keyAttributes ?? {}).map((id) => (getBriefAttribute(id)?.label ?? id).toLowerCase()),
@@ -955,14 +866,11 @@ async function saveProjectUpdate(projectId: string, input: ProjectUpdateInput): 
     ...(changedScope.length > 0 ? [`scope summary (${changedScope.join(", ")})`] : []),
   ];
   const savedNotice = `Saved as v${knowledgeItem.versionNumber}.`;
-  const draftNotice = !redraft
-    ? savedNotice
-    : `${savedNotice} A fresh client email draft is being written from it — refresh in a moment to see it.`;
   const problem = scopeNotice ?? positionDocumentNotice;
   return {
     versionNumber: knowledgeItem.versionNumber!,
     changed,
-    notice: problem ? `${problem} ${draftNotice}` : draftNotice,
+    notice: problem ? `${problem} ${savedNotice}` : savedNotice,
   };
 }
 
@@ -980,7 +888,7 @@ export interface ProjectInformationResult {
   fileName: string | null;
   /** "Added as v3 · Updated: budget, scope summary (Deliverables)". */
   confirmation: string;
-  /** Extra detail (the email redraft, or a scope summary that couldn't be refreshed). */
+  /** Extra detail (e.g. a scope summary that couldn't be refreshed). */
   notice: string;
 }
 
@@ -997,8 +905,6 @@ const ProjectInformationSchema = z.object({
     .optional()
     .or(z.literal("").transform(() => undefined)),
   content: z.string().trim().max(200_000, { error: "That's too long to paste. Add it as a file instead." }).default(""),
-  /** "false" for every file but the last in a batch: the email is redrafted once, at the end. */
-  finalInBatch: z.enum(["true", "false"]).default("true"),
 });
 
 function informationFailure(
@@ -1018,14 +924,13 @@ export async function addProjectInformationAction(
     source: formData.get("source") || undefined,
     occurredOn: formData.get("occurredOn") ?? undefined,
     content: formData.get("content") ?? undefined,
-    finalInBatch: formData.get("finalInBatch") || undefined,
   });
   if (!parsed.success) {
     const fieldErrors: Record<string, string> = {};
     for (const issue of parsed.error.issues) fieldErrors[String(issue.path[0] ?? "form")] ??= issue.message;
     return informationFailure(parsed.error.issues[0]?.message ?? "Check the form.", "VALIDATION", fieldErrors);
   }
-  const { category, source, occurredOn, content: pasted, finalInBatch } = parsed.data;
+  const { category, source, occurredOn, content: pasted } = parsed.data;
 
   const session = await auth();
   const actor = session?.user ? { id: session.user.id, role: session.user.role } : null;
@@ -1070,7 +975,6 @@ export async function addProjectInformationAction(
     userId: actor!.id,
     category,
     occurredOn: occurredOn ? new Date(`${occurredOn}T00:00:00Z`) : new Date(new Date().toISOString().slice(0, 10)),
-    redraftEmail: finalInBatch === "true",
   });
 
   revalidatePath(`/projects/${projectId}`, "layout");

@@ -3,7 +3,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
 
 // Real-DB integration tests for FB-008: the scope gate, specialist input rows,
-// checklist steps, the project-complete lock and the Project assistant's
+// the project-complete lock and the Project assistant's
 // routing. Claude is never called: the classifier and the chatbot answer are
 // mocked, and the update flow's key-detail read goes through a mocked SDK.
 // Skipped (loudly) until the FB-008 migration is applied.
@@ -38,10 +38,10 @@ const { anthropic } = await import("@/lib/anthropic");
 const mockParse = anthropic.messages.parse as ReturnType<typeof vi.fn>;
 const { keyAttributeFacts } = await import("./fixtures/keyAttributeFacts");
 const { addEstimateVersion, createEstimate } = await import("./helpers/estimates");
-const { confirmScope, reopenScope, updateSpecialistInput, setChecklistItemStep, addChecklistItem } =
+const { confirmScope, reopenScope, updateSpecialistInput } =
   await import("@/lib/project/stepService");
 const { assertProjectEditable, ProjectCompleteError } = await import("@/lib/project/projectGuards");
-const { sendAssistantMessageAction, toggleChecklistItemAction } = await import(
+const { sendAssistantMessageAction } = await import(
   "@/app/(dashboard)/projects/[projectId]/actions"
 );
 // FB-010: the old update action, through the new Add project information action.
@@ -80,7 +80,6 @@ async function newProject(
       workstreamId,
       briefRawText: "Relaunch the loyalty app.",
       capabilities: { create: capabilities.map((capability) => ({ capability })) },
-      checklistItems: { create: [{ label: "Assign job code", order: 0 }] },
     },
   });
   return project.id;
@@ -175,56 +174,6 @@ beforeEach(() => {
   answer.mockReset();
 });
 
-describeDb("checklist steps", () => {
-  it("existing items default to the Brief step", async () => {
-    const projectId = await newProject();
-    const item = await prisma.checklistItem.findFirstOrThrow({ where: { projectId } });
-    expect(item.step).toBe("brief");
-  });
-
-  it("an item can be moved to another step, and new items are added to a step", async () => {
-    const projectId = await newProject();
-    const item = await prisma.checklistItem.findFirstOrThrow({ where: { projectId } });
-    expect(
-      await setChecklistItemStep(prisma, pm, { projectId, itemId: item.id, step: "sow" })
-    ).toMatchObject({
-      ok: true,
-    });
-    expect((await prisma.checklistItem.findUniqueOrThrow({ where: { id: item.id } })).step).toBe(
-      "sow"
-    );
-
-    const added = await addChecklistItem(prisma, pm, {
-      projectId,
-      label: "Book estimation session",
-      step: "estimate",
-    });
-    expect(added.ok).toBe(true);
-    const row = await prisma.checklistItem.findFirstOrThrow({
-      where: { projectId, label: "Book estimation session" },
-    });
-    expect(row).toMatchObject({ step: "estimate", order: 1 });
-  });
-
-  it("refuses anyone who isn't signed in, and an item from another project", async () => {
-    const projectId = await newProject();
-    const other = await newProject();
-    const item = await prisma.checklistItem.findFirstOrThrow({ where: { projectId: other } });
-    expect(
-      await setChecklistItemStep(prisma, null, { projectId, itemId: item.id, step: "sow" })
-    ).toMatchObject({
-      ok: false,
-      code: "FORBIDDEN",
-    });
-    expect(
-      await setChecklistItemStep(prisma, pm, { projectId, itemId: item.id, step: "sow" })
-    ).toMatchObject({
-      ok: false,
-      code: "NOT_FOUND",
-    });
-  });
-});
-
 describeDb("scope gate", () => {
   it("confirm sets scopeConfirmedAt/By; reopen clears it", async () => {
     const projectId = await newProject();
@@ -256,7 +205,12 @@ describeDb("scope gate", () => {
     let data = await loadProjectPageData(projectId);
     expect(data?.stepStatuses.brief).toBe("in_progress");
     expect(data?.currentStepId).toBe("brief");
-    expect(data?.systemChecks.estimate.find((c) => c.id === "scope-confirmed")?.met).toBe(false);
+    // FB-011: no readiness lists; a project without an MSA and rate card is
+    // told to add them first (and the Confirm scope dialog warns about it).
+    expect(data).not.toHaveProperty("systemChecks");
+    expect(data).not.toHaveProperty("checklistItems");
+    expect(data?.missingMsaRateCard).toBe(true);
+    expect(data?.nextAction.id).toBe("add_msa_rate_card");
 
     await confirmScope(prisma, pm, { projectId });
     // React's cache() only memoises inside a server render, so this re-reads.
@@ -264,7 +218,6 @@ describeDb("scope gate", () => {
     expect(data?.stepStatuses.brief).toBe("done");
     expect(data?.stepSummaries.brief?.text).toMatch(/^Scope confirmed · /);
     expect(data?.currentStepId).toBe("estimate");
-    expect(data?.systemChecks.estimate.find((c) => c.id === "scope-confirmed")?.met).toBe(true);
   });
 });
 
@@ -345,11 +298,8 @@ describeDb("project complete", () => {
     await expect(assertProjectEditable(projectId, prisma)).rejects.toBeInstanceOf(
       ProjectCompleteError
     );
-    const item = await prisma.checklistItem.findFirstOrThrow({ where: { projectId } });
     for (const result of [
       await reopenScope(prisma, pm, { projectId }),
-      await setChecklistItemStep(prisma, pm, { projectId, itemId: item.id, step: "sow" }),
-      await addChecklistItem(prisma, pm, { projectId, label: "Late item", step: "sow" }),
       await updateSpecialistInput(prisma, pm, {
         projectId,
         capability: "EXPERIENCE_DESIGN",
@@ -359,11 +309,6 @@ describeDb("project complete", () => {
       expect(result).toMatchObject({ ok: false, code: "PROJECT_COMPLETE" });
     }
 
-    const toggle = new FormData();
-    toggle.set("isComplete", "on");
-    expect(await toggleChecklistItemAction(projectId, item.id, undefined, toggle)).toEqual({
-      message: "This project is complete. Changes will need a change request (coming soon).",
-    });
     const update = new FormData();
     update.set("content", "Budget is now £60k.");
     expect(await uploadKnowledgeItemAction(projectId, undefined, update)).toMatchObject({

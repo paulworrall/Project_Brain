@@ -31,7 +31,6 @@ const { suggestCapabilitiesAction, submitSpecialistFeedbackAction } = await impo
 );
 // FB-010: the old update action, through the new Add project information action.
 const { uploadKnowledgeItemAction } = await import("./helpers/addInformation");
-const { redraftClarificationEmail } = await import("@/lib/outputRegeneration");
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
@@ -255,17 +254,6 @@ describe("every agent builds its context from getProjectContext", () => {
 
     expect(promptOf(0)).toContain("LATEST_UPDATE_Specialist");
     expect(promptOf(0)).toContain("<estimate_brief>");
-  });
-
-  it("the clarification email redraft sees the latest context", async () => {
-    const projectId = await projectWithHistory("Email");
-    mockParse.mockResolvedValueOnce({
-      parsed_output: { subject: "Quick questions", bodyText: "Hi," },
-    });
-
-    await redraftClarificationEmail(projectId, null);
-
-    expect(promptOf(0)).toContain("LATEST_UPDATE_Email");
   });
 });
 

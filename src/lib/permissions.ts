@@ -67,7 +67,7 @@ export function canRevertApproval(user: ApprovalActor | null | undefined): boole
 }
 
 // ---------------------------------------------------------------------------
-// Project editing (FB-008): confirming/reopening scope, checklist items and
+// Project editing (FB-008): confirming/reopening scope and
 // specialist input rows. The brief says "PM or Admin"; the user model has no
 // PM or Admin role yet (FB-006), so — like canApprove — any signed-in user may
 // edit for now. Change the rule here and every caller follows.

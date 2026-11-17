@@ -21,6 +21,8 @@ import {
   regenerateScopeSummaryAction,
 } from "@/app/(dashboard)/projects/[projectId]/scope-actions";
 import { ScopeSummarySections } from "./ScopeSummarySections";
+import { CopyQuestionsButton } from "./CopyQuestionsButton";
+import { openQuestionsText } from "@/lib/openQuestionsText";
 import type { ReactNode } from "react";
 
 /**
@@ -314,7 +316,10 @@ export function ScopeSummaryCard({
           </div>
         </form>
       ) : (
-        <ScopeSummarySections sections={summary.sections} />
+        <ScopeSummarySections
+          sections={summary.sections}
+          openQuestionsAction={<CopyQuestionsButton text={openQuestionsText(summary.sections)} />}
+        />
       )}
 
       <p

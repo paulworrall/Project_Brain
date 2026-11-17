@@ -48,7 +48,8 @@ Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (P
 |------|---------|-------------------|
 | `prisma/migrations/20261112100000_fb009_scope_summary/` | SCOPE_SUMMARY type; confirmed scope version, sent flag, brief assessment; estimate scope link (applied) | FB-009 |
 | `src/types/scope.ts`, `src/lib/{scopeSummary,scopeSummaryView,scopeSummaryProcessingStages}.ts`, `src/services/agents/scope-summary-agent.ts` | Scope summary shape/sections, DB layer + scope input, view builder, agent (draft/update/merge) | FB-009 A |
-| `projects/[projectId]/scope-actions.ts`, `step-actions.ts` (+edit, +sent), `ScopeSummaryCard`, `ScopeSummarySections`, `Phase1Workspace`, `ClarificationEmailCard` | Regenerate / create-from-earlier; edit; Mark as sent; Brief UI | FB-009 A |
+| `projects/[projectId]/scope-actions.ts`, `step-actions.ts` (+edit), `ScopeSummaryCard`, `ScopeSummarySections`, `Phase1Workspace` | Regenerate / create-from-earlier; edit; Brief UI (FB-011 removed the clarification email card and Mark as sent) | FB-009 A |
+| `src/lib/openQuestionsText.ts`, `CopyQuestionsButton.tsx` (+ `NextStepBanner`, `ScopeSummaryCard`) | The open questions as a numbered list; "Copy questions" with a "Copied" live-region confirmation | FB-011 |
 | `src/lib/estimateScopeSync{,View}.ts`, `SowChangeNotice` (configurable), `EstimatesListPanel` | Scope → estimate staleness and its notice | FB-009 B |
 | `src/lib/nextAction.ts`, `NextStepBanner`, `ProjectShell` | Next step rules, banner, announcement | FB-009 C |
 | `BriefAssessmentNotice`, `src/types/intake.ts` (`BriefAssessmentSchema`) | Fast path / thin warning / card label | FB-009 D |
@@ -60,10 +61,10 @@ Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (P
 |------|---------|-------------------|
 | `prisma/migrations/20261111100000_fb008_sow_steps/` | `Project.scopeConfirmedAt/ByUserId`, `ChecklistItem.step` (default brief), `SpecialistInput` (applied) | FB-008 |
 | `src/lib/projectSteps.ts` | Step config, `deriveStepStatuses`, current step, done summaries, accessible names, prerequisite notes | FB-008 |
-| `src/lib/project/{stepService,projectGuards,readiness}.ts` | Scope/specialist/checklist rules; project-complete guard; system checks + specialist rows | FB-008 |
+| `src/lib/project/{stepService,projectGuards,readiness}.ts` | Scope/specialist rules; project-complete guard; specialist rows (FB-011 removed checklist rules and system checks) | FB-008 |
 | `projects/[projectId]/step-actions.ts`, `actions.ts` (`sendAssistantMessageAction`, `saveProjectUpdate`) | Thin step actions; assistant routing; complete-lock on every project action | FB-008 |
 | `src/services/agents/assistant-classifier.ts` | question / update / both / unclear | FB-008 |
-| `ProjectShell`, `ProjectStepper`, `ProjectWorkflow` (`BriefStep`, `EstimateStep`, `SowStep`), `ScopeGate`, `SpecialistInputTracker`, `EditableChecklist`, `ProjectAssistant`, `ProjectSidebar` | Shell, stepper, step content, gate, tracker, readiness list, assistant | FB-008 |
+| `ProjectShell`, `ProjectStepper`, `ProjectWorkflow` (`BriefStep`, `EstimateStep`, `SowStep`), `ScopeGate`, `SpecialistInputTracker`, `ProjectAssistant`, `ProjectSidebar` | Shell, stepper, step content, gate (warns about open questions and a missing MSA/rate card), tracker, assistant; the per-step readiness lists are gone (FB-011) | FB-008 |
 | `(shell)/{layout,page}.tsx`, `(shell)/[phase]/page.tsx` | Persistent shell; redirect to current step; step page (old phase slugs redirect, unknown 404) | FB-008 |
 
 ### Source Files — Client approval (FB-005)
@@ -83,7 +84,6 @@ Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (P
 | `src/components/features/BriefChecklist.tsx` | "What We Need to Find Out": required attributes in config order (status, missing sub-fields, pending suggestion, inline fill-in/confirm), optional in a secondary group. Derived from `getBriefCompleteness`, never AI | Checklist |
 | `src/components/features/KeyAttributeRow.tsx` | One attribute row + status constants (was `KeyAttributesPanel.tsx`); confirmed values show every sub-field, milestones as a list | Checklist |
 | `src/lib/briefAttributeDisplay.ts` | Prisma-free date/milestone formatting and `timelineSection()` for documents (confirmed values only; suggestion marked unconfirmed) | Checklist |
-| `src/lib/clarificationQuestions.ts` | `clarificationQuestionsFrom` (email asks/confirms only the required key details) and `completenessFromExtraction` (intake) | Checklist |
 | `src/types/intake.ts`, `intake-agent.ts`, `clarification-extraction.ts` | `whatWeNeedToFindOut` no longer generated; stored schema keeps it optional for old versions (shown only in Version History as "Earlier open questions") | Checklist |
 | `src/types/capabilities.ts`, `estimate-brief-agent.ts`, `estimate-brief-docx.ts` | Estimate Brief timeline is no longer AI-written; the .docx renders it from the key details under the config label | Checklist |
 
@@ -150,7 +150,7 @@ Unchanged recently — see `progress.md`. Auth (`src/lib/{auth,permissions}.ts`,
 ### Test Files (see progress.md for the latest count)
 | File | Tests | Status |
 |------|-------|--------|
-| `tests/lib/{projectSteps,readiness}.test.ts`, `tests/components/{ProjectStepper,ProjectShell,ProjectWorkflow,ScopeGate,SpecialistInputTracker,EditableChecklist,ProjectAssistant}.test.tsx`, `tests/services/assistant-classifier.test.ts`, `tests/project-step-routing.test.tsx`, `tests/fb-008-steps.test.ts` (real DB) | Every status combination, summaries/aria names, stepper, steps + readiness lists, scope gate, specialist rows, assistant routing (question/update/both/unclear, mocked classifier), project-complete locks, redirects, removed panels not linked | ✅ New (FB-008) |
+| `tests/lib/{projectSteps,readiness}.test.ts`, `tests/components/{ProjectStepper,ProjectShell,ProjectWorkflow,ScopeGate,SpecialistInputTracker,ProjectAssistant}.test.tsx`, `tests/services/assistant-classifier.test.ts`, `tests/project-step-routing.test.tsx`, `tests/fb-008-steps.test.ts` (real DB) | Every status combination, summaries/aria names, stepper, steps + readiness lists, scope gate, specialist rows, assistant routing (question/update/both/unclear, mocked classifier), project-complete locks, redirects, removed panels not linked | ✅ New (FB-008) |
 | `tests/services/{key-attribute-extraction,position-key-detail-filter}.test.ts`, `tests/fixtures/keyAttributeFacts.ts` | Flat-schema regression guard, fact grouping/validation, de-dup removes only covered items and keeps all on failure | ✅ New |
 | `tests/services/{intake-agent,clarification-extraction}.test.ts`, `tests/{brief-key-attributes,pm-perspective,stage-1-5-happy-path,sow-context,chatbot-isolation}.test.ts` | New intake order, exclusion, no contact fields, failure recorded/cleared, SOW contact only from confirmed key detail, chatbot isolation for key details | ✅ Updated |
 | `tests/lib/pmPerspective.test.ts`, `tests/pm-perspective.test.ts` (real DB), `tests/components/PmPerspectivePanel.test.tsx`, `tests/fixtures/pmPerspective.ts` | Config + labelled prompt block; empty submission; separate storage; per-field author/time; prompts include the block but key-attribute extraction doesn't; KPI → PM_ENTRY suggestion only; panel labelling and editing | ✅ New |

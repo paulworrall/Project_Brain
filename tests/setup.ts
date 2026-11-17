@@ -48,16 +48,13 @@ vi.mock("@/app/(dashboard)/projects/[projectId]/approval-actions", () => ({
   revertApprovalAction: vi.fn(),
 }));
 
-// FB-008 step actions (checklist, specialist rows, scope gate) — inert defaults
+// FB-008 step actions (specialist rows, scope gate, scope summary edits) — inert defaults
 // for component tests; tests that exercise them declare their own vi.mock.
 vi.mock("@/app/(dashboard)/projects/[projectId]/step-actions", () => ({
   confirmScopeAction: vi.fn(async () => ({ ok: true, data: { projectId: "p", scopeConfirmedAt: null } })),
   reopenScopeAction: vi.fn(async () => ({ ok: true, data: { projectId: "p", scopeConfirmedAt: null } })),
   updateSpecialistInputAction: vi.fn(async () => ({ ok: true, data: {} })),
-  setChecklistItemStepAction: vi.fn(async () => ({ ok: true, data: {} })),
-  addChecklistItemAction: vi.fn(async () => ({ ok: true, data: {} })),
   editScopeSummaryAction: vi.fn(async () => ({ ok: true, data: { projectId: "p", versionNumber: 2, changedSections: [] } })),
-  setClarificationSentAction: vi.fn(async () => ({ ok: true, data: { projectId: "p", clarificationSentAt: null } })),
 }));
 
 // FB-009 Scope summary agent actions — inert defaults for component tests.

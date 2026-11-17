@@ -10,23 +10,54 @@ import { shortDate } from "@/lib/projectSteps";
 
 /**
  * The end of the Brief step (FB-008): "Confirm scope is ready to estimate".
- * Opens a confirmation dialog that lists any unticked Brief readiness items as
- * a warning (not blocking). Once confirmed, a low-emphasis "Reopen scope"
+ * Opens a confirmation dialog that warns (never blocks) about any open
+ * questions still in the scope summary and a missing MSA / rate card (FB-011). Once confirmed, a low-emphasis "Reopen scope"
  * clears it — disabled once an estimate is approved, or the project is complete.
  */
+/** The Confirm scope dialog's warning lines (FB-011). Pure, exported for tests. */
+export function scopeGateWarnings({
+  openQuestions,
+  missingMsaRateCard,
+  clientName,
+}: {
+  openQuestions: number;
+  missingMsaRateCard: boolean;
+  clientName: string;
+}): string[] {
+  const warnings: string[] = [];
+  if (openQuestions > 0) {
+    warnings.push(
+      openQuestions === 1
+        ? "1 open question is still in the scope summary."
+        : `${openQuestions} open questions are still in the scope summary.`
+    );
+  }
+  if (missingMsaRateCard) {
+    warnings.push(
+      `No MSA and rate card are set for ${clientName}, so the estimate can't be priced yet.`
+    );
+  }
+  return warnings;
+}
+
 export function ScopeGate({
   projectId,
   scopeConfirmedAt,
   scopeConfirmedByName,
-  outstanding,
+  openQuestions,
+  missingMsaRateCard,
+  clientName,
   estimateApproved,
   projectComplete,
 }: {
   projectId: string;
   scopeConfirmedAt: string | null;
   scopeConfirmedByName: string | null;
-  /** Unticked Brief readiness items (system checks and checklist items). */
-  outstanding: string[];
+  /** Open questions in the scope summary (stored plus required key details outstanding). */
+  openQuestions: number;
+  /** The project has no MSA and rate card yet, so the estimate can't be priced. */
+  missingMsaRateCard: boolean;
+  clientName: string;
   estimateApproved: boolean;
   projectComplete: boolean;
 }) {
@@ -35,6 +66,7 @@ export function ScopeGate({
   const [pending, startTransition] = useTransition();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const reopenNoteId = useId();
+  const warnings = scopeGateWarnings({ openQuestions, missingMsaRateCard, clientName });
 
   function run(action: typeof confirmScopeAction) {
     setError(null);
@@ -115,23 +147,21 @@ export function ScopeGate({
           }}
         >
           <div className="space-y-3 text-sm text-foreground">
-            {outstanding.length > 0 ? (
+            {warnings.length > 0 ? (
               <div className="border border-warning bg-warning-bg px-3 py-2">
                 <p className="font-medium">
                   <span aria-hidden="true">! </span>
-                  {outstanding.length === 1
-                    ? "1 readiness item isn't done yet:"
-                    : `${outstanding.length} readiness items aren't done yet:`}
+                  {warnings.length === 1 ? "Before you confirm:" : "Before you confirm, note that:"}
                 </p>
                 <ul className="mt-1 list-disc pl-5">
-                  {outstanding.map((label) => (
-                    <li key={label}>{label}</li>
+                  {warnings.map((warning) => (
+                    <li key={warning}>{warning}</li>
                   ))}
                 </ul>
                 <p className="mt-1">You can still confirm.</p>
               </div>
             ) : (
-              <p>Every Brief readiness item is done.</p>
+              <p>No open questions, and the MSA and rate card are in place.</p>
             )}
             <p className="text-muted-foreground">
               You can reopen the scope later, until an estimate is approved.

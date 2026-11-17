@@ -222,7 +222,7 @@ describeDb("loadPipeline", () => {
       name: "In brief",
       clientName: `PipeA_${STAMP}`,
       pmName: "Pat",
-      nextAction: "Send the clarification email",
+      nextAction: `Add an MSA and rate card for PipeA_${STAMP}`,
       estimateTotal: null,
       daysInStep: 3,
       needsReview: false,

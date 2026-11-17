@@ -1,9 +1,8 @@
 import type { ReactNode } from "react";
-import type { ClarificationEmail, PositionDocumentFields } from "@/types/intake";
+import type { PositionDocumentFields } from "@/types/intake";
 import type { DraftScopeDocument } from "@/types/triage";
 import { PositionDocumentView } from "./PositionDocumentView";
 import { DraftScopeDocumentView } from "./DraftScopeDocumentView";
-import { ClarificationEmailCard, type ClarificationEmailDraftMeta } from "./ClarificationEmailCard";
 import { BriefChecklist } from "./BriefChecklist";
 import type { BriefCompleteness } from "@/lib/briefCompleteness";
 import { PmPerspectivePanel } from "./PmPerspectivePanel";
@@ -31,22 +30,19 @@ export interface EarlierDocuments {
 /**
  * The Brief step's working content. FB-009: the Scope summary is the one scope
  * document (it replaces the Position Document / Draft Scope); a project set up
- * before it keeps those read-only under "Earlier documents". The clarification
- * email is an action card shown only while there are open questions. The
- * step's readiness list and scope gate are added around it by BriefStep.
+ * before it keeps those read-only under "Earlier documents". Open questions
+ * live in the scope summary (with a "Copy questions" button, FB-011). The
+ * step's scope gate is added around it by BriefStep.
  */
 export interface Phase1WorkspaceProps {
   projectId: string;
   clientUpdates: ClientUpdateLogEntry[];
-  clarificationEmail: ClarificationEmail | null;
   briefCompleteness: BriefCompleteness;
   pmPerspective: PmPerspectiveFieldView[];
-  clarificationEmailDraft?: ClarificationEmailDraftMeta | null;
   scopeSummary?: ScopeSummaryCardData | null;
   earlierDocuments?: EarlierDocuments;
   /** Stored open questions plus required key details still outstanding. */
   openQuestions?: number;
-  clarificationSentAt?: string | null;
   /** Brief completeness from the Intake Agent (FB-009 D), shown on the Scope summary card. */
   assessment?: ReactNode;
   /** The project is complete: nothing can be edited. */
@@ -58,14 +54,11 @@ const NO_EARLIER: EarlierDocuments = { positionDocument: null, draftScopeDocumen
 export function Phase1Workspace({
   projectId,
   clientUpdates,
-  clarificationEmail,
   briefCompleteness,
   pmPerspective,
-  clarificationEmailDraft,
   scopeSummary = null,
   earlierDocuments = NO_EARLIER,
   openQuestions = 0,
-  clarificationSentAt = null,
   assessment,
   readOnly = false,
 }: Phase1WorkspaceProps) {
@@ -93,17 +86,6 @@ export function Phase1Workspace({
         assessment={assessment}
         canCreateFromEarlier={hasEarlier}
       />
-
-      {openQuestions > 0 && (
-        <ClarificationEmailCard
-          projectId={projectId}
-          email={clarificationEmail}
-          draft={clarificationEmailDraft}
-          sentAt={clarificationSentAt}
-          openQuestionCount={openQuestions}
-          readOnly={readOnly}
-        />
-      )}
 
       {/* A disabled fieldset makes every control inside read-only once the project is complete. */}
       <fieldset disabled={readOnly} className="min-w-0 space-y-6">

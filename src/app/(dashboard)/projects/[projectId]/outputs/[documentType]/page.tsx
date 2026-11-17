@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui/Card";
 import { DocumentType } from "@/generated/prisma/enums";
-import { DOCUMENT_TYPE_LABELS } from "@/types/documents";
+import { DOCUMENT_TYPE_LABELS, RETIRED_DOCUMENT_TYPES } from "@/types/documents";
 import { DocumentVersionContent } from "@/components/features/DocumentVersionContent";
 
 function formatDateTime(date: Date): string {
@@ -27,7 +27,7 @@ export default async function DocumentVersionHistoryPage({
 }) {
   const { projectId, documentType } = await params;
 
-  if (!isDocumentType(documentType)) {
+  if (!isDocumentType(documentType) || RETIRED_DOCUMENT_TYPES.includes(documentType)) {
     notFound();
   }
 

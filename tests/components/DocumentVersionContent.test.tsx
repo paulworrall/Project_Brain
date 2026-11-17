@@ -11,8 +11,8 @@ const { DocumentVersionContent } = await import(
 );
 
 describe("DocumentVersionContent", () => {
-  it("renders a Clarification Email version", () => {
-    render(
+  it("renders nothing for the retired Clarification Email (FB-011)", () => {
+    const { container } = render(
       <DocumentVersionContent
         projectId="proj_1"
         type="CLARIFICATION_EMAIL"
@@ -20,7 +20,7 @@ describe("DocumentVersionContent", () => {
       />
     );
 
-    expect(screen.getByText("Following up on your brief")).toBeInTheDocument();
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("renders a Position Document version, keeping an older version's AI-generated questions readable", () => {
@@ -43,8 +43,8 @@ describe("DocumentVersionContent", () => {
     expect(screen.getByText("Target audience")).toBeInTheDocument();
   });
 
-  it("renders a Set-Up Checklist version read-only", () => {
-    render(
+  it("renders nothing for the retired Set-Up Checklist (FB-011)", () => {
+    const { container } = render(
       <DocumentVersionContent
         projectId="proj_1"
         type="CHECKLIST"
@@ -52,8 +52,7 @@ describe("DocumentVersionContent", () => {
       />
     );
 
-    expect(screen.getByText("Assign job code")).toBeInTheDocument();
-    expect(screen.queryByRole("checkbox")).toBeDisabled();
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("renders a Deliverables + Services Document version without an editable Other label", () => {

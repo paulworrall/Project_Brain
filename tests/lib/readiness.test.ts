@@ -1,53 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSpecialistRows, buildSystemChecks, specialistHeader } from "@/lib/project/readiness";
-
-describe("buildSystemChecks", () => {
-  const none = buildSystemChecks({
-    briefSubmitted: false,
-    hasMasterServiceAgreement: false,
-    hasRateCard: false,
-    scopeConfirmed: false,
-    confirmedCapabilityCount: 0,
-    estimateApproved: false,
-    sowFromApprovedEstimate: false,
-  });
-
-  it("gives each step its own read-only checks", () => {
-    expect(none.brief.map((c) => c.label)).toEqual([
-      "Brief submitted",
-      "MSA and rate card set on the project",
-    ]);
-    expect(none.estimate.map((c) => c.label)).toEqual([
-      "Scope confirmed",
-      "At least one capability confirmed",
-    ]);
-    expect(none.sow.map((c) => c.label)).toEqual([
-      "Estimate approved",
-      "SOW generated from the approved estimate",
-    ]);
-    expect(
-      Object.values(none)
-        .flat()
-        .every((c) => !c.met)
-    ).toBe(true);
-  });
-
-  it("needs both the MSA and the rate card for that check", () => {
-    const msaOnly = buildSystemChecks({
-      briefSubmitted: true,
-      hasMasterServiceAgreement: true,
-      hasRateCard: false,
-      scopeConfirmed: true,
-      confirmedCapabilityCount: 2,
-      estimateApproved: true,
-      sowFromApprovedEstimate: true,
-    });
-    expect(msaOnly.brief.find((c) => c.id === "msa-rate-card")?.met).toBe(false);
-    expect(msaOnly.brief.find((c) => c.id === "brief-submitted")?.met).toBe(true);
-    expect(msaOnly.estimate.every((c) => c.met)).toBe(true);
-    expect(msaOnly.sow.every((c) => c.met)).toBe(true);
-  });
-});
+import { buildSpecialistRows, specialistHeader } from "@/lib/project/readiness";
 
 describe("specialist rows", () => {
   it("follow the confirmed capabilities: one row each, defaulting to Not requested", () => {

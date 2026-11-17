@@ -1,14 +1,8 @@
 import type { DocumentType } from "@/generated/prisma/enums";
-import {
-  ClarificationEmailSchema,
-  PositionDocumentFieldsSchema,
-  SetupChecklistSchema,
-} from "@/types/intake";
+import { PositionDocumentFieldsSchema } from "@/types/intake";
 import { DraftScopeDocumentSchema } from "@/types/triage";
 import { DeliverablesServicesDocumentSchema } from "@/types/deliverables-services";
-import { ClarificationEmailView } from "./ClarificationEmailView";
 import { PositionDocumentView } from "./PositionDocumentView";
-import { ChecklistView } from "./ChecklistView";
 import { DraftScopeDocumentView } from "./DraftScopeDocumentView";
 import { DeliverablesServicesDocumentView } from "./DeliverablesServicesDocumentView";
 import { ScopeSummaryContentSchema } from "@/types/scope";
@@ -26,33 +20,14 @@ export function DocumentVersionContent({
   content: unknown;
 }) {
   switch (type) {
-    case "CLARIFICATION_EMAIL": {
-      const parsed = ClarificationEmailSchema.safeParse(content);
-      return parsed.success ? (
-        <ClarificationEmailView email={parsed.data} />
-      ) : (
-        <UnreadableContent />
-      );
-    }
+    // FB-011: retired documents (kept as data, never shown).
+    case "CLARIFICATION_EMAIL":
+    case "CHECKLIST":
+      return null;
     case "POSITION_DOCUMENT": {
       const parsed = PositionDocumentFieldsSchema.safeParse(content);
       return parsed.success ? (
         <PositionDocumentView fields={parsed.data} showLegacyQuestions />
-      ) : (
-        <UnreadableContent />
-      );
-    }
-    case "CHECKLIST": {
-      const parsed = SetupChecklistSchema.safeParse(content);
-      return parsed.success ? (
-        <ChecklistView
-          items={parsed.data.items.map((label, i) => ({
-            id: String(i),
-            label,
-            isComplete: false,
-            detailText: null,
-          }))}
-        />
       ) : (
         <UnreadableContent />
       );

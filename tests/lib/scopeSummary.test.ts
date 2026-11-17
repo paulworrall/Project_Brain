@@ -7,7 +7,7 @@ import {
   type ScopeSummaryContent,
 } from "@/types/scope";
 import { buildScopeView, openQuestionCount } from "@/lib/scopeSummaryView";
-import { emailFieldsFromScopeSummary } from "@/services/agents/intake-agent";
+import { formatQuestionsList, openQuestionItems, openQuestionsText } from "@/lib/openQuestionsText";
 import { briefCompleteness, briefRecord } from "../fixtures/briefCompleteness";
 
 const content: ScopeSummaryContent = {
@@ -88,10 +88,23 @@ describe("buildScopeView", () => {
   });
 });
 
-describe("emailFieldsFromScopeSummary", () => {
-  it("gives the email the open questions as the client's still-deciding items", () => {
-    const fields = emailFieldsFromScopeSummary(content);
-    expect(fields.clientFlaggedOpenItems).toEqual(["Which markets launch first?"]);
-    expect(fields.whatWeKnow[0]).toEqual({ topic: "Context", detail: content.context });
+describe("open questions text (Copy questions, FB-011)", () => {
+  it("lists the stored questions and the required key details outstanding, numbered", () => {
+    const sections = buildScopeView(content, briefCompleteness());
+    const items = openQuestionItems(sections);
+    // Outstanding required key details come first, then the stored questions.
+    expect(items.at(-1)).toBe("Which markets launch first?");
+    expect(items.length).toBe(openQuestionCount(content, briefCompleteness()));
+    const lines = openQuestionsText(sections).split(/\r?\n/);
+    expect(lines).toHaveLength(items.length);
+    lines.forEach((line, i) => expect(line).toBe(`${i + 1}. ${items[i]}`));
+  });
+
+  it("is a plain numbered list, and empty when there are no questions", () => {
+    expect(formatQuestionsList(["A?", "B?"])).toBe(["1. A?", "2. B?"].join("\n"));
+    expect(formatQuestionsList([])).toBe("");
+    expect(openQuestionsText(null)).toBe("");
+    const none = buildScopeView({ ...content, openQuestions: [] }, { attributes: [], requiredOutstanding: [] });
+    expect(openQuestionsText(none)).toBe("");
   });
 });

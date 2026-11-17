@@ -39,14 +39,14 @@ export default async function ProjectLayout({
     projectManagerOptions,
     sowTemplateOptions,
     rateCardOptions,
-    clarificationEmail,
     scopeSummary,
     openQuestions,
+    openQuestionsText,
+    missingMsaRateCard,
     estimateScopeSync,
     nextAction,
     briefAssessment,
     earlierDocuments,
-    clarificationEmailVersion,
     permissions,
     approvals,
     briefCompleteness,
@@ -54,7 +54,6 @@ export default async function ProjectLayout({
     versionHistory,
     sowChange,
     clientUpdates,
-    checklistItems,
     confirmedCapabilities,
     estimateBriefVersion,
     estimates,
@@ -62,20 +61,12 @@ export default async function ProjectLayout({
     stepStatuses,
     stepSummaries,
     projectComplete,
-    systemChecks,
     specialistRows,
   } = data;
 
   const versions = versionHistory.map(({ content: _content, ...version }) => version);
-  const checklistView = checklistItems.map((item) => ({
-    id: item.id,
-    label: item.label,
-    isComplete: item.isComplete,
-    detailText: item.detailText,
-    step: item.step,
-  }));
   const estimateApproved = approvals.summary.estimate !== null;
-  const common = { projectId: project.id, checklistItems: checklistView, projectComplete };
+  const common = { projectId: project.id, projectComplete };
 
   return (
     <div className="space-y-6">
@@ -135,6 +126,7 @@ export default async function ProjectLayout({
         stepStatuses={stepStatuses}
         stepSummaries={stepSummaries}
         nextAction={nextAction}
+        openQuestionsText={openQuestionsText}
         // FB-009 B: a step whose document is stale against what it was built from.
         attention={{
           ...(estimateScopeSync.needsReview ? { estimate: NEEDS_REVIEW_TEXT } : {}),
@@ -144,23 +136,13 @@ export default async function ProjectLayout({
           brief: (
             <BriefStep
               {...common}
-              systemChecks={systemChecks.brief}
               scopeSummary={scopeSummary}
               briefAssessment={briefAssessment}
               earlierDocuments={earlierDocuments}
               openQuestions={openQuestions}
-              clarificationSentAt={project.clarificationSentAt?.toISOString() ?? null}
+              missingMsaRateCard={missingMsaRateCard}
+              clientName={client.name}
               clientUpdates={clientUpdates}
-              clarificationEmail={clarificationEmail.success ? clarificationEmail.data : null}
-              clarificationEmailDraft={
-                clarificationEmailVersion
-                  ? {
-                      versionNumber: clarificationEmailVersion.versionNumber,
-                      triggeredByUpdateVersion: clarificationEmailVersion.triggeredByUpdateVersion,
-                      createdAt: clarificationEmailVersion.createdAt,
-                    }
-                  : null
-              }
               briefCompleteness={briefCompleteness}
               pmPerspective={pmPerspective}
               scopeConfirmedAt={project.scopeConfirmedAt?.toISOString() ?? null}
@@ -171,7 +153,6 @@ export default async function ProjectLayout({
           estimate: (
             <EstimateStep
               {...common}
-              systemChecks={systemChecks.estimate}
               scopeConfirmed={project.scopeConfirmedAt !== null}
               confirmedCapabilities={confirmedCapabilities}
               estimateBriefVersion={estimateBriefVersion}
@@ -207,7 +188,6 @@ export default async function ProjectLayout({
           sow: (
             <SowStep
               {...common}
-              systemChecks={systemChecks.sow}
               estimateApproved={estimateApproved}
               sowChange={sowChange}
               currentSowTemplate={

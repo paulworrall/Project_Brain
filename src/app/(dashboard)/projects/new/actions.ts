@@ -495,9 +495,8 @@ export async function createProjectAction(
       },
     });
 
-    // Stage 2 (Clarification Email Sent) completes immediately alongside
-    // Intake — the email is generated as part of this same Intake Agent run,
-    // not a separate pipeline step with its own status (Phase 1 rework).
+    // Stage 2 completes immediately alongside Intake (legacy stage rows are
+    // kept as they were; FB-011 stopped generating the clarification email).
     // Stage 3 (Get Clarifications) opens straight away as the fluid,
     // repeatable client-update workspace.
     const [intakeStage, clarificationEmailStage, getClarificationsStage] = await Promise.all([
@@ -536,20 +535,6 @@ export async function createProjectAction(
     await tx.document.create({
       data: {
         projectId: project.id,
-        type: "CLARIFICATION_EMAIL",
-        versions: {
-          create: {
-            versionNumber: 1,
-            stageNumber: 1,
-            content: intakeResult.clarificationEmail,
-            builtFromVersion: INITIAL_BRIEF_VERSION,
-          },
-        },
-      },
-    });
-    await tx.document.create({
-      data: {
-        projectId: project.id,
         type: "SCOPE_SUMMARY",
         versions: {
           create: {
@@ -560,29 +545,6 @@ export async function createProjectAction(
           },
         },
       },
-    });
-    await tx.document.create({
-      data: {
-        projectId: project.id,
-        type: "CHECKLIST",
-        versions: {
-          create: {
-            versionNumber: 1,
-            stageNumber: 1,
-            // The stored document keeps its original shape (labels only).
-            content: { items: intakeResult.checklist.items.map((item) => item.label) },
-          },
-        },
-      },
-    });
-
-    await tx.checklistItem.createMany({
-      data: intakeResult.checklist.items.map((item, index) => ({
-        projectId: project.id,
-        label: item.label,
-        step: item.step,
-        order: index,
-      })),
     });
 
     return project;

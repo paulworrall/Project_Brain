@@ -4,12 +4,14 @@ import { deriveNextAction, type NextActionId, type NextActionInput } from "@/lib
 /** A project that has done everything except the SOW approval. */
 const done: NextActionInput = {
   projectId: "p1",
+  clientId: "c1",
+  clientName: "Fizzy",
   projectComplete: false,
   approvedSowHref: null,
   hasScopeSummary: true,
   hasEarlierDocuments: false,
   openQuestions: 0,
-  clarificationSent: true,
+  hasMsaAndRateCard: true,
   briefAssessment: null,
   scopeConfirmed: true,
   scopeNewerThanConfirmed: false,
@@ -32,14 +34,10 @@ describe("deriveNextAction — each rule", () => {
   it.each<[NextActionId, Partial<NextActionInput>]>([
     ["complete", { projectComplete: true, sowApproved: true, approvedSowHref: "/api/sow/1" }],
     ["create_scope_summary", { hasScopeSummary: false, hasEarlierDocuments: true }],
+    ["add_msa_rate_card", { hasMsaAndRateCard: false, estimateApproved: false, hasEstimate: false }],
     [
-      "send_clarification",
-      {
-        openQuestions: 2,
-        clarificationSent: false,
-        scopeConfirmed: false,
-        estimateApproved: false,
-      },
+      "resolve_questions",
+      { openQuestions: 2, scopeConfirmed: false, estimateApproved: false },
     ],
     ["confirm_scope", { scopeConfirmed: false, estimateApproved: false }],
     ["confirm_latest_scope", { scopeNewerThanConfirmed: true, estimateApproved: false }],
@@ -79,6 +77,42 @@ describe("deriveNextAction — each rule", () => {
     });
   });
 
+  it("asks for the MSA and rate card first, linking to the client page (FB-011)", () => {
+    expect(deriveNextAction({
+        ...done,
+        hasMsaAndRateCard: false,
+        estimateApproved: false,
+        hasEstimate: false,
+      })
+    ).toEqual({
+      id: "add_msa_rate_card",
+      title: "Add an MSA and rate card for Fizzy",
+      reason: "An Admin needs to add these before the estimate can be priced.",
+      step: "brief",
+      button: { label: "Open the client page", href: "/clients/c1" },
+    });
+  });
+
+  it("resolve_questions counts the questions and its button copies them (FB-011)", () => {
+    expect(
+      deriveNextAction({ ...done, openQuestions: 4, scopeConfirmed: false, estimateApproved: false })
+    ).toEqual({
+      id: "resolve_questions",
+      title: "Resolve open questions with the client",
+      reason: "4 open questions in the scope summary. Tell the assistant the answers when you have them.",
+      step: "brief",
+      button: {
+        label: "Copy questions",
+        href: "/projects/p1/brief#scope-summary",
+        action: "copy_questions",
+      },
+    });
+    expect(
+      deriveNextAction({ ...done, openQuestions: 1, scopeConfirmed: false, estimateApproved: false })
+        .reason
+    ).toBe("1 open question in the scope summary. Tell the assistant the answers when you have them.");
+  });
+
   it("links the complete state to the approved SOW download", () => {
     expect(
       deriveNextAction({ ...done, projectComplete: true, approvedSowHref: "/api/x" }).button
@@ -91,8 +125,8 @@ describe("deriveNextAction — each rule", () => {
 
 describe("deriveNextAction — ordering (first match wins)", () => {
   const fresh: Partial<NextActionInput> = {
+    hasMsaAndRateCard: false,
     openQuestions: 3,
-    clarificationSent: false,
     scopeConfirmed: false,
     capabilityCount: 0,
     hasEstimateBrief: false,
@@ -107,7 +141,8 @@ describe("deriveNextAction — ordering (first match wins)", () => {
     let state: Partial<NextActionInput> = { ...fresh };
     const seen: NextActionId[] = [];
     const advance: Record<string, Partial<NextActionInput>> = {
-      send_clarification: { clarificationSent: true },
+      add_msa_rate_card: { hasMsaAndRateCard: true },
+      resolve_questions: { openQuestions: 0 },
       confirm_scope: { scopeConfirmed: true },
       choose_capabilities: { capabilityCount: 2, specialistTotal: 2 },
       prepare_estimate_brief: { hasEstimateBrief: true },
@@ -124,7 +159,8 @@ describe("deriveNextAction — ordering (first match wins)", () => {
       state = { ...state, ...advance[next] };
     }
     expect(seen).toEqual([
-      "send_clarification",
+      "add_msa_rate_card",
+      "resolve_questions",
       "confirm_scope",
       "choose_capabilities",
       "prepare_estimate_brief",
@@ -144,7 +180,7 @@ describe("deriveNextAction — ordering (first match wins)", () => {
         capabilityCount: 0,
         hasEstimateBrief: false,
         openQuestions: 3,
-        clarificationSent: false,
+        hasMsaAndRateCard: false,
         hasSow: false,
       })
     ).toBe("generate_sow");
@@ -161,7 +197,7 @@ describe("deriveNextAction — ordering (first match wins)", () => {
   });
 
   it("open questions stop mattering once the scope is confirmed", () => {
-    expect(id({ openQuestions: 4, clarificationSent: false })).toBe("approve_sow");
+    expect(id({ openQuestions: 4 })).toBe("approve_sow");
   });
 
   it("a stale estimate is reviewed before approval, but an approved one isn't", () => {
@@ -186,7 +222,28 @@ describe("deriveNextAction — ordering (first match wins)", () => {
   });
 
   it("a complete brief goes straight to confirming the scope (fast path)", () => {
-    expect(id({ ...fresh, briefAssessment: "complete" })).toBe("confirm_scope");
-    expect(id({ ...fresh, briefAssessment: "thin" })).toBe("send_clarification");
+    const withMsa = { ...fresh, hasMsaAndRateCard: true };
+    expect(id({ ...withMsa, briefAssessment: "complete" })).toBe("confirm_scope");
+    expect(id({ ...withMsa, briefAssessment: "thin" })).toBe("resolve_questions");
+  });
+
+  it("the MSA and rate card rule stops mattering once an estimate exists (it has been priced already)", () => {
+    expect(id({ hasMsaAndRateCard: false, estimateApproved: false, hasEstimate: true })).toBe(
+      "approve_estimate"
+    );
+  });
+
+  it("the MSA and rate card rule comes before the open questions rule, and stops mattering once the estimate is approved", () => {
+    expect(id({ ...fresh })).toBe("add_msa_rate_card");
+    expect(id({ hasMsaAndRateCard: false, estimateApproved: true })).toBe("approve_sow");
+  });
+
+  it("open questions no longer wait on an email: they are the next step until answered or scope is confirmed", () => {
+    expect(id({ openQuestions: 2, scopeConfirmed: false, estimateApproved: false })).toBe(
+      "resolve_questions"
+    );
+    expect(id({ openQuestions: 0, scopeConfirmed: false, estimateApproved: false })).toBe(
+      "confirm_scope"
+    );
   });
 });

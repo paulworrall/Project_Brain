@@ -26,7 +26,7 @@ const ChatbotAnswerSchema = z.object({
 /**
  * Assembles everything known about a single project — the shared project
  * context (brief, every update, key details, PM perspective), plus the
- * generated Documents, ChecklistItems and specialist feedback — for the
+ * generated Documents and specialist feedback — for the
  * chatbot to answer from, fresh on every question. Every query
  * is filtered by `projectId` at the database layer (CLAUDE.md: isolation is
  * never enforced by prompting alone), and every fetched row is re-asserted to
@@ -35,16 +35,17 @@ const ChatbotAnswerSchema = z.object({
  * leaking another project's data into an answer.
  */
 export async function assembleProjectContext(projectId: string): Promise<string> {
-  const [context, documents, checklistItems, specialistNotes] = await Promise.all([
+  const [context, documents, specialistNotes] = await Promise.all([
     // The brief, every update in version order, key details and the PM's
     // view — the same context every agent uses, so answers always reflect
     // the latest update. Scoped by projectId at the query layer.
     getProjectContext(projectId),
+    // FB-011: the retired clarification email and set-up checklist documents
+    // are no longer read (the data is kept, just not used).
     prisma.document.findMany({
-      where: { projectId },
+      where: { projectId, type: { notIn: ["CLARIFICATION_EMAIL", "CHECKLIST"] } },
       include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
     }),
-    prisma.checklistItem.findMany({ where: { projectId } }),
     // Updates come from the context above; client-reply notes are old
     // duplicate copies of them, so only specialist feedback is read here.
     prisma.touchpointNote.findMany({
@@ -60,15 +61,6 @@ export async function assembleProjectContext(projectId: string): Promise<string>
     if (!latestVersion) continue;
     sections.push(
       `## ${document.type} (version ${latestVersion.versionNumber})\n${JSON.stringify(latestVersion.content)}`
-    );
-  }
-
-  const scopedChecklistItems = checklistItems.filter((i) => i.projectId === projectId);
-  if (scopedChecklistItems.length > 0) {
-    sections.push(
-      `## Set-Up Checklist\n${scopedChecklistItems
-        .map((i) => `- [${i.isComplete ? "x" : " "}] ${i.label}`)
-        .join("\n")}`
     );
   }
 

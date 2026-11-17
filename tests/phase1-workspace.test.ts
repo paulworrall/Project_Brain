@@ -26,9 +26,6 @@ vi.mock("@/lib/auth", () => ({ auth: vi.fn().mockResolvedValue(null) }));
 const { anthropic } = await import("@/lib/anthropic");
 const mockParse = anthropic.messages.parse as ReturnType<typeof vi.fn>;
 
-const { updateChecklistItemDetailAction, toggleChecklistItemAction } = await import(
-  "@/app/(dashboard)/projects/[projectId]/actions"
-);
 // FB-010: the old update action, through the new Add project information action.
 const { uploadKnowledgeItemAction } = await import("./helpers/addInformation");
 
@@ -40,7 +37,6 @@ const TEST_HUB_NAME = "TestHub_Phase1WorkspaceSpec";
 
 let hubId: string;
 let projectId: string;
-let checklistItemId: string;
 
 const positionFieldsV1 = {
   primaryContactName: "Jamie Chen",
@@ -72,19 +68,7 @@ function notesFormData(notes: string, title = "Client update") {
   return formData;
 }
 
-function detailFormData(detailText: string) {
-  const formData = new FormData();
-  formData.set("detailText", detailText);
-  return formData;
-}
 
-function checkboxFormData(isComplete: boolean) {
-  const formData = new FormData();
-  if (isComplete) {
-    formData.set("isComplete", "on");
-  }
-  return formData;
-}
 
 beforeAll(async () => {
   const hub = await prisma.hub.create({ data: { name: TEST_HUB_NAME } });
@@ -120,11 +104,6 @@ beforeAll(async () => {
       { projectId, stageId: getClarificationsStage.id, status: "IN_PROGRESS" },
     ],
   });
-
-  const checklistItem = await prisma.checklistItem.create({
-    data: { projectId, label: "Assign job code", order: 0 },
-  });
-  checklistItemId = checklistItem.id;
 });
 
 afterAll(async () => {
@@ -172,34 +151,5 @@ describe("uploadKnowledgeItemAction (Position Document side)", () => {
     ]);
     // Each refreshed Position Document records the update it was built from.
     expect(document.versions.map((v) => v.builtFromVersion)).toEqual([null, 2, 3]);
-  });
-});
-
-describe("checklist detail text", () => {
-  it("persists independently of the isComplete checkbox", async () => {
-    await updateChecklistItemDetailAction(
-      projectId,
-      checklistItemId,
-      undefined,
-      detailFormData("FIZ-2026-014")
-    );
-    let item = await prisma.checklistItem.findUniqueOrThrow({ where: { id: checklistItemId } });
-    expect(item.detailText).toBe("FIZ-2026-014");
-    expect(item.isComplete).toBe(false);
-
-    await toggleChecklistItemAction(projectId, checklistItemId, undefined, checkboxFormData(true));
-    item = await prisma.checklistItem.findUniqueOrThrow({ where: { id: checklistItemId } });
-    expect(item.isComplete).toBe(true);
-    expect(item.detailText).toBe("FIZ-2026-014");
-
-    await toggleChecklistItemAction(
-      projectId,
-      checklistItemId,
-      undefined,
-      checkboxFormData(false)
-    );
-    item = await prisma.checklistItem.findUniqueOrThrow({ where: { id: checklistItemId } });
-    expect(item.isComplete).toBe(false);
-    expect(item.detailText).toBe("FIZ-2026-014");
   });
 });

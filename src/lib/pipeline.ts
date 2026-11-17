@@ -81,10 +81,11 @@ export async function loadPipeline(
       createdAt: true,
       currentStageNumber: true,
       scopeConfirmedAt: true,
-      clarificationSentAt: true,
+      masterServiceAgreementId: true,
+      rateCardId: true,
       briefAssessment: true,
       confirmedScopeVersion: { select: { id: true, versionNumber: true } },
-      workstream: { select: { client: { select: { name: true } } } },
+      workstream: { select: { client: { select: { id: true, name: true } } } },
       projectManager: { select: { name: true } },
       capabilities: { select: { capability: true } },
       specialistInputs: { select: { capability: true, status: true } },
@@ -213,6 +214,8 @@ export async function loadPipeline(
 
     const action = deriveNextAction({
       projectId: p.id,
+      clientId: p.workstream.client.id,
+      clientName: p.workstream.client.name,
       projectComplete: complete,
       approvedSowHref: sowApproval?.sowVersionId
         ? `/api/projects/${p.id}/sow/${sowApproval.sowVersionId}`
@@ -222,7 +225,7 @@ export async function loadPipeline(
       openQuestions:
         (scopeContent.success ? scopeContent.data.openQuestions.length : 0) +
         keyDetails.requiredOutstanding.length,
-      clarificationSent: p.clarificationSentAt !== null,
+      hasMsaAndRateCard: p.masterServiceAgreementId !== null && p.rateCardId !== null,
       briefAssessment: normaliseBriefAssessment(p.briefAssessment)?.level ?? null,
       scopeConfirmed: p.scopeConfirmedAt !== null,
       scopeNewerThanConfirmed:

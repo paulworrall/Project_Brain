@@ -39,7 +39,7 @@ describe("Brief step fast path", () => {
     );
   });
 
-  it("thin: a visible warning listing the reasons, with the clarification email as the primary action", () => {
+  it("thin: a visible warning listing the reasons, pointing to the open questions", () => {
     render(
       <BriefAssessmentCallout
         {...props}
@@ -50,9 +50,9 @@ describe("Brief step fast path", () => {
     expect(note).toHaveTextContent("This brief is thin.");
     expect(note).toHaveTextContent("No deliverables");
     expect(note).toHaveTextContent("No budget");
-    expect(screen.getByRole("link", { name: "Open the clarification email" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "See the open questions" })).toHaveAttribute(
       "href",
-      "/projects/p1/brief#clarification-email"
+      "/projects/p1/brief#scope-summary"
     );
   });
 

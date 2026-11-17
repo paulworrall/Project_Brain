@@ -2,12 +2,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import type { Capability } from "@/generated/prisma/enums";
-import type { ChecklistItemView } from "@/components/features/ChecklistView";
 
 vi.mock("@/app/(dashboard)/projects/[projectId]/actions", () => ({
-  updateChecklistItemDetailAction: vi.fn(),
   updateOtherServiceLabelAction: vi.fn(),
-  toggleChecklistItemAction: vi.fn(),
   startSowDevelopmentAction: vi.fn(),
   generateSowAction: vi.fn(),
   suggestCapabilitiesAction: vi.fn(),
@@ -38,49 +35,23 @@ vi.mock("@/app/(dashboard)/projects/[projectId]/estimates/actions", () => ({
 }));
 
 const { BriefStep, EstimateStep, SowStep } = await import("@/components/features/ProjectWorkflow");
-const { buildSpecialistRows, buildSystemChecks } = await import("@/lib/project/readiness");
+const { buildSpecialistRows } = await import("@/lib/project/readiness");
 const { briefCompleteness, briefRecord } = await import("../fixtures/briefCompleteness");
 const { pmPerspectiveView } = await import("../fixtures/pmPerspective");
 
-const checks = buildSystemChecks({
-  briefSubmitted: true,
-  hasMasterServiceAgreement: false,
-  hasRateCard: true,
-  scopeConfirmed: false,
-  confirmedCapabilityCount: 0,
-  estimateApproved: false,
-  sowFromApprovedEstimate: false,
-});
-
-const items: ChecklistItemView[] = [
-  { id: "c1", label: "Assign job code", isComplete: false, detailText: null, step: "brief" },
-  // Existing items have no step yet: they default to Brief.
-  { id: "c2", label: "Create Teams channel", isComplete: true, detailText: null },
-  {
-    id: "c3",
-    label: "Book estimation session",
-    isComplete: false,
-    detailText: null,
-    step: "estimate",
-  },
-  { id: "c4", label: "Send SOW to procurement", isComplete: false, detailText: null, step: "sow" },
-];
-
 function common(projectComplete = false) {
-  return { projectId: "p1", checklistItems: items, projectComplete };
+  return { projectId: "p1", projectComplete };
 }
 
 function briefProps(overrides: Partial<Parameters<typeof BriefStep>[0]> = {}) {
   return {
     ...common(),
-    systemChecks: checks.brief,
     scopeSummary: null,
     earlierDocuments: { positionDocument: null, draftScopeDocument: null },
     openQuestions: 2,
-    clarificationSentAt: null,
+    missingMsaRateCard: false,
+    clientName: "Fizzy",
     clientUpdates: [],
-    clarificationEmail: { subject: "Quick questions", bodyText: "Hi," },
-    clarificationEmailDraft: null,
     briefCompleteness: briefCompleteness([
       briefRecord("budget", { amount: "£50,000", currency: "GBP" }),
     ]),
@@ -96,7 +67,6 @@ function estimateProps(overrides: Partial<Parameters<typeof EstimateStep>[0]> = 
   const confirmed: Capability[] = ["EXPERIENCE_DESIGN", "TECH_AND_DATA", "BUSINESS_ARCHITECTURE"];
   return {
     ...common(),
-    systemChecks: checks.estimate,
     scopeConfirmed: false,
     confirmedCapabilities: confirmed,
     estimateBriefVersion: null,
@@ -115,7 +85,6 @@ function estimateProps(overrides: Partial<Parameters<typeof EstimateStep>[0]> = 
 function sowProps(overrides: Partial<Parameters<typeof SowStep>[0]> = {}) {
   return {
     ...common(),
-    systemChecks: checks.sow,
     estimateApproved: false,
     currentSowTemplate: { id: "t1", name: "Standard SOW Template" },
     currentSowTemplateVersion: { id: "tv1" },
@@ -130,36 +99,21 @@ function sowProps(overrides: Partial<Parameters<typeof SowStep>[0]> = {}) {
   };
 }
 
-function readiness() {
-  return screen.getByRole("region", { name: "Before you move on" });
-}
-
 describe("Brief step", () => {
-  it("is headed 'Brief' and shows only Brief readiness items, defaulting existing items to Brief", () => {
+  it("is headed 'Brief' and has no readiness list, checklist items or system checks (FB-011)", () => {
     render(<BriefStep {...briefProps()} />);
     expect(screen.getByRole("heading", { level: 2, name: "Brief" })).toBeInTheDocument();
-    const list = readiness();
-    expect(within(list).getByRole("checkbox", { name: "Assign job code" })).toBeInTheDocument();
-    expect(
-      within(list).getByRole("checkbox", { name: "Create Teams channel" })
-    ).toBeInTheDocument();
-    expect(within(list).queryByRole("checkbox", { name: "Book estimation session" })).toBeNull();
-    expect(within(list).queryByRole("checkbox", { name: "Send SOW to procurement" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Before you move on" })).toBeNull();
+    expect(screen.queryByText("Before you move on")).toBeNull();
+    expect(screen.queryByRole("list", { name: "Automatic checks" })).toBeNull();
+    expect(screen.queryByText("Assign job code")).toBeNull();
+    expect(screen.queryByText("MSA and rate card set on the project")).toBeNull();
   });
 
-  it("shows the Brief system checks read-only, in words", () => {
-    render(<BriefStep {...briefProps()} />);
-    const auto = within(readiness()).getByRole("list", { name: "Automatic checks" });
-    expect(auto).toHaveTextContent("Brief submitted");
-    expect(auto).toHaveTextContent("MSA and rate card set on the project");
-    expect(within(auto).queryByRole("checkbox")).toBeNull();
-    expect(auto).toHaveTextContent("Not yet");
-  });
-
-  it("keeps the Clarification Email and Position Document, and ends with the confirm-scope gate", () => {
+  it("keeps the Scope summary with its Copy questions button, drops the Clarification email, and ends with the confirm-scope gate", () => {
     render(<BriefStep {...briefProps()} />);
     expect(screen.getByRole("region", { name: "Scope summary" })).toBeInTheDocument();
-    expect(screen.getByText(/Quick questions/)).toBeInTheDocument();
+    expect(screen.queryByText("Clarification email")).toBeNull();
     expect(
       screen.getByRole("button", { name: "Confirm scope is ready to estimate" })
     ).toBeInTheDocument();
@@ -184,15 +138,13 @@ describe("Estimate step", () => {
     expect(within(tracker).getAllByRole("combobox")).toHaveLength(3);
   });
 
-  it("shows only Estimate readiness items and its system checks", () => {
+  it("has no readiness list; the prerequisite note covers the missing scope confirmation", () => {
     render(<EstimateStep {...estimateProps()} />);
-    const list = readiness();
+    expect(screen.queryByText("Before you move on")).toBeNull();
+    expect(screen.queryByText("At least one capability confirmed")).toBeNull();
     expect(
-      within(list).getByRole("checkbox", { name: "Book estimation session" })
+      screen.getByText("The estimate is built from the confirmed scope. Confirm the scope in Brief first.")
     ).toBeInTheDocument();
-    expect(within(list).queryByRole("checkbox", { name: "Assign job code" })).toBeNull();
-    expect(list).toHaveTextContent("Scope confirmed");
-    expect(list).toHaveTextContent("At least one capability confirmed");
   });
 
   it("explains the prerequisite and disables + New estimate until the scope is confirmed", () => {
@@ -239,19 +191,18 @@ describe("Statement of Work step", () => {
     );
   });
 
-  it("shows only SOW readiness items and its system checks", () => {
+  it("has no readiness list; the prerequisite note covers the unapproved estimate", () => {
     render(<SowStep {...sowProps()} />);
-    const list = readiness();
+    expect(screen.queryByText("Before you move on")).toBeNull();
+    expect(screen.queryByText("SOW generated from the approved estimate")).toBeNull();
     expect(
-      within(list).getByRole("checkbox", { name: "Send SOW to procurement" })
+      screen.getByText("The SOW is generated from the approved estimate. Approve the estimate first.")
     ).toBeInTheDocument();
-    expect(list).toHaveTextContent("Estimate approved");
-    expect(list).toHaveTextContent("SOW generated from the approved estimate");
   });
 });
 
 describe("project complete", () => {
-  it("makes every step read-only: checklist, specialist rows, key details and capabilities", () => {
+  it("makes every step read-only: specialist rows, key details and capabilities", () => {
     render(
       <>
         <BriefStep
@@ -273,14 +224,13 @@ describe("project complete", () => {
       </>
     );
     expect(screen.getAllByText(/This project is complete/).length).toBeGreaterThanOrEqual(3);
-    for (const box of screen.getAllByRole("checkbox")) expect(box).toBeDisabled();
+    for (const box of screen.queryAllByRole("checkbox")) expect(box).toBeDisabled();
     for (const select of screen.getAllByRole("combobox")) {
       // Disabled, or inert under FB-005's SOW lock (aria-disabled keeps it focusable and explained).
       expect(
         select.hasAttribute("disabled") || select.getAttribute("aria-disabled") === "true"
       ).toBe(true);
     }
-    expect(screen.queryByRole("button", { name: "Add item" })).toBeNull();
     expect(screen.getByRole("button", { name: "Reopen scope" })).toBeDisabled();
     for (const fieldset of document.querySelectorAll("fieldset")) expect(fieldset).toBeDisabled();
   });

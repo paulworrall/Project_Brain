@@ -9,12 +9,17 @@ export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   SCOPE_SUMMARY: "Scope summary",
 };
 
+/**
+ * FB-011: the clarification email and the set-up checklist are no longer
+ * produced or shown. Their documents are kept in the database, but the
+ * Outputs Library neither lists nor opens them.
+ */
+export const RETIRED_DOCUMENT_TYPES: readonly DocumentType[] = ["CLARIFICATION_EMAIL", "CHECKLIST"];
+
 /** Display order for the Outputs Library — matches the stage each artifact is first produced at. */
 export const DOCUMENT_TYPE_ORDER: DocumentType[] = [
   "SCOPE_SUMMARY",
-  "CLARIFICATION_EMAIL",
   "POSITION_DOCUMENT",
-  "CHECKLIST",
   "DRAFT_SCOPE_DOCUMENT",
   "DELIVERABLES_SERVICES_DOCUMENT",
 ];

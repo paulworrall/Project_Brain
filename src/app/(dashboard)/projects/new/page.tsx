@@ -20,8 +20,8 @@ export default async function NewProjectPage() {
     <div className="mx-auto max-w-2xl">
       <h1 className="text-3xl leading-tight font-light text-foreground sm:text-4xl">New Project</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Choose the client and paste or upload the brief. The Intake Agent drafts the Scope summary
-        and the clarification email, and sets up the readiness checklist.
+        Choose the client and paste or upload the brief. The Intake Agent drafts the Scope summary,
+        including any open questions to resolve with the client.
       </p>
 
       <Card className="mt-6 p-6">

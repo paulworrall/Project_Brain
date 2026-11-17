@@ -6,7 +6,7 @@ import {
   pmPerspectivePromptSection,
   type PmPerspectiveValues,
 } from "@/lib/pmPerspective";
-import { CLIENT_CONTACT_FIELDS, keyDetailsExclusionForPrompt } from "@/lib/briefAttributes";
+import { keyDetailsExclusionForPrompt } from "@/lib/briefAttributes";
 import {
   KeyAttributeExtractionError,
   extractKeyAttributes,
@@ -15,21 +15,12 @@ import {
 import { generateScopeSummary } from "@/services/agents/scope-summary-agent";
 import type { ScopeSummaryContent } from "@/types/scope";
 import {
-  clarificationQuestionsFrom,
-  completenessFromExtraction,
-  type ClarificationQuestions,
-} from "@/lib/clarificationQuestions";
-import {
   BriefClassificationSchema,
-  ClarificationEmailSchema,
-  DEFAULT_SETUP_CHECKLIST_ITEMS,
   PositionDocumentExtractionSchema,
   type BriefClassification,
   type BriefType,
-  type ClarificationEmail,
   type IntakeAgentResult,
   type PositionDocumentExtraction,
-  type IntakeSetupChecklist,
 } from "@/types/intake";
 
 export class IntakeAgentError extends Error {
@@ -109,76 +100,17 @@ export async function extractPositionFields(
 }
 
 /**
- * The questions come from the fixed set of required key details (see
- * clarificationQuestionsFrom) — never generated — plus the client's own
- * still-deciding items from the Position Document.
- */
-export async function generateClarificationEmail(
-  fields: PositionDocumentExtraction,
-  questions: ClarificationQuestions,
-  pmPerspective: PmPerspectiveValues = {},
-  contactName: string | null = null,
-  /** The shared project context (getProjectContext) when redrafting after updates; "" at intake. */
-  projectContext = ""
-): Promise<ClarificationEmail> {
-  try {
-    const message = await anthropic.messages.parse({
-      model: CLAUDE_MODEL,
-      max_tokens: 2048,
-      output_config: { format: zodOutputFormat(ClarificationEmailSchema) },
-      messages: [
-        {
-          role: "user",
-          content: `${projectContext.trim() ? `Background — everything known about this project so far (the brief, updates in version order, key details, and the PM's own view, which is internal and never to be quoted):\n\n<project_context>\n${projectContext}\n</project_context>\n\nUse this only to address the client appropriately and avoid asking about anything the updates have already settled.\n\n` : ""}Draft a polite, professional clarification email to the client, to be reviewed by an account manager before sending — never state or imply it has already been sent. Address it to ${
-            contactName ?? "the client contact"
-          } if a name is available. In clearly separate, labeled sections, list:\n1. Key details we still need from the client — ask for each one: ${JSON.stringify(questions.toAsk)}\n2. Key details we've read from the brief, for the client to confirm we've understood correctly: ${JSON.stringify(questions.toConfirm)}\n3. Items the client already flagged as still deciding, just to confirm status: ${JSON.stringify(fields.clientFlaggedOpenItems)}\n\nAsk only about the items listed — don't add questions of your own. Leave out any section whose list is empty. If all three lists are empty, write a short note confirming there are no outstanding questions right now instead of an empty email.${pmPerspectivePromptSection(
-            pmPerspective,
-            "Use the PM perspective above only to judge which questions matter most and how to frame them. It is internal: don't quote it, reveal it, or present it as anything the client said."
-          )}`,
-        },
-      ],
-    });
-
-    if (!message.parsed_output) {
-      throw new Error("Claude returned no parsed output for the clarification email.");
-    }
-    return message.parsed_output;
-  } catch (error) {
-    throw friendlyErrorFrom("drafting the clarification email", error);
-  }
-}
-
-export function generateSetupChecklist(): IntakeSetupChecklist {
-  return { items: DEFAULT_SETUP_CHECKLIST_ITEMS.map((item) => ({ ...item })) };
-}
-
-/**
- * The email generator's view of a Scope summary: its context and deliverables
- * as "what we know", and its open questions as the client's still-deciding
- * items. (The required key details still missing are asked separately.)
- */
-export function emailFieldsFromScopeSummary(scope: ScopeSummaryContent): PositionDocumentExtraction {
-  return {
-    whatWeKnow: [
-      ...(scope.context ? [{ topic: "Context", detail: scope.context }] : []),
-      ...scope.deliverables.map((detail) => ({ topic: "Deliverable", detail })),
-    ],
-    clientFlaggedOpenItems: scope.openQuestions,
-  };
-}
-
-/**
  * Intake, in order: classify the brief; read its key details (the one
  * record for budget, objective, timeline, contact… — captured straight away);
  * then the Scope summary (FB-009 — replaces the Position Document), which is
- * told to leave those key details out; then the clarification email,
- * addressed to the contact the key details found and asking about the
- * required key details still outstanding and the Scope summary's open
- * questions. A key-detail failure never blocks intake — it's returned so the
- * caller can record it on the project.
+ * told to leave those key details out. (FB-011: no clarification email and no
+ * set-up checklist are generated any more — PMs write and send their own
+ * client emails, and project set-up admin happens outside this site.) A
+ * key-detail failure never blocks intake — it's returned so the caller can
+ * record it on the project.
  *
- * The PM perspective, if any, goes to the Scope summary and the email as its
- * own labelled block — never into the brief text, and not into
+ * The PM perspective, if any, goes to the Scope summary as its own labelled
+ * block — never into the brief text, and not into
  * classification or key-detail extraction (key details must come from the
  * client).
  */
@@ -209,14 +141,6 @@ export async function runIntakeAgent(
   } catch (error) {
     throw friendlyErrorFrom("drafting the scope summary", error);
   }
-  const contactName = keyAttributes?.[CLIENT_CONTACT_FIELDS.attributeId]?.values[CLIENT_CONTACT_FIELDS.name];
-  const clarificationEmail = await generateClarificationEmail(
-    emailFieldsFromScopeSummary(scopeSummary),
-    clarificationQuestionsFrom(completenessFromExtraction(keyAttributes)),
-    pmPerspective,
-    typeof contactName === "string" ? contactName : null
-  );
-  const checklist = generateSetupChecklist();
 
-  return { classification, scopeSummary, clarificationEmail, checklist, keyAttributes, keyAttributesError };
+  return { classification, scopeSummary, keyAttributes, keyAttributesError };
 }

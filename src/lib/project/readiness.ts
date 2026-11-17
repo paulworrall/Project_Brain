@@ -1,57 +1,12 @@
 /**
- * FB-008: each step's "Before you move on" list — the PM's checklist items
- * for that step plus derived, read-only system checks. Pure, so it is shared
- * by the server (page data) and tests.
+ * FB-008: the Estimate step's specialist input tracker rows. (FB-011: the
+ * per-step "Before you move on" readiness lists and their derived system
+ * checks were removed; prerequisites are covered by the disabled-action notes,
+ * the Next step banner and the Confirm scope dialog.) Pure, so it is shared by
+ * the server (page data) and tests.
  */
 import type { Capability } from "@/generated/prisma/enums";
 import { capabilityLabel } from "@/lib/mapCapabilities";
-import type { StepId } from "@/lib/projectSteps";
-
-export interface SystemCheck {
-  id: string;
-  label: string;
-  met: boolean;
-}
-
-export interface SystemCheckInput {
-  briefSubmitted: boolean;
-  hasMasterServiceAgreement: boolean;
-  hasRateCard: boolean;
-  scopeConfirmed: boolean;
-  confirmedCapabilityCount: number;
-  estimateApproved: boolean;
-  /** The latest SOW version was generated from the approved estimate version. */
-  sowFromApprovedEstimate: boolean;
-}
-
-export function buildSystemChecks(input: SystemCheckInput): Record<StepId, SystemCheck[]> {
-  return {
-    brief: [
-      { id: "brief-submitted", label: "Brief submitted", met: input.briefSubmitted },
-      {
-        id: "msa-rate-card",
-        label: "MSA and rate card set on the project",
-        met: input.hasMasterServiceAgreement && input.hasRateCard,
-      },
-    ],
-    estimate: [
-      { id: "scope-confirmed", label: "Scope confirmed", met: input.scopeConfirmed },
-      {
-        id: "capability-confirmed",
-        label: "At least one capability confirmed",
-        met: input.confirmedCapabilityCount > 0,
-      },
-    ],
-    sow: [
-      { id: "estimate-approved", label: "Estimate approved", met: input.estimateApproved },
-      {
-        id: "sow-from-approved-estimate",
-        label: "SOW generated from the approved estimate",
-        met: input.sowFromApprovedEstimate,
-      },
-    ],
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Specialist input tracker rows
