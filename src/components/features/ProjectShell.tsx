@@ -12,7 +12,8 @@ import {
   type StepSummary,
 } from "@/lib/projectSteps";
 import { ProjectStepper } from "./ProjectStepper";
-import { NextStepBanner } from "./NextStepBanner";
+import { NextStepBanner, type CompletionSummary } from "./NextStepBanner";
+import { Button } from "@/components/ui/Button";
 import type { NextAction } from "@/lib/nextAction";
 
 /**
@@ -34,6 +35,7 @@ export function ProjectShell({
   attention,
   nextAction,
   openQuestionsText = "",
+  completion = null,
   steps,
   sidebar,
   children,
@@ -47,6 +49,8 @@ export function ProjectShell({
   nextAction?: NextAction;
   /** FB-011: the open questions as a numbered list, for the banner's "Copy questions". */
   openQuestionsText?: string;
+  /** FB-012: the complete-project success block's facts (set only once the SOW is approved). */
+  completion?: CompletionSummary | null;
   steps: Record<StepId, ReactNode>;
   sidebar: ReactNode;
   children: ReactNode;
@@ -54,6 +58,14 @@ export function ProjectShell({
   const segment = useSelectedLayoutSegment();
   const activeStepId = segment && isStepId(segment) ? segment : null;
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Complete: the success block carries both downloads, so the stepper keeps only its SOW link.
+  const stepperSummaries: Partial<Record<StepId, StepSummary>> =
+    completion && stepSummaries.estimate
+      ? {
+          ...stepSummaries,
+          estimate: { ...stepSummaries.estimate, downloadHref: undefined, downloadLabel: undefined },
+        }
+      : stepSummaries;
   const [announcement, setAnnouncement] = useState("");
   const asideRef = useRef<HTMLElement>(null);
   const previousStepRef = useRef(activeStepId);
@@ -112,32 +124,44 @@ export function ProjectShell({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-end gap-2 border-b border-border">
+      <div className="flex justify-end lg:hidden">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => setDrawerOpen(true)}
+          aria-expanded={drawerOpen}
+        >
+          Project assistant
+        </Button>
+      </div>
+
+      {/* FB-012: the stepper ("where you are") and the Next step banner ("what to do
+          now") read as one block, in one bordered container. */}
+      <div className="border border-border bg-surface">
         <ProjectStepper
           projectId={projectId}
           statuses={stepStatuses}
-          summaries={stepSummaries}
+          summaries={stepperSummaries}
           activeStepId={activeStepId}
           attention={attention}
         />
-        <button
-          type="button"
-          onClick={() => setDrawerOpen(true)}
-          aria-expanded={drawerOpen}
-          className="mb-1 min-h-11 shrink-0 border border-border bg-surface px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-muted lg:hidden"
-        >
-          Project assistant
-        </button>
+        {nextAction && (
+          <div className="border-t border-border">
+            <NextStepBanner
+              action={nextAction}
+              openQuestionsText={openQuestionsText}
+              completion={completion}
+            />
+          </div>
+        )}
       </div>
-
-      {nextAction && <NextStepBanner action={nextAction} openQuestionsText={openQuestionsText} />}
 
       <p role="status" aria-live="polite" className="sr-only">
         {announcement}
       </p>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
-        <div className="min-w-0 space-y-4">
+        <div className="min-w-0 space-y-6">
           {PROJECT_STEPS.map((step) => (
             <div key={step.id} hidden={step.id !== activeStepId} data-step={step.id}>
               {steps[step.id]}

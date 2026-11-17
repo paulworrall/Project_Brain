@@ -55,7 +55,7 @@ export function BriefAssessmentCallout({
         </p>
         <Link
           href={`/projects/${projectId}/brief#scope-gate`}
-          className="inline-flex min-h-11 items-center bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary-hover"
+          className="inline-flex min-h-11 items-center border border-primary bg-surface px-4 py-2 text-sm font-medium text-primary hover:bg-cream"
         >
           Confirm scope
         </Link>
@@ -81,7 +81,7 @@ export function BriefAssessmentCallout({
         )}
         <Link
           href={`/projects/${projectId}/brief#scope-summary`}
-          className="inline-flex min-h-11 items-center bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary-hover"
+          className="inline-flex min-h-11 items-center border border-primary bg-surface px-4 py-2 text-sm font-medium text-primary hover:bg-cream"
         >
           See the open questions
         </Link>

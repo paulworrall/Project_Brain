@@ -1,7 +1,7 @@
 "use client";
 
 import type { BriefAttributeCompleteness, BriefCompleteness } from "@/lib/briefCompleteness";
-import { KeyAttributeRow, STATUS_LABEL } from "./KeyAttributeRow";
+import { KeyAttributeRow, STATUS_WORD } from "./KeyAttributeRow";
 
 /**
  * Shown where a gated step is refused (today: Generate SOW) — lists exactly
@@ -21,7 +21,7 @@ export function BriefGateAlert({
     <div role="alert" className="space-y-3 border border-warning border-l-4 bg-warning-bg p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h4 className="text-sm font-medium text-foreground">
+          <h4 className="text-card font-medium text-foreground">
             We can&apos;t generate the SOW yet
           </h4>
           <p className="text-xs text-muted-foreground">
@@ -30,7 +30,7 @@ export function BriefGateAlert({
               : `These ${outstanding.length} key details need`}{" "}
             adding first:{" "}
             {outstanding
-              .map((a) => `${a.label} (${STATUS_LABEL[a.status].toLowerCase()})`)
+              .map((a) => `${a.label} (${STATUS_WORD[a.status]})`)
               .join(", ")}
             .
           </p>

@@ -222,10 +222,30 @@ export function stepAccessibleName(
   return status === "done" && summary ? `${base}, ${summary.spoken}` : base;
 }
 
-/** Shown when a step's prerequisite isn't met. No step is locked; its main action is disabled with this. */
-export const STEP_PREREQUISITE_NOTE: Record<Exclude<StepId, "brief">, string> = {
-  estimate: "The estimate is built from the confirmed scope. Confirm the scope in Brief first.",
-  sow: "The SOW is generated from the approved estimate. Approve the estimate first.",
+/**
+ * Shown when a step's prerequisite isn't met (FB-012: an amber notice above the step's
+ * sub-tasks — a title, one line of why, and a link to where to fix it). Both are soft
+ * prerequisites: no step is locked, and only the step's main action is blocked, described
+ * by this notice.
+ */
+export interface StepPrerequisite {
+  title: string;
+  reason: string;
+  /** The step to go to, and the link's label. */
+  goTo: { step: StepId; label: string };
+}
+
+export const STEP_PREREQUISITE: Record<Exclude<StepId, "brief">, StepPrerequisite> = {
+  estimate: {
+    title: "Confirm the scope first",
+    reason: "The estimate is built from the confirmed scope.",
+    goTo: { step: "brief", label: "Go to Brief" },
+  },
+  sow: {
+    title: "Approve the estimate first",
+    reason: "The SOW is generated from the approved estimate.",
+    goTo: { step: "estimate", label: "Go to Estimate" },
+  },
 };
 
 export const PROJECT_COMPLETE_MESSAGE =

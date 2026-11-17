@@ -27,7 +27,8 @@ import { openQuestionsText } from "@/lib/openQuestionsText";
 import { latestScopeSummary, scopeSummaryVersion } from "@/lib/scopeSummary";
 import { buildScopeView, openQuestionCount } from "@/lib/scopeSummaryView";
 import { getEstimateScopeSyncStatus } from "@/lib/estimateScopeSync";
-import { deriveNextAction } from "@/lib/nextAction";
+import { deriveNextAction, type NextActionInput } from "@/lib/nextAction";
+import { deriveSubTasks, type SubTaskInput } from "@/lib/project/subTasks";
 import { normaliseBriefAssessment } from "@/types/intake";
 import { DraftScopeDocumentSchema } from "@/types/triage";
 
@@ -187,14 +188,6 @@ async function fetchProjectPageData(projectId: string) {
     getSowChangeStatus(project.id),
     getEstimateScopeSyncStatus(project.id),
   ]);
-  // Every update since the brief (v2 onwards), for Phase 1's progress count.
-  const clientUpdates = versionHistory.slice(1).map((v) => ({
-    id: v.id,
-    content: v.content,
-    createdAt: v.createdAt,
-    createdByName: null,
-  }));
-
   const confirmedCapabilities = capabilities.map((c) => c.capability);
   const latestEstimateBriefVersion = estimateBrief?.versions[0] ?? null;
   const estimateBriefVersion = latestEstimateBriefVersion
@@ -253,8 +246,19 @@ async function fetchProjectPageData(projectId: string) {
     draftScopeDocument: draftScopeDocument.success ? draftScopeDocument.data : null,
   };
 
+  // FB-012: the complete-project success block's facts.
+  const completion =
+    projectComplete && approvals.summary.sow
+      ? {
+          approvedOn: approvals.summary.sow.approval.clientApprovedOn,
+          versionNumber: approvals.summary.sow.versionNumber,
+          sowHref: approvals.summary.sow.downloadHref,
+          estimateHref: approvals.summary.estimate?.downloadHref ?? null,
+        }
+      : null;
+
   const briefAssessment = normaliseBriefAssessment(project.briefAssessment);
-  const nextAction = deriveNextAction({
+  const nextInput: NextActionInput = {
     projectId: project.id,
     clientId: client.id,
     clientName: client.name,
@@ -278,11 +282,32 @@ async function fetchProjectPageData(projectId: string) {
     hasSow: sowVersions.length > 0,
     sowStale: sowChange.status === "changed_since_generation",
     sowApproved: approvals.summary.sow !== null,
-  });
+  };
+  const nextAction = deriveNextAction(nextInput);
+
+  // FB-012: each step's numbered sub-tasks, from the same derived state as the banner.
+  const requiredDetails = briefCompleteness.attributes.filter((a) => a.required);
+  const subTaskInput: SubTaskInput = {
+    ...nextInput,
+    scopeVersion: scopeLatest?.versionNumber ?? null,
+    requiredCaptured: requiredDetails.filter((a) => a.status === "confirmed").length,
+    requiredTotal: requiredDetails.length,
+    hasSowTemplate: project.sowTemplate !== null,
+    scopeConfirmedLabel: stepSummaries.brief?.text ?? null,
+    estimateApprovedLabel: stepSummaries.estimate?.text ?? null,
+    sowApprovedLabel: stepSummaries.sow?.text ?? null,
+  };
+  const subTasks = {
+    brief: deriveSubTasks(subTaskInput, "brief"),
+    estimate: deriveSubTasks(subTaskInput, "estimate"),
+    sow: deriveSubTasks(subTaskInput, "sow"),
+  };
 
   return {
     briefAssessment,
     nextAction,
+    completion,
+    subTasks,
     estimateScopeSync,
     scopeSummary,
     openQuestions,
@@ -313,7 +338,6 @@ async function fetchProjectPageData(projectId: string) {
     pmPerspective,
     versionHistory,
     sowChange,
-    clientUpdates,
     confirmedCapabilities,
     estimateBriefVersion,
     stepStatuses,

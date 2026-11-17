@@ -50,8 +50,6 @@ function baseProps() {
   return {
     projectId: "proj_1",
     scopeSummary: scopeSummary(),
-    openQuestions: 1,
-    clientUpdates: [],
     briefCompleteness: briefCompleteness(),
     pmPerspective: pmPerspectiveView(),
   };
@@ -70,10 +68,10 @@ describe("Phase1Workspace", () => {
     expect(screen.getByRole("region", { name: "Scope summary" })).toContainElement(regenerate[0]);
   });
 
-  it("shows the Scope summary with its sections, and the What We Need to Find Out checklist", () => {
+  it("shows the Scope summary with its sections, and the What we need to find out checklist", () => {
     render(<Phase1Workspace {...baseProps()} />);
 
-    expect(screen.getByRole("heading", { name: "What We Need to Find Out" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "What we need to find out" })).toBeInTheDocument();
     const card = screen.getByRole("region", { name: "Scope summary" });
     expect(card).toHaveTextContent("v2");
     expect(card).toHaveTextContent("Fizzy wants to refresh the campaign.");
@@ -99,7 +97,7 @@ describe("Phase1Workspace", () => {
     expect(screen.getByRole("button", { name: "Draft the scope summary" })).toBeInTheDocument();
   });
 
-  it("keeps a legacy project's earlier documents read-only, with Create scope summary from these", () => {
+  it("keeps a legacy project's earlier documents read-only, with Create scope summary", () => {
     render(
       <Phase1Workspace
         {...baseProps()}
@@ -111,7 +109,7 @@ describe("Phase1Workspace", () => {
     expect(screen.getByText("Earlier documents")).toBeInTheDocument();
     expect(screen.getByText("Refresh the campaign.", { exact: false })).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Create scope summary from these" })
+      screen.getByRole("button", { name: "Create scope summary" })
     ).toBeInTheDocument();
   });
   it("does not render its own client-update composer — that's now the sidebar's Additional Inputs panel", () => {
@@ -146,7 +144,6 @@ describe("Phase1Workspace", () => {
     render(
       <Phase1Workspace
         {...baseProps()}
-        openQuestions={0}
         briefCompleteness={briefCompleteness(ALL_REQUIRED_CONFIRMED)}
         scopeSummary={{
           ...scopeSummary(),
@@ -177,42 +174,10 @@ describe("Phase1Workspace", () => {
     expect(container.querySelector("fieldset")).toBeDisabled();
   });
 
-  it("shows a compact progress summary computed from the live data", () => {
-    render(
-      <Phase1Workspace
-        {...baseProps()}
-        clientUpdates={[
-          {
-            id: "u1",
-            content: "Confirmed budget.",
-            createdAt: new Date("2026-08-01T10:00:00Z"),
-            createdByName: null,
-          },
-        ]}
-      />
-    );
-
-    const summary = screen.getByLabelText("Brief progress summary");
-    expect(summary).toHaveTextContent("1 open question");
-    // Nothing confirmed yet: all 4 required details are still to find out.
-    expect(summary).toHaveTextContent("4 required details to find out");
-    expect(summary).toHaveTextContent("1 update logged");
-  });
-
-  it("pluralizes progress summary counts correctly", () => {
-    render(
-      <Phase1Workspace
-        {...baseProps()}
-        openQuestions={2}
-        briefCompleteness={briefCompleteness(ALL_REQUIRED_CONFIRMED.slice(1))}
-        clientUpdates={[]}
-      />
-    );
-
-    const summary = screen.getByLabelText("Brief progress summary");
-    expect(summary).toHaveTextContent("2 open questions");
-    expect(summary).toHaveTextContent("1 required detail to find out");
-    expect(summary).toHaveTextContent("0 updates logged");
+  it("has no progress meta line — its information lives in the sub-task summaries (FB-012)", () => {
+    render(<Phase1Workspace {...baseProps()} />);
+    expect(screen.queryByLabelText("Brief progress summary")).not.toBeInTheDocument();
+    expect(screen.queryByText(/updates? logged/)).not.toBeInTheDocument();
   });
 
   it("lists the 4 required key details with their status and question", () => {
@@ -257,7 +222,7 @@ describe("Phase1Workspace", () => {
       screen.getByText("1 of 4 required details captured", { exact: false })
     ).toBeInTheDocument();
     const checklist = screen
-      .getByRole("heading", { name: "What We Need to Find Out" })
+      .getByRole("heading", { name: "What we need to find out" })
       .closest("div.p-5, [class*='p-5']")!;
     expect(checklist).not.toHaveTextContent(/confirm/i);
     expect(checklist).not.toHaveTextContent(/suggestion/i);

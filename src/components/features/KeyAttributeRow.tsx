@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Disclosure } from "@/components/ui/Disclosure";
+import { StatusBadge, type StatusBadgeState } from "@/components/ui/StatusBadge";
 import {
   getBriefAttribute,
   isSubFieldFilled,
@@ -23,16 +24,22 @@ import type {
 } from "@/lib/briefCompleteness";
 import { KeyAttributeForm } from "./KeyAttributeForm";
 
-// Icon + text together carry the state — never colour alone.
-export const STATUS_ICON: Record<BriefAttributeStatus, string> = {
-  confirmed: "✓",
-  partial: "◐",
-  missing: "○",
+// The shared StatusBadge carries the state as icon + text — never colour alone.
+export const STATUS_BADGE_STATE: Record<BriefAttributeStatus, StatusBadgeState> = {
+  confirmed: "done",
+  partial: "in_progress",
+  missing: "not_started",
 };
 export const STATUS_LABEL: Record<BriefAttributeStatus, string> = {
-  confirmed: "Captured",
-  partial: "Partial",
-  missing: "Missing",
+  confirmed: "Done",
+  partial: "In progress",
+  missing: "Not started",
+};
+/** The status as a plain word inside a sentence ("Objective (partial)"). */
+export const STATUS_WORD: Record<BriefAttributeStatus, string> = {
+  confirmed: "captured",
+  partial: "partial",
+  missing: "missing",
 };
 export const STATUS_TEXT_CLASS: Record<BriefAttributeStatus, string> = {
   confirmed: "text-success",
@@ -137,17 +144,10 @@ export function KeyAttributeRow({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span aria-hidden="true" className={`text-sm ${STATUS_TEXT_CLASS[status]}`}>
-              {STATUS_ICON[status]}
-            </span>
-            <h4 className="text-sm font-medium text-foreground">{attribute.label}</h4>
-            <span className={`text-xs font-medium ${STATUS_TEXT_CLASS[status]}`}>
-              {STATUS_LABEL[status]}
-            </span>
+            <h4 className="text-card font-medium text-foreground">{attribute.label}</h4>
+            <StatusBadge state={STATUS_BADGE_STATE[status]} text={STATUS_LABEL[status]} />
             {hasValue && current && (
-              <span className="rounded-full border border-border bg-surface-muted px-2 py-0.5 text-xs text-muted-foreground">
-                {sourceTagText(current.origin)}
-              </span>
+              <span className="text-xs text-muted-foreground">{sourceTagText(current.origin)}</span>
             )}
           </div>
           {hasValue ? (

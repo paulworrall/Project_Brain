@@ -148,7 +148,7 @@ export function ApprovalActions({
       {showRevert && (
         <Button
           type="button"
-          variant="ghost"
+          variant="tertiary"
           className="px-2 py-1 text-xs text-muted-foreground"
           onClick={() => setRevertOpen(true)}
         >

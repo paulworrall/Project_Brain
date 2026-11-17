@@ -548,7 +548,7 @@ export function SowReviewOverlay({
                               </Button>
                               <Button
                                 type="button"
-                                variant="ghost"
+                                variant="tertiary"
                                 className="px-2 py-1 text-xs"
                                 disabled={generating}
                                 onClick={() =>
@@ -652,7 +652,7 @@ export function SowReviewOverlay({
       </div>
 
       <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3 sm:px-6">
-        <Button type="button" variant="ghost" disabled={disabled} onClick={() => void handleClose()}>
+        <Button type="button" variant="tertiary" disabled={disabled} onClick={() => void handleClose()}>
           Save &amp; exit
         </Button>
         <div className="flex items-center gap-2">

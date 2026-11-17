@@ -13,6 +13,7 @@ export function SidebarPanel({
   subtitle,
   headingLevel = 3,
   className = "p-5",
+  embedded = false,
   children,
 }: {
   icon: ReactNode;
@@ -21,8 +22,11 @@ export function SidebarPanel({
   headingLevel?: 2 | 3;
   /** Padding and layout for the card (e.g. "p-5", "flex h-full flex-col p-4"). */
   className?: string;
+  /** Inside the tabbed sidebar (FB-012): no card and no header of its own, just the content. */
+  embedded?: boolean;
   children?: ReactNode;
 }) {
+  if (embedded) return <div className={className}>{children}</div>;
   const Heading = headingLevel === 2 ? "h2" : "h3";
   return (
     <Card variant="feature" className={className}>

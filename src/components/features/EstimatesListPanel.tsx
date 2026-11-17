@@ -139,14 +139,14 @@ function NewEstimateForm({
         <Button
           type="button"
           variant="secondary"
-          className={`text-xs ${blocked ? "cursor-not-allowed opacity-50" : ""}`}
+          locked={lock !== null}
           aria-disabled={blocked ? true : undefined}
           aria-describedby={prerequisiteNoteId && !lock ? prerequisiteNoteId : undefined}
           onClick={() => {
             if (!blocked) setIsOpen(true);
           }}
         >
-          + New estimate
+          New estimate
         </Button>
         {lock && (
           <LockedNotice
@@ -170,7 +170,7 @@ function NewEstimateForm({
               embedded
             />
             <div className="flex justify-end border-t border-border pt-3">
-              <Button type="button" variant="ghost" className="text-xs" onClick={closeModal}>
+              <Button type="button" variant="tertiary" className="text-xs" onClick={closeModal}>
                 Done
               </Button>
             </div>
@@ -230,7 +230,7 @@ function NewEstimateForm({
               </p>
             )}
             <div className="flex justify-end gap-2 border-t border-border pt-3">
-              <Button type="button" variant="ghost" className="text-xs" onClick={closeModal}>
+              <Button type="button" variant="tertiary" className="text-xs" onClick={closeModal}>
                 Cancel
               </Button>
               <Button type="submit" disabled={pending} className="text-xs">
@@ -354,7 +354,7 @@ function EstimateTrackCard({
       {estimate.versions.length > 0 && (
         <details className="mt-2">
           <summary className="cursor-pointer text-xs font-medium text-primary">
-            Download a past version ({estimate.versions.length})
+            Past versions ({estimate.versions.length})
           </summary>
           <ul className="mt-1.5 space-y-1 border-t border-border pt-1.5">
             {estimate.versions.map((version) => (
@@ -377,7 +377,7 @@ function EstimateTrackCard({
                   href={`/api/projects/${projectId}/estimates/${estimate.id}/versions/${version.id}`}
                   className="font-medium text-primary hover:underline"
                 >
-                  Download →
+                  Download
                 </a>
               </li>
             ))}
@@ -449,7 +449,7 @@ export function EstimatesListPanel({
       {hiddenCount > 0 && (
         <Button
           type="button"
-          variant="ghost"
+          variant="tertiary"
           className="text-xs"
           onClick={() => setShowAllOpen(true)}
         >

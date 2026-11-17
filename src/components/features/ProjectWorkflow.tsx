@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import type { Capability } from "@/generated/prisma/enums";
 import type { ApprovalPermissions } from "@/types/approvals";
@@ -7,12 +8,12 @@ import type { SowChangeStatus } from "@/lib/sowChangeView";
 import type { SpecialistRow } from "@/lib/project/readiness";
 import {
   getStep,
-  PROJECT_COMPLETE_MESSAGE,
-  STEP_PREREQUISITE_NOTE,
+  STEP_PREREQUISITE,
+  type StepPrerequisite,
   type StepId,
 } from "@/lib/projectSteps";
 import type { RateCardOption } from "@/app/(dashboard)/projects/new/actions";
-import { Phase1Workspace, type ClientUpdateLogEntry, type EarlierDocuments } from "./Phase1Workspace";
+import { Phase1Workspace, type EarlierDocuments } from "./Phase1Workspace";
 import type { ScopeSummaryCardData } from "./ScopeSummaryCard";
 import type { BriefAssessment } from "@/types/intake";
 import { BriefAssessmentCallout, BriefAssessmentLabel } from "./BriefAssessmentNotice";
@@ -20,10 +21,12 @@ import {
   CapabilitiesAndEstimateBriefPanel,
   type EstimateBriefVersionMeta,
 } from "./CapabilitiesAndEstimateBriefPanel";
-import { BriefReadinessIndicator } from "./BriefReadinessIndicator";
 import { BriefCompletenessWarning } from "./BriefGateNotice";
 import { EstimatesListPanel, type EstimateListItem, type EstimateLock } from "./EstimatesListPanel";
+import { CompletedSowSummary } from "./CompletedSowSummary";
 import { ScopeGate } from "./ScopeGate";
+import { OpenSubTaskButton, SubTaskCard, SubTaskGroup } from "./SubTaskCard";
+import type { SubTask } from "@/lib/project/subTasks";
 import { SpecialistInputTracker } from "./SpecialistInputTracker";
 import {
   StartSowDevelopmentPanel,
@@ -51,35 +54,68 @@ export function prerequisiteNoteId(stepId: StepId): string {
   return `${stepId}-prerequisite-note`;
 }
 
+/** The amber "do this first" notice (soft prerequisite): lock icon, title, one line, a link. */
+function PrerequisiteNotice({ stepId, projectId, prerequisite }: { stepId: StepId; projectId: string; prerequisite: StepPrerequisite }) {
+  return (
+    <div
+      data-prerequisite={stepId}
+      className="flex flex-wrap items-center justify-between gap-3 border border-amber border-l-4 bg-tint px-4 py-3"
+    >
+      <div className="flex min-w-0 items-start gap-3">
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          focusable="false"
+          className="mt-0.5 shrink-0 text-navy"
+        >
+          <rect x="4" y="11" width="16" height="10" />
+          <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+        </svg>
+        {/* The step's blocked main action is described by this text. */}
+        <p id={prerequisiteNoteId(stepId)} className="text-sm text-foreground">
+          <span className="font-medium">{prerequisite.title}.</span> {prerequisite.reason}
+        </p>
+      </div>
+      <Link
+        href={`/projects/${projectId}/${prerequisite.goTo.step}`}
+        className="inline-flex min-h-11 items-center justify-center border border-primary bg-surface px-4 py-2 text-sm font-medium text-primary hover:bg-cream"
+      >
+        {prerequisite.goTo.label}
+      </Link>
+    </div>
+  );
+}
+
 export function StepSection({
   stepId,
-  prerequisiteNote = null,
+  projectId,
+  prerequisite = null,
   projectComplete,
   children,
 }: {
   stepId: StepId;
-  /** Quiet inline note shown when the step's prerequisite isn't met. No step is locked. */
-  prerequisiteNote?: string | null;
+  projectId: string;
+  /** Amber notice shown when the step's prerequisite isn't met. No step is locked. */
+  prerequisite?: StepPrerequisite | null;
   projectComplete: boolean;
   children: ReactNode;
 }) {
   const step = getStep(stepId);
   const headingId = `step-heading-${stepId}`;
   return (
-    <section aria-labelledby={headingId} className="space-y-4">
-      <h2 id={headingId} tabIndex={-1} className="text-2xl font-light text-foreground outline-none">
+    <section aria-labelledby={headingId} className="space-y-6">
+      <h2 id={headingId} tabIndex={-1} className="text-section font-bold text-foreground outline-none">
         {step.heading}
       </h2>
-      {projectComplete && (
-        <p className="border border-border bg-surface-muted px-3 py-2 text-sm text-foreground">
-          <span aria-hidden="true">✓ </span>
-          {PROJECT_COMPLETE_MESSAGE} Downloads are still available.
-        </p>
-      )}
-      {prerequisiteNote && !projectComplete && (
-        <p id={prerequisiteNoteId(stepId)} className="text-sm text-muted-foreground">
-          {prerequisiteNote}
-        </p>
+      {prerequisite && !projectComplete && (
+        <PrerequisiteNotice stepId={stepId} projectId={projectId} prerequisite={prerequisite} />
       )}
       {children}
     </section>
@@ -99,7 +135,8 @@ export interface BriefStepProps extends StepCommonProps {
   /** FB-011: the project has no MSA and rate card yet (warned about when confirming scope). */
   missingMsaRateCard: boolean;
   clientName: string;
-  clientUpdates: ClientUpdateLogEntry[];
+  /** FB-012: Scope summary, Key details, Confirm scope. */
+  subTasks: SubTask[];
   briefCompleteness: BriefCompleteness;
   pmPerspective: PmPerspectiveFieldView[];
   scopeConfirmedAt: string | null;
@@ -109,35 +146,35 @@ export interface BriefStepProps extends StepCommonProps {
 
 export function BriefStep(props: BriefStepProps) {
   return (
-    <StepSection stepId="brief" projectComplete={props.projectComplete}>
+    <StepSection stepId="brief" projectId={props.projectId} projectComplete={props.projectComplete}>
       <BriefAssessmentCallout
         projectId={props.projectId}
         assessment={props.briefAssessment ?? null}
         scopeConfirmed={props.scopeConfirmedAt !== null}
         readOnly={props.projectComplete}
       />
-      <BriefReadinessIndicator completeness={props.briefCompleteness} />
       <BriefCompletenessWarning completeness={props.briefCompleteness} />
       <Phase1Workspace
         projectId={props.projectId}
         scopeSummary={props.scopeSummary}
         assessment={<BriefAssessmentLabel assessment={props.briefAssessment ?? null} />}
         earlierDocuments={props.earlierDocuments}
-        openQuestions={props.openQuestions}
-        clientUpdates={props.clientUpdates}
         briefCompleteness={props.briefCompleteness}
         pmPerspective={props.pmPerspective}
         readOnly={props.projectComplete}
-      />
-      <ScopeGate
-        projectId={props.projectId}
-        scopeConfirmedAt={props.scopeConfirmedAt}
-        scopeConfirmedByName={props.scopeConfirmedByName}
-        openQuestions={props.openQuestions}
-        missingMsaRateCard={props.missingMsaRateCard}
-        clientName={props.clientName}
-        estimateApproved={props.estimateApproved}
-        projectComplete={props.projectComplete}
+        subTasks={props.subTasks}
+        gate={
+          <ScopeGate
+            projectId={props.projectId}
+            scopeConfirmedAt={props.scopeConfirmedAt}
+            scopeConfirmedByName={props.scopeConfirmedByName}
+            openQuestions={props.openQuestions}
+            missingMsaRateCard={props.missingMsaRateCard}
+            clientName={props.clientName}
+            estimateApproved={props.estimateApproved}
+            projectComplete={props.projectComplete}
+          />
+        }
       />
     </StepSection>
   );
@@ -148,6 +185,8 @@ export function BriefStep(props: BriefStepProps) {
 // ---------------------------------------------------------------------------
 
 export interface EstimateStepProps extends StepCommonProps {
+  /** FB-012: Choose teams, Estimate brief, Specialist inputs, Build the estimate, Client approval. */
+  subTasks: SubTask[];
   scopeConfirmed: boolean;
   confirmedCapabilities: Capability[];
   estimateBriefVersion: EstimateBriefVersionMeta | null;
@@ -159,44 +198,49 @@ export interface EstimateStepProps extends StepCommonProps {
 }
 
 export function EstimateStep(props: EstimateStepProps) {
-  const prerequisiteNote = props.scopeConfirmed ? null : STEP_PREREQUISITE_NOTE.estimate;
+  const prerequisite = props.scopeConfirmed ? null : STEP_PREREQUISITE.estimate;
   return (
     <StepSection
       stepId="estimate"
-      prerequisiteNote={prerequisiteNote}
+      projectId={props.projectId}
+      prerequisite={prerequisite}
       projectComplete={props.projectComplete}
     >
-      <fieldset id="capabilities" disabled={props.projectComplete} className="min-w-0 scroll-mt-6">
-        <legend className="sr-only">Capabilities and estimate brief</legend>
-        <CapabilitiesAndEstimateBriefPanel
-          projectId={props.projectId}
-          confirmedCapabilities={props.confirmedCapabilities}
-          estimateBriefVersion={props.estimateBriefVersion}
-        />
-      </fieldset>
-      <SpecialistInputTracker
-        projectId={props.projectId}
-        rows={props.specialistRows}
-        readOnly={props.projectComplete}
-      />
-      <section
-        aria-labelledby="build-estimate-heading"
-        className="space-y-3 border border-border bg-surface px-4 py-3"
-      >
-        <h3 id="build-estimate-heading" className="text-base font-medium text-foreground">
-          Build The Estimate
-        </h3>
-        <EstimatesListPanel
-          projectId={props.projectId}
-          estimates={props.estimates}
-          rateCardOptions={props.rateCardOptions}
-          lock={props.estimateLock}
-          permissions={props.approvalPermissions}
-          prerequisiteNoteId={
-            prerequisiteNote && !props.projectComplete ? prerequisiteNoteId("estimate") : null
-          }
-        />
-      </section>
+      <SubTaskGroup>
+        <div className="space-y-4">
+          <CapabilitiesAndEstimateBriefPanel
+            projectId={props.projectId}
+            confirmedCapabilities={props.confirmedCapabilities}
+            estimateBriefVersion={props.estimateBriefVersion}
+            subTasks={{ teams: props.subTasks[0], brief: props.subTasks[1] }}
+            readOnly={props.projectComplete}
+          />
+          <SpecialistInputTracker
+            projectId={props.projectId}
+            rows={props.specialistRows}
+            readOnly={props.projectComplete}
+            task={props.subTasks[2]}
+          />
+          <SubTaskCard task={props.subTasks[3]} readOnly={props.projectComplete}>
+            <EstimatesListPanel
+              projectId={props.projectId}
+              estimates={props.estimates}
+              rateCardOptions={props.rateCardOptions}
+              lock={props.estimateLock}
+              permissions={props.approvalPermissions}
+              prerequisiteNoteId={
+                prerequisite && !props.projectComplete ? prerequisiteNoteId("estimate") : null
+              }
+            />
+          </SubTaskCard>
+          <SubTaskCard task={props.subTasks[4]} readOnly={props.projectComplete}>
+            <p className="text-sm text-foreground">
+              The client&apos;s approval is recorded on an estimate version.
+            </p>
+            <OpenSubTaskButton targetId={props.subTasks[3].id}>Open the estimates</OpenSubTaskButton>
+          </SubTaskCard>
+        </div>
+      </SubTaskGroup>
     </StepSection>
   );
 }
@@ -206,6 +250,8 @@ export function EstimateStep(props: EstimateStepProps) {
 // ---------------------------------------------------------------------------
 
 export interface SowStepProps extends StepCommonProps {
+  /** FB-012: Choose template, Generate SOW, Client approval. */
+  subTasks: SubTask[];
   estimateApproved: boolean;
   sowChange?: SowChangeStatus;
   currentSowTemplate: { id: string; name: string } | null;
@@ -218,15 +264,29 @@ export interface SowStepProps extends StepCommonProps {
 }
 
 export function SowStep(props: SowStepProps) {
-  const prerequisiteNote = props.estimateApproved ? null : STEP_PREREQUISITE_NOTE.sow;
+  if (props.projectComplete) {
+    return (
+      <StepSection stepId="sow" projectId={props.projectId} projectComplete>
+        <CompletedSowSummary projectId={props.projectId} sowVersions={props.sowVersions} />
+      </StepSection>
+    );
+  }
+  const prerequisite = props.estimateApproved ? null : STEP_PREREQUISITE.sow;
   return (
     <StepSection
       stepId="sow"
-      prerequisiteNote={prerequisiteNote}
+      projectId={props.projectId}
+      prerequisite={prerequisite}
       projectComplete={props.projectComplete}
     >
-      <div className="border border-border bg-surface px-4 py-3">
+      <SubTaskGroup>
         <StartSowDevelopmentPanel
+          subTasks={{
+            template: props.subTasks[0],
+            generate: props.subTasks[1],
+            approval: props.subTasks[2],
+          }}
+          readOnly={props.projectComplete}
           projectId={props.projectId}
           sowChange={props.sowChange}
           currentTemplate={props.currentSowTemplate}
@@ -237,10 +297,10 @@ export function SowStep(props: SowStepProps) {
           lock={props.sowLock}
           permissions={props.approvalPermissions}
           prerequisiteNoteId={
-            prerequisiteNote && !props.projectComplete ? prerequisiteNoteId("sow") : null
+            prerequisite && !props.projectComplete ? prerequisiteNoteId("sow") : null
           }
         />
-      </div>
+      </SubTaskGroup>
     </StepSection>
   );
 }

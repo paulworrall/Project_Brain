@@ -27,6 +27,8 @@ import { BriefGateAlert } from "./BriefGateNotice";
 import { DocumentStatusBadge } from "@/components/ui/DocumentStatusBadge";
 import { ApprovalActions } from "./ApprovalActions";
 import { LockedNotice } from "./LockedNotice";
+import { SubTaskSection } from "./SubTaskCard";
+import type { SubTask } from "@/lib/project/subTasks";
 import { formatMoney } from "@/lib/formatMoney";
 import type { ApprovalInfo, ApprovalPermissions, ApprovalState } from "@/types/approvals";
 
@@ -107,7 +109,12 @@ export function StartSowDevelopmentPanel({
   lock = null,
   permissions = { canApprove: false, canRevert: false },
   prerequisiteNoteId = null,
+  subTasks,
+  readOnly = false,
 }: {
+  /** FB-012: the three sub-tasks this panel holds (template, generate, approval); without them it is one block. */
+  subTasks?: { template: SubTask; generate: SubTask; approval: SubTask };
+  readOnly?: boolean;
   lock?: SowLock | null;
   /**
    * FB-008: id of the step's prerequisite note, set while the estimate isn't
@@ -271,6 +278,7 @@ export function StartSowDevelopmentPanel({
 
   return (
     <div id="sow" className="scroll-mt-6 space-y-4">
+      <SubTaskSection task={subTasks?.template} readOnly={readOnly} className="space-y-4">
       <form
         action={formAction}
         onSubmit={(event) => {
@@ -283,7 +291,7 @@ export function StartSowDevelopmentPanel({
             htmlFor="sowTemplateId"
             className="block text-xs font-medium uppercase tracking-wide text-muted-foreground"
           >
-            SOW Template
+            SOW template
           </label>
           <select
             id="sowTemplateId"
@@ -294,7 +302,7 @@ export function StartSowDevelopmentPanel({
             className="mt-1 w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground"
           >
             <option value="" disabled>
-              Select a SOW Template…
+              Choose a template…
             </option>
             {templateOptions.map((template) => (
               <option key={template.id} value={template.id}>
@@ -343,11 +351,12 @@ export function StartSowDevelopmentPanel({
         )}
         <Button
           type="submit"
+          variant="secondary"
           disabled={pending}
           aria-disabled={locked ? true : undefined}
-          className={locked ? "cursor-not-allowed opacity-50" : ""}
+          locked={locked}
         >
-          {pending ? "Saving…" : currentTemplate ? "Change SOW Template" : "Select SOW Template"}
+          {pending ? "Saving…" : currentTemplate ? "Change template" : "Choose template"}
         </Button>
         {lock && (
           <LockedNotice
@@ -357,15 +366,12 @@ export function StartSowDevelopmentPanel({
         )}
       </form>
 
-      {currentTemplate && (
-        <p className="text-sm text-muted-foreground">
-          Using <span className="font-medium text-foreground">{currentTemplate.name}</span>.
-        </p>
-      )}
+      </SubTaskSection>
 
-      <div className="border-t border-border pt-3">
+      <SubTaskSection task={subTasks?.generate} readOnly={readOnly} className="border-t border-border pt-3">
+      <div>
         <div className="flex items-center justify-between gap-2">
-          <h4 className="text-sm font-medium text-foreground">Statement of Work</h4>
+          <h4 className="text-card font-medium text-foreground">Statement of Work</h4>
           <Button
             type="button"
             onClick={handleGenerateClick}
@@ -373,14 +379,15 @@ export function StartSowDevelopmentPanel({
             disabled={busy || !currentTemplate}
             aria-disabled={locked || prerequisiteNoteId ? true : undefined}
             aria-describedby={prerequisiteNoteId && !locked ? prerequisiteNoteId : undefined}
-            className={`text-xs ${locked || prerequisiteNoteId ? "cursor-not-allowed opacity-50" : ""}`}
+            variant="secondary"
+            locked={locked}
           >
             {busy ? "Working…" : latestSowVersion ? "Regenerate SOW" : "Generate SOW"}
           </Button>
         </div>
         {!currentTemplate && (
           <p className="mt-1 text-xs text-muted-foreground">
-            Select a SOW Template above before generating.
+            Choose a template first.
           </p>
         )}
         {currentTemplate && !briefCompleteness.canProceed && !showBriefGate && (
@@ -433,34 +440,13 @@ export function StartSowDevelopmentPanel({
                 sowChange?.sowVersionId === latestSowVersion.id ? sowChange.status : "no_sow"
               )}
             >
-              Download .docx →
+              Download .docx
             </SowDownloadLink>
-
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <ApprovalActions
-                documentType="SOW"
-                versionId={latestSowVersion.id}
-                versionNumber={latestSowVersion.versionNumber}
-                approvalState={latestSowVersion.approvalState ?? "draft"}
-                approval={latestSowVersion.approval ?? null}
-                permissions={permissions}
-                blockedReason={latestSowVersion.approveBlockedReason ?? null}
-                focusId="sow-card"
-                summary={{
-                  name: "Statement of Work",
-                  versionNumber: latestSowVersion.versionNumber,
-                  generatedDate: formatDateTime(latestSowVersion.createdAt),
-                  total: latestSowVersion.total ?? null,
-                  currency: latestSowVersion.currency ?? null,
-                  sourceEstimateVersionNumber: latestSowVersion.sourceEstimateVersionNumber ?? null,
-                }}
-              />
-            </div>
 
             {olderSowVersions.length > 0 && (
               <details className="mt-2 border-t border-border pt-2">
                 <summary className="cursor-pointer text-xs font-medium text-primary">
-                  Download a past version ({olderSowVersions.length})
+                  Past versions ({olderSowVersions.length})
                 </summary>
                 <ul className="mt-1.5 space-y-1 border-t border-border pt-1.5">
                   {olderSowVersions.map((version) => (
@@ -483,7 +469,7 @@ export function StartSowDevelopmentPanel({
                         staleWarning={null}
                         className="font-medium text-primary hover:underline"
                       >
-                        Download →
+                        Download
                       </SowDownloadLink>
                     </li>
                   ))}
@@ -495,6 +481,34 @@ export function StartSowDevelopmentPanel({
           <p className="mt-3 text-sm text-muted-foreground">No SOW generated yet.</p>
         )}
       </div>
+      </SubTaskSection>
+
+      <SubTaskSection task={subTasks?.approval} readOnly={readOnly}>
+        {latestSowVersion ? (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <ApprovalActions
+                documentType="SOW"
+                versionId={latestSowVersion.id}
+                versionNumber={latestSowVersion.versionNumber}
+                approvalState={latestSowVersion.approvalState ?? "draft"}
+                approval={latestSowVersion.approval ?? null}
+                permissions={permissions}
+                blockedReason={latestSowVersion.approveBlockedReason ?? null}
+                focusId="sow-card"
+                summary={{
+                  name: "Statement of Work",
+                  versionNumber: latestSowVersion.versionNumber,
+                  generatedDate: formatDateTime(latestSowVersion.createdAt),
+                  total: latestSowVersion.total ?? null,
+                  currency: latestSowVersion.currency ?? null,
+                  sourceEstimateVersionNumber: latestSowVersion.sourceEstimateVersionNumber ?? null,
+                }}
+              />
+            </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Generate a SOW first.</p>
+        )}
+      </SubTaskSection>
 
       {review && (
         <SowReviewOverlay

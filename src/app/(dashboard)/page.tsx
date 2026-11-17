@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { loadPipeline, type PipelineCard, type PipelineColumn } from "@/lib/pipeline";
 import { formatMoney } from "@/lib/formatMoney";
 import { NEEDS_REVIEW_TEXT } from "@/lib/estimateScopeSyncView";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 
 /**
  * FB-009 F: the pipeline home page — every project grouped by its current
@@ -35,10 +36,7 @@ function ProjectCard({ card }: { card: PipelineCard }) {
         {card.name}
       </Link>
       {card.needsReview && (
-        <p className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-foreground">
-          <span aria-hidden="true" className="h-2 w-2 rounded-full bg-warning" />
-          {NEEDS_REVIEW_TEXT}
-        </p>
+        <StatusBadge state="needs_review" text={NEEDS_REVIEW_TEXT} className="mt-1" />
       )}
       <p className="mt-1 text-sm text-foreground">
         <span className="sr-only">Next action: </span>

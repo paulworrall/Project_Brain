@@ -31,7 +31,7 @@ function row(attributeId: string): HTMLElement {
   return document.getElementById(`brief-attribute-${attributeId}`)!;
 }
 
-describe("BriefChecklist — What We Need to Find Out", () => {
+describe("BriefChecklist — What we need to find out", () => {
   it("lists the required details first, in config order, and the optional ones in a separate group", () => {
     renderChecklist();
 
@@ -56,7 +56,7 @@ describe("BriefChecklist — What We Need to Find Out", () => {
       briefRecord("budget", { amount: "roughly €110,000 (EUR)" }, { kind: "SUGGESTION", source: "BRIEF" }),
     ]);
 
-    expect(row("budget")).toHaveTextContent("Captured");
+    expect(row("budget")).toHaveTextContent("Done");
     expect(row("budget")).toHaveTextContent("From brief");
     expect(screen.getByText("1 of 4 required details captured", { exact: false })).toBeInTheDocument();
     expect(screen.queryByText(/review and confirm/i)).not.toBeInTheDocument();
@@ -110,10 +110,10 @@ describe("BriefChecklist — What We Need to Find Out", () => {
       briefRecord("clientContact", { name: "Caroline" }),
     ]);
 
-    expect(row("budget")).toHaveTextContent("Captured");
-    expect(row("clientContact")).toHaveTextContent("Partial");
+    expect(row("budget")).toHaveTextContent("Done");
+    expect(row("clientContact")).toHaveTextContent("In progress");
     expect(row("clientContact")).toHaveTextContent("Still needed: Email");
-    expect(row("objective")).toHaveTextContent("Missing");
+    expect(row("objective")).toHaveTextContent("Not started");
     expect(screen.getByText("1 of 4 required details captured", { exact: false })).toBeInTheDocument();
   });
 
@@ -168,7 +168,7 @@ describe("BriefChecklist — What We Need to Find Out", () => {
 
   it("is derived from attribute status alone — a new value shows on the next render, no regeneration", () => {
     const { rerender } = renderChecklist();
-    expect(row("budget")).toHaveTextContent("Missing");
+    expect(row("budget")).toHaveTextContent("Not started");
 
     rerender(
       <BriefChecklist
@@ -176,7 +176,7 @@ describe("BriefChecklist — What We Need to Find Out", () => {
         completeness={completeness([briefRecord("budget", { amount: "£50,000" })])}
       />
     );
-    expect(row("budget")).toHaveTextContent("Captured");
+    expect(row("budget")).toHaveTextContent("Done");
   });
 
   describe("Timeline and Key Milestones", () => {
@@ -209,7 +209,7 @@ describe("BriefChecklist — What We Need to Find Out", () => {
       renderChecklist([briefRecord("timeline", { startDate: "2026-10-01" })]);
 
       const timeline = row("timeline");
-      expect(timeline).toHaveTextContent("Captured");
+      expect(timeline).toHaveTextContent("Done");
       expect(timeline).toHaveTextContent("No milestones confirmed yet");
       expect(timeline).toHaveTextContent("End dateNot captured yet");
     });

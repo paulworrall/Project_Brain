@@ -9,10 +9,8 @@ import { PmPerspectivePanel } from "./PmPerspectivePanel";
 import type { PmPerspectiveFieldView } from "@/lib/pmPerspectiveStore";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { ScopeSummaryCard, type ScopeSummaryCardData } from "./ScopeSummaryCard";
-
-function pluralize(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
-}
+import { SubTaskGroup, SubTaskSection } from "./SubTaskCard";
+import type { SubTask } from "@/lib/project/subTasks";
 
 // A saved project update — counted in the progress summary strip below.
 export interface ClientUpdateLogEntry {
@@ -36,92 +34,92 @@ export interface EarlierDocuments {
  */
 export interface Phase1WorkspaceProps {
   projectId: string;
-  clientUpdates: ClientUpdateLogEntry[];
   briefCompleteness: BriefCompleteness;
   pmPerspective: PmPerspectiveFieldView[];
   scopeSummary?: ScopeSummaryCardData | null;
   earlierDocuments?: EarlierDocuments;
-  /** Stored open questions plus required key details still outstanding. */
-  openQuestions?: number;
   /** Brief completeness from the Intake Agent (FB-009 D), shown on the Scope summary card. */
   assessment?: ReactNode;
   /** The project is complete: nothing can be edited. */
   readOnly?: boolean;
+  /** FB-012: the Brief step's sub-tasks (Scope summary, Key details, Confirm scope), derived. */
+  subTasks?: SubTask[];
+  /** The scope gate, rendered inside the third sub-task. */
+  gate?: ReactNode;
 }
 
 const NO_EARLIER: EarlierDocuments = { positionDocument: null, draftScopeDocument: null };
 
 export function Phase1Workspace({
   projectId,
-  clientUpdates,
   briefCompleteness,
   pmPerspective,
   scopeSummary = null,
   earlierDocuments = NO_EARLIER,
-  openQuestions = 0,
   assessment,
   readOnly = false,
+  subTasks,
+  gate,
 }: Phase1WorkspaceProps) {
-  const outstandingCount = briefCompleteness.requiredOutstanding.length;
   const hasEarlier =
     earlierDocuments.positionDocument !== null || earlierDocuments.draftScopeDocument !== null;
+  const embedded = subTasks !== undefined;
 
   return (
-    <div className="space-y-6">
-      <div
-        className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground"
-        aria-label="Brief progress summary"
-      >
-        <span>{pluralize(openQuestions, "open question")}</span>
-        <span aria-hidden="true">·</span>
-        <span>{pluralize(outstandingCount, "required detail")} to find out</span>
-        <span aria-hidden="true">·</span>
-        <span>{pluralize(clientUpdates.length, "update")} logged</span>
+    <SubTaskGroup>
+      <div className="space-y-4">
+        <SubTaskSection task={subTasks?.[0]} readOnly={readOnly} className="space-y-4">
+          <ScopeSummaryCard
+            projectId={projectId}
+            summary={scopeSummary}
+            readOnly={readOnly}
+            assessment={assessment}
+            canCreateFromEarlier={hasEarlier}
+            embedded={embedded}
+          />
+          {hasEarlier && (
+            <Disclosure summary={<span className="text-sm font-medium text-foreground">Earlier documents</span>}>
+              <div className="mt-3 space-y-4">
+                <p className="text-xs text-muted-foreground">
+                  Read-only. These were made before scope summaries; nothing reads them once the
+                  scope summary exists.
+                </p>
+                {earlierDocuments.positionDocument && (
+                  <div>
+                    <h4 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                      Position Document
+                    </h4>
+                    <PositionDocumentView fields={earlierDocuments.positionDocument} />
+                  </div>
+                )}
+                {earlierDocuments.draftScopeDocument && (
+                  <div>
+                    <h4 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                      Draft Scope Document
+                    </h4>
+                    <DraftScopeDocumentView scope={earlierDocuments.draftScopeDocument} />
+                  </div>
+                )}
+              </div>
+            </Disclosure>
+          )}
+        </SubTaskSection>
+
+        <SubTaskSection task={subTasks?.[1]} readOnly={readOnly} className="space-y-6">
+          {/* A disabled fieldset makes every control inside read-only once the project is complete. */}
+          <fieldset disabled={readOnly} className="min-w-0 space-y-6">
+            <legend className="sr-only">Key details and PM perspective</legend>
+            <BriefChecklist projectId={projectId} completeness={briefCompleteness} />
+            <PmPerspectivePanel projectId={projectId} fields={pmPerspective} />
+          </fieldset>
+        </SubTaskSection>
+
+        {gate !== undefined && (
+          <SubTaskSection task={subTasks?.[2]} readOnly={readOnly}>
+            {gate}
+          </SubTaskSection>
+        )}
       </div>
-
-      <ScopeSummaryCard
-        projectId={projectId}
-        summary={scopeSummary}
-        readOnly={readOnly}
-        assessment={assessment}
-        canCreateFromEarlier={hasEarlier}
-      />
-
-      {/* A disabled fieldset makes every control inside read-only once the project is complete. */}
-      <fieldset disabled={readOnly} className="min-w-0 space-y-6">
-        <legend className="sr-only">Key details and PM perspective</legend>
-        <BriefChecklist projectId={projectId} completeness={briefCompleteness} />
-        <PmPerspectivePanel projectId={projectId} fields={pmPerspective} />
-      </fieldset>
-
-      {hasEarlier && (
-        <Disclosure
-          summary={<span className="text-sm font-medium text-foreground">Earlier documents</span>}
-        >
-          <div className="mt-3 space-y-4">
-            <p className="text-xs text-muted-foreground">
-              Read-only. These were made before scope summaries; nothing reads them once the scope
-              summary exists.
-            </p>
-            {earlierDocuments.positionDocument && (
-              <div>
-                <h4 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                  Position Document
-                </h4>
-                <PositionDocumentView fields={earlierDocuments.positionDocument} />
-              </div>
-            )}
-            {earlierDocuments.draftScopeDocument && (
-              <div>
-                <h4 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                  Draft Scope Document
-                </h4>
-                <DraftScopeDocumentView scope={earlierDocuments.draftScopeDocument} />
-              </div>
-            )}
-          </div>
-        </Disclosure>
-      )}
-    </div>
+    </SubTaskGroup>
   );
 }

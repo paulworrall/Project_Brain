@@ -101,7 +101,7 @@ function EstimateReviewLineRow({
             </select>
             <Button
               type="submit"
-              variant="ghost"
+              variant="tertiary"
               className="px-2 py-0.5 text-xs"
               disabled={pending}
             >
@@ -190,7 +190,7 @@ export function EstimateReviewCard({
   return (
     <Card className="space-y-4 p-5">
       <div>
-        <h4 className="text-sm font-medium text-foreground">Review</h4>
+        <h4 className="text-card font-medium text-foreground">Review</h4>
         <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-foreground sm:grid-cols-2">
           <div>
             <dt className="text-muted-foreground">Client</dt>
@@ -297,7 +297,7 @@ export function EstimateReviewCard({
             href={`/api/projects/${projectId}/estimates/${estimateId}/versions/${state.versionId}`}
             className="font-medium text-primary hover:underline"
           >
-            Download .docx →
+            Download .docx
           </a>
         </p>
       )}

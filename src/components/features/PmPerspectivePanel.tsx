@@ -83,7 +83,7 @@ export function PmPerspectivePanel({
           <h3 id="pm-perspective-heading" className="text-sm font-medium text-accent-foreground">
             PM perspective
           </h3>
-          <span className="rounded-full border border-accent-foreground/40 px-2 py-0.5 text-[11px] font-medium text-accent-foreground">
+          <span className="rounded-full border border-accent-foreground/40 px-2 py-0.5 text-xs font-medium text-accent-foreground">
             PM&apos;s view — not from the client
           </span>
         </div>

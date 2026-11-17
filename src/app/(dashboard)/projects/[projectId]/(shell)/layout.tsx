@@ -5,6 +5,7 @@ import { ProjectSummaryBar } from "@/components/features/ProjectSummaryBar";
 import { ProjectSidebar } from "@/components/features/ProjectSidebar";
 import { ProjectShell } from "@/components/features/ProjectShell";
 import { loadProjectPageData } from "@/lib/projectPageData";
+import { getStep } from "@/lib/projectSteps";
 import { approvalViewFor } from "@/lib/commercial/approvalViewData";
 import { sowApprovalBlockedReason } from "@/lib/commercial/sowApprovalGate";
 import { NEEDS_REVIEW_TEXT } from "@/lib/estimateScopeSyncView";
@@ -45,6 +46,8 @@ export default async function ProjectLayout({
     missingMsaRateCard,
     estimateScopeSync,
     nextAction,
+    completion,
+    subTasks,
     briefAssessment,
     earlierDocuments,
     permissions,
@@ -53,13 +56,13 @@ export default async function ProjectLayout({
     pmPerspective,
     versionHistory,
     sowChange,
-    clientUpdates,
     confirmedCapabilities,
     estimateBriefVersion,
     estimates,
     sow,
     stepStatuses,
     stepSummaries,
+    currentStepId,
     projectComplete,
     specialistRows,
   } = data;
@@ -100,6 +103,7 @@ export default async function ProjectLayout({
       <ProjectSummaryBar
         projectId={project.id}
         status={projectStatus}
+        currentStepLabel={getStep(currentStepId).label}
         jobCode={project.jobCode}
         kickOffDate={project.kickOffDate}
         targetCompletionDate={project.targetCompletionDate}
@@ -127,6 +131,7 @@ export default async function ProjectLayout({
         stepSummaries={stepSummaries}
         nextAction={nextAction}
         openQuestionsText={openQuestionsText}
+        completion={completion}
         // FB-009 B: a step whose document is stale against what it was built from.
         attention={{
           ...(estimateScopeSync.needsReview ? { estimate: NEEDS_REVIEW_TEXT } : {}),
@@ -142,7 +147,7 @@ export default async function ProjectLayout({
               openQuestions={openQuestions}
               missingMsaRateCard={missingMsaRateCard}
               clientName={client.name}
-              clientUpdates={clientUpdates}
+              subTasks={subTasks.brief}
               briefCompleteness={briefCompleteness}
               pmPerspective={pmPerspective}
               scopeConfirmedAt={project.scopeConfirmedAt?.toISOString() ?? null}
@@ -153,6 +158,7 @@ export default async function ProjectLayout({
           estimate: (
             <EstimateStep
               {...common}
+              subTasks={subTasks.estimate}
               scopeConfirmed={project.scopeConfirmedAt !== null}
               confirmedCapabilities={confirmedCapabilities}
               estimateBriefVersion={estimateBriefVersion}
@@ -188,6 +194,7 @@ export default async function ProjectLayout({
           sow: (
             <SowStep
               {...common}
+              subTasks={subTasks.sow}
               estimateApproved={estimateApproved}
               sowChange={sowChange}
               currentSowTemplate={

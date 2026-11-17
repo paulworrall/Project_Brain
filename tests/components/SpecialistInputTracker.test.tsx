@@ -51,7 +51,7 @@ describe("SpecialistInputTracker", () => {
 
   it("asks for capabilities when none are confirmed", () => {
     render(<SpecialistInputTracker projectId="p1" rows={[]} />);
-    expect(screen.getByText(/Confirm the capabilities this project needs/)).toBeInTheDocument();
+    expect(screen.getByText(/Choose teams to add a row for each/)).toBeInTheDocument();
   });
 
   it("is read-only once the project is complete", () => {

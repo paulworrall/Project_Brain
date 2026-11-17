@@ -38,7 +38,7 @@ export function LibrarySummaryList({
   return (
     <Card className="p-5">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h3 className="text-sm font-medium text-foreground">{title}</h3>
+        <h3 className="text-card font-medium text-foreground">{title}</h3>
         <Link
           href={manageHref}
           className="shrink-0 text-xs font-medium text-primary hover:underline"

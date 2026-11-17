@@ -193,7 +193,7 @@ export function BuildEstimateInputForm({
         <div className="space-y-4">
           {formContent}
           <div className="flex justify-end border-t border-border pt-3">
-            <Button type="button" variant="ghost" className="text-xs" onClick={closeModal}>
+            <Button type="button" variant="tertiary" className="text-xs" onClick={closeModal}>
               Done
             </Button>
           </div>

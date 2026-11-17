@@ -87,7 +87,7 @@ describe("StartSowDevelopmentPanel", () => {
     );
 
     expect(screen.getByRole("button", { name: "Generate SOW" })).toBeDisabled();
-    expect(screen.getByText("Select a SOW Template above before generating.")).toBeInTheDocument();
+    expect(screen.getByText("Choose a template first.")).toBeInTheDocument();
   });
 
   it("enables 'Generate SOW' once a template is selected; clicking opens the review overlay rather than generating straight away", async () => {
@@ -161,13 +161,13 @@ describe("StartSowDevelopmentPanel", () => {
 
     expect(screen.getByRole("button", { name: "Regenerate SOW" })).toBeInTheDocument();
     expect(screen.getByText(/Version 2 —/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Download .docx →" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Download .docx" })).toHaveAttribute(
       "href",
       "/api/projects/proj_1/sow/sowv_2"
     );
   });
 
-  it("lists every earlier version in the 'Download a past version' disclosure", () => {
+  it("lists every earlier version in the 'Past versions' disclosure", () => {
     render(
       <StartSowDevelopmentPanel
         briefCompleteness={COMPLETE}
@@ -182,8 +182,8 @@ describe("StartSowDevelopmentPanel", () => {
       />
     );
 
-    expect(screen.getByText("Download a past version (1)")).toBeInTheDocument();
-    const pastVersionLink = screen.getByRole("link", { name: "Download →" });
+    expect(screen.getByText("Past versions (1)")).toBeInTheDocument();
+    const pastVersionLink = screen.getByRole("link", { name: "Download" });
     expect(pastVersionLink).toHaveAttribute("href", "/api/projects/proj_1/sow/sowv_1");
   });
 
@@ -220,7 +220,7 @@ describe("StartSowDevelopmentPanel", () => {
     expect(screen.getByRole("option", { name: "Acme-specific SOW" })).toBeInTheDocument();
   });
 
-  it("shows 'Select SOW Template' when no template is selected yet", () => {
+  it("shows 'Choose template' when no template is selected yet", () => {
     render(
       <StartSowDevelopmentPanel
         briefCompleteness={COMPLETE}
@@ -232,10 +232,10 @@ describe("StartSowDevelopmentPanel", () => {
       />
     );
 
-    expect(screen.getByRole("button", { name: "Select SOW Template" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Choose template" })).toBeInTheDocument();
   });
 
-  it("shows the current selection and 'Change SOW Template' once one is set", () => {
+  it("shows the current selection and 'Change template' once one is set", () => {
     render(
       <StartSowDevelopmentPanel
         briefCompleteness={COMPLETE}
@@ -247,8 +247,9 @@ describe("StartSowDevelopmentPanel", () => {
       />
     );
 
-    expect(screen.getByText("Standard SOW Template")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Change SOW Template" })).toBeInTheDocument();
+    // The select itself shows the current template (the separate "Using …" line is gone).
+    expect(screen.getByLabelText("SOW template")).toHaveValue("sow_baseline");
+    expect(screen.getByRole("button", { name: "Change template" })).toBeInTheDocument();
   });
 
   it("submits the selected template id via startSowDevelopmentAction", async () => {
@@ -264,8 +265,8 @@ describe("StartSowDevelopmentPanel", () => {
       />
     );
 
-    await user.selectOptions(screen.getByLabelText("SOW Template"), "sow_variant");
-    await user.click(screen.getByRole("button", { name: "Select SOW Template" }));
+    await user.selectOptions(screen.getByLabelText("SOW template"), "sow_variant");
+    await user.click(screen.getByRole("button", { name: "Choose template" }));
 
     expect(startSowDevelopmentAction).toHaveBeenCalled();
   });
@@ -283,7 +284,7 @@ describe("StartSowDevelopmentPanel", () => {
       />
     );
 
-    await user.selectOptions(screen.getByLabelText("SOW Template"), "sow_variant");
+    await user.selectOptions(screen.getByLabelText("SOW template"), "sow_variant");
 
     const versionSelect = screen.getByLabelText("Version");
     expect(versionSelect).toHaveValue("sow_variant_v1");
@@ -444,14 +445,14 @@ describe("StartSowDevelopmentPanel", () => {
       const version = screen.getByText(/Version 2 —/);
       expect(notice.compareDocumentPosition(version) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       // The latest download is guarded; the older version's isn't.
-      expect(screen.getByRole("button", { name: "Download .docx →" })).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Download →" })).toHaveAttribute("href", "/api/projects/proj_1/sow/sowv_1");
+      expect(screen.getByRole("button", { name: "Download .docx" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("href", "/api/projects/proj_1/sow/sowv_1");
     });
 
     it("shows no notice and a plain download when nothing material changed", () => {
       renderPanel(upToDate);
       expect(screen.queryByText("Updates since this SOW was generated")).not.toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Download .docx →" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Download .docx" })).toBeInTheDocument();
     });
 
     it("never offers a one-click Update SOW or any Regenerate button in the notice — only a link into the review step", async () => {

@@ -1,7 +1,9 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { Fragment, useActionState, useEffect, useRef, useState } from "react";
 import { Card } from "@/components/ui/Card";
+import { SubTaskSection } from "./SubTaskCard";
+import type { SubTask } from "@/lib/project/subTasks";
 import { Button } from "@/components/ui/Button";
 import { ProcessingOverlay, type ProcessingOverlayStatus } from "@/components/ui/ProcessingOverlay";
 import { useFallbackStageProgress } from "@/hooks/useFallbackStageProgress";
@@ -55,10 +57,15 @@ export function CapabilitiesAndEstimateBriefPanel({
   projectId,
   confirmedCapabilities,
   estimateBriefVersion,
+  subTasks,
+  readOnly = false,
 }: {
   projectId: string;
   confirmedCapabilities: Capability[];
   estimateBriefVersion: EstimateBriefVersionMeta | null;
+  /** FB-012: the two sub-tasks this panel holds; without them it renders as one card. */
+  subTasks?: { teams: SubTask; brief: SubTask };
+  readOnly?: boolean;
 }) {
   const [checked, setChecked] = useState<Set<Capability>>(new Set(confirmedCapabilities));
   const [rationaleByCapability, setRationaleByCapability] = useState<
@@ -185,13 +192,18 @@ export function CapabilitiesAndEstimateBriefPanel({
     (c) => checked.has(c.id) && rationaleByCapability[c.id]
   );
 
+  const Wrapper = subTasks ? Fragment : Card;
+  const wrapperProps = subTasks ? {} : { className: "space-y-5 p-5" };
   return (
-    <Card className="space-y-5 p-5">
-      <h3 className="text-sm font-medium text-foreground">Ready the Brief for Team Estimates</h3>
+    <Wrapper {...wrapperProps}>
+      {!subTasks && (
+        <h3 className="text-card font-medium text-foreground">Choose teams</h3>
+      )}
 
-      <div>
+      <SubTaskSection task={subTasks?.teams} readOnly={readOnly}>
+      <div id="capabilities" className="scroll-mt-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h4 className="text-sm font-medium text-foreground">
+          <h4 className="text-card font-medium text-foreground">
             Which capability teams are needed?
           </h4>
           {!choosingTeams && (
@@ -208,9 +220,7 @@ export function CapabilitiesAndEstimateBriefPanel({
         {choosingTeams ? (
           <>
             <p className="mt-1 text-xs text-muted-foreground">
-              Tick the teams below that you already know should be involved — or, if you&apos;re not
-              sure, let AI suggest them from the brief instead. Either way, review and save before
-              moving on.
+              Tick the teams you know are needed, or get suggestions. Review, then save.
             </p>
 
             <div className="mt-3 flex flex-wrap items-center gap-3 bg-surface-muted p-3">
@@ -225,9 +235,6 @@ export function CapabilitiesAndEstimateBriefPanel({
                   {suggestPending ? "Thinking…" : "Not sure? Get suggestions"}
                 </Button>
               </form>
-              <span className="text-xs text-muted-foreground">
-                or tick the capability teams below yourself
-              </span>
             </div>
 
             {lowConfidenceReason && (
@@ -304,7 +311,7 @@ export function CapabilitiesAndEstimateBriefPanel({
                   {saveState.message}
                 </p>
               )}
-              <Button type="submit" className="text-xs" disabled={savePending}>
+              <Button type="submit" variant="secondary" disabled={savePending}>
                 {savePending ? "Saving…" : "Save confirmed capabilities"}
               </Button>
             </form>
@@ -317,10 +324,12 @@ export function CapabilitiesAndEstimateBriefPanel({
           </p>
         )}
       </div>
+      </SubTaskSection>
 
-      <div className="border-t border-border pt-4">
+      <SubTaskSection task={subTasks?.brief} readOnly={readOnly} className="border-t border-border pt-4">
+      <div>
         <div className="flex items-center justify-between gap-2">
-          <h4 className="text-sm font-medium text-foreground">Estimate brief</h4>
+          <h4 className="text-card font-medium text-foreground">Estimate brief</h4>
           <form action={generateFormAction}>
             <Button
               type="submit"
@@ -338,7 +347,7 @@ export function CapabilitiesAndEstimateBriefPanel({
         </div>
         {confirmedCapabilities.length === 0 && (
           <p className="mt-1 text-xs text-muted-foreground">
-            Confirm at least one capability above before preparing the brief.
+            Choose teams first.
           </p>
         )}
         {generateState?.message && (
@@ -360,13 +369,14 @@ export function CapabilitiesAndEstimateBriefPanel({
               href={`/api/projects/${projectId}/estimate-brief/${estimateBriefVersion.id}`}
               className="inline-block text-xs font-medium text-primary hover:underline"
             >
-              Download .docx →
+              Download .docx
             </a>
           </Card>
         ) : (
-          <p className="mt-3 text-sm text-muted-foreground">No estimate brief generated yet.</p>
+          <p className="mt-3 text-sm text-muted-foreground">Not prepared yet.</p>
         )}
       </div>
+      </SubTaskSection>
 
       <ProcessingOverlay
         isOpen={overlayOpen}
@@ -381,6 +391,6 @@ export function CapabilitiesAndEstimateBriefPanel({
         onRetry={handleRetrySuggest}
         onDismissError={handleDismissSuggestError}
       />
-    </Card>
+    </Wrapper>
   );
 }

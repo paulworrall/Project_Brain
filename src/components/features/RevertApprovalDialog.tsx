@@ -81,7 +81,7 @@ export function RevertApprovalDialog({
           </p>
         )}
         <div className="flex justify-end gap-2 border-t border-border pt-3">
-          <Button type="button" variant="ghost" className="text-xs" onClick={onClose}>
+          <Button type="button" variant="tertiary" className="text-xs" onClick={onClose}>
             Cancel
           </Button>
           <Button type="submit" className="text-xs" disabled={!parsed.success || pending}>

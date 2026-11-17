@@ -24,7 +24,7 @@ describe("ProjectAssistant", () => {
     expect(screen.getByRole("heading", { name: "Project assistant" })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Message" })).toHaveAttribute(
       "placeholder",
-      "Ask a question, or tell me something new about this project"
+      "Ask a question or tell me what’s changed"
     );
     expect(screen.queryByText("Ask me anything")).toBeNull();
     expect(screen.queryByText("Keep This Project Up to Date")).toBeNull();

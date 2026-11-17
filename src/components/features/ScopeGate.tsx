@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useRef, useState, useTransition } from "react";
+import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import {
   confirmScopeAction,
@@ -92,20 +93,20 @@ export function ScopeGate({
           {scopeConfirmedByName ? ` by ${scopeConfirmedByName}` : ""}
         </p>
         <div className="text-right">
-          <button
+          <Button
             type="button"
+            variant="tertiary"
             disabled={reopenBlocked || pending}
-            aria-describedby={reopenBlocked ? reopenNoteId : undefined}
+            locked={reopenBlocked}
+            aria-describedby={reopenBlocked && !projectComplete ? reopenNoteId : undefined}
             onClick={() => run(reopenScopeAction)}
-            className="min-h-11 px-2 text-sm font-medium text-primary underline-offset-2 hover:underline disabled:text-muted-foreground disabled:no-underline"
           >
             {pending ? "Reopening…" : "Reopen scope"}
-          </button>
-          {reopenBlocked && (
+          </Button>
+          {reopenBlocked && !projectComplete && (
             <p id={reopenNoteId} className="text-xs text-muted-foreground">
-              {projectComplete
-                ? "This project is complete. Changes will need a change request (coming soon)."
-                : "The client has approved an estimate, so the scope can't be reopened. Changes will need a change request (coming soon)."}
+              The client has approved an estimate, so the scope can&apos;t be reopened. Changes will
+              need a change request (coming soon).
             </p>
           )}
           {error && (
@@ -120,18 +121,17 @@ export function ScopeGate({
 
   return (
     <div id="scope-gate" className="scroll-mt-6 border border-border bg-surface px-4 py-3">
-      <p className="text-sm text-muted-foreground">
-        When the scope is clear enough to estimate, confirm it to move on to the estimate.
-      </p>
-      <button
+      <Button
         ref={triggerRef}
         type="button"
+        variant="secondary"
         disabled={projectComplete}
+        locked={projectComplete}
         onClick={() => setOpen(true)}
-        className="mt-2 min-h-11 bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        className="mt-2"
       >
         Confirm scope is ready to estimate
-      </button>
+      </Button>
       {error && !open && (
         <p role="alert" className="mt-2 text-xs text-danger">
           {error}
@@ -172,24 +172,19 @@ export function ScopeGate({
               </p>
             )}
             <div className="flex flex-wrap justify-end gap-2">
-              <button
+              <Button
                 type="button"
+                variant="secondary"
                 onClick={() => {
                   setOpen(false);
                   triggerRef.current?.focus();
                 }}
-                className="min-h-11 border border-border-strong bg-surface px-4 py-2 text-sm font-medium text-foreground hover:bg-line-soft"
               >
                 Cancel
-              </button>
-              <button
-                type="button"
-                disabled={pending}
-                onClick={() => run(confirmScopeAction)}
-                className="min-h-11 bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-              >
+              </Button>
+              <Button type="button" disabled={pending} onClick={() => run(confirmScopeAction)}>
                 {pending ? "Confirming…" : "Confirm scope"}
-              </button>
+              </Button>
             </div>
           </div>
         </Modal>

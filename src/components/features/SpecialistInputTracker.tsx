@@ -1,6 +1,9 @@
 "use client";
 
 import { useId, useState, useTransition } from "react";
+import { StatusBadge, type StatusBadgeState } from "@/components/ui/StatusBadge";
+import { SubTaskCard } from "./SubTaskCard";
+import type { SubTask } from "@/lib/project/subTasks";
 import { updateSpecialistInputAction } from "@/app/(dashboard)/projects/[projectId]/step-actions";
 import {
   SPECIALIST_STATUS_LABEL,
@@ -10,6 +13,12 @@ import {
 } from "@/lib/project/readiness";
 
 const STATUSES: SpecialistInputStatusName[] = ["not_requested", "requested", "received"];
+
+const SPECIALIST_BADGE_STATE: Record<SpecialistInputStatusName, StatusBadgeState> = {
+  not_requested: "not_started",
+  requested: "in_progress",
+  received: "done",
+};
 
 /**
  * FB-008 specialist input tracker — replaces the Specialist consultation
@@ -63,7 +72,7 @@ function SpecialistRowEditor({
           type="text"
           value={note}
           readOnly={readOnly}
-          placeholder="Optional note (who, when, where it is)…"
+          placeholder="Note (optional)"
           onChange={(event) => setNote(event.target.value)}
           onBlur={() => {
             if (!readOnly && note.trim() !== savedNote.trim()) save({ status, note });
@@ -92,6 +101,11 @@ function SpecialistRowEditor({
             </option>
           ))}
         </select>
+        <StatusBadge
+          state={SPECIALIST_BADGE_STATE[status]}
+          text={SPECIALIST_STATUS_LABEL[status]}
+          className="mt-1"
+        />
       </div>
       {error && (
         <p role="alert" className="text-xs text-danger sm:col-span-2">
@@ -106,20 +120,19 @@ export function SpecialistInputTracker({
   projectId,
   rows,
   readOnly = false,
+  task,
 }: {
   projectId: string;
   rows: SpecialistRow[];
   readOnly?: boolean;
+  /** FB-012: inside a sub-task card (its title replaces the section heading). */
+  task?: SubTask;
 }) {
   const headingId = useId();
-  return (
-    <section
-      id="specialist-inputs"
-      aria-labelledby={headingId}
-      className="border border-border bg-surface px-4 py-3"
-    >
+  const body = (
+    <div id="specialist-inputs" className="scroll-mt-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 id={headingId} className="text-base font-medium text-foreground">
+        <h3 id={headingId} className={task ? "sr-only" : "text-card font-medium text-foreground"}>
           Specialist input
         </h3>
         {rows.length > 0 && (
@@ -128,7 +141,7 @@ export function SpecialistInputTracker({
       </div>
       {rows.length === 0 ? (
         <p className="mt-2 text-sm text-muted-foreground">
-          Confirm the capabilities this project needs, and a row for each appears here.
+          Choose teams to add a row for each.
         </p>
       ) : (
         <ul className="mt-1">
@@ -142,6 +155,18 @@ export function SpecialistInputTracker({
           ))}
         </ul>
       )}
+    </div>
+  );
+  if (task) {
+    return (
+      <SubTaskCard task={task} readOnly={readOnly}>
+        {body}
+      </SubTaskCard>
+    );
+  }
+  return (
+    <section aria-labelledby={headingId} className="border border-border bg-surface px-4 py-3">
+      {body}
     </section>
   );
 }
