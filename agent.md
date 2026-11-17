@@ -31,7 +31,7 @@ Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (P
 | `src/app/globals.css` | MAP tokens, `@theme inline`, base layer, focus ring, `.lbl`/`.eyebrow`/`.focus-inset` | MAP restyle |
 | `src/app/layout.tsx` | WPP Sans via `next/font/local` (Geist removed) | MAP restyle |
 | `src/components/layout/Logo.tsx`, `Header.tsx` | MAP lockup placeholder (as Reporting Hub) + "PROJECT BRAIN" app bar | MAP restyle |
-| `src/components/ui/{Button,Card,Input,FormError,DocumentStatusBadge,ReadinessStrip,Toast,Modal,ProcessingOverlay}.tsx` | Primitives restyled to Reporting Hub's; Button gains `onNavy`/`onNavyOutline` | MAP restyle |
+| `src/components/ui/{Button,Card,Input,FormError,StatusBadge,DocumentStatusBadge,Toast,Modal,ProcessingOverlay}.tsx` | Primitives restyled to Reporting Hub's; Button gains `onNavy`/`onNavyOutline` | MAP restyle |
 | All `src/components/features/*`, `src/app/**` pages | Class sweep: square corners, no shadows, Medium not semibold, Light page titles, square status chips | MAP restyle |
 
 ### Source Files — Add project information (FB-010)
@@ -49,6 +49,7 @@ Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (P
 | `prisma/migrations/20261112100000_fb009_scope_summary/` | SCOPE_SUMMARY type; confirmed scope version, sent flag, brief assessment; estimate scope link (applied) | FB-009 |
 | `src/types/scope.ts`, `src/lib/{scopeSummary,scopeSummaryView,scopeSummaryProcessingStages}.ts`, `src/services/agents/scope-summary-agent.ts` | Scope summary shape/sections, DB layer + scope input, view builder, agent (draft/update/merge) | FB-009 A |
 | `projects/[projectId]/scope-actions.ts`, `step-actions.ts` (+edit), `ScopeSummaryCard`, `ScopeSummarySections`, `Phase1Workspace` | Regenerate / create-from-earlier; edit; Brief UI (FB-011 removed the clarification email card and Mark as sent) | FB-009 A |
+| `StatusBadge`, `SubTaskCard` (+ `SubTaskGroup`), `CompletedSowSummary`, `ProjectSidebar` (tabs), `src/lib/project/subTasks.ts` | The one status badge; collapsible numbered sub-task cards; the complete project's SOW card; the Ask / Add notes tabs; `deriveSubTasks` | FB-012 |
 | `src/lib/openQuestionsText.ts`, `CopyQuestionsButton.tsx` (+ `NextStepBanner`, `ScopeSummaryCard`) | The open questions as a numbered list; "Copy questions" with a "Copied" live-region confirmation | FB-011 |
 | `src/lib/estimateScopeSync{,View}.ts`, `SowChangeNotice` (configurable), `EstimatesListPanel` | Scope → estimate staleness and its notice | FB-009 B |
 | `src/lib/nextAction.ts`, `NextStepBanner`, `ProjectShell` | Next step rules, banner, announcement | FB-009 C |
@@ -122,7 +123,7 @@ Next.js 16 (App Router, TypeScript, Turbopack) with Tailwind CSS v4, Prisma 7 (P
 | `prisma/schema.prisma` + migration `20260923170000_add_brief_attribute_values` | Append-only `BriefAttributeValue` (attributeId string, kind SUGGESTION/CONFIRMED, source, values JSON, evidence, knowledgeItemId, creator, time). Additive only | Key attributes |
 | `projects/[projectId]/actions.ts` | `saveBriefAttributeAction`, `rereadBriefAttributesAction`, extraction in `uploadKnowledgeItemAction` (non-fatal), date sync in `updateProjectSummaryAction`, the gate in `generateSowAction` | Key attributes |
 | `projects/new/actions.ts` | Extraction on the brief at creation (non-fatal) | Key attributes |
-| `BriefChecklist.tsx` ("What We Need to Find Out"), `KeyAttributeRow.tsx`, `KeyAttributeForm.tsx`, `BriefGateNotice.tsx` (`BriefGateAlert`, `BriefCompletenessWarning`), `BriefReadinessIndicator.tsx`, `StartSowDevelopmentPanel.tsx`, `Phase1Workspace.tsx`, `PositionDocumentView.tsx`, `ProjectWorkflow.tsx` | Key details panel, per-attribute forms, the SOW gate alert, past-Phase-1 warning, "x of 4 confirmed" strip, "Other details from the brief" | Key attributes |
+| `BriefChecklist.tsx` ("What We Need to Find Out"), `KeyAttributeRow.tsx`, `KeyAttributeForm.tsx`, `BriefGateNotice.tsx` (`BriefGateAlert`, `BriefCompletenessWarning`), `StartSowDevelopmentPanel.tsx`, `Phase1Workspace.tsx`, `PositionDocumentView.tsx`, `ProjectWorkflow.tsx` | Key details panel, per-attribute forms, the SOW gate alert, past-Phase-1 warning, "x of 4 confirmed" strip, "Other details from the brief" | Key attributes |
 
 Removed in the key-attributes session: `src/lib/foundationDetails.ts`, `FoundationDetailsBlock.tsx` (the old keyword-matched "5 of 5" readiness).
 

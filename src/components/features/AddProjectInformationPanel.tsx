@@ -213,7 +213,7 @@ export function AddProjectInformationPanel({
                 rows={5}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder="Paste meeting notes, a client's reply or other information…"
+                placeholder="Paste notes or a client reply"
                 className="w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
               />
             </div>

@@ -146,7 +146,7 @@ function NewEstimateForm({
             if (!blocked) setIsOpen(true);
           }}
         >
-          + New estimate
+          New estimate
         </Button>
         {lock && (
           <LockedNotice
@@ -354,7 +354,7 @@ function EstimateTrackCard({
       {estimate.versions.length > 0 && (
         <details className="mt-2">
           <summary className="cursor-pointer text-xs font-medium text-primary">
-            Download a past version ({estimate.versions.length})
+            Past versions ({estimate.versions.length})
           </summary>
           <ul className="mt-1.5 space-y-1 border-t border-border pt-1.5">
             {estimate.versions.map((version) => (
@@ -377,7 +377,7 @@ function EstimateTrackCard({
                   href={`/api/projects/${projectId}/estimates/${estimate.id}/versions/${version.id}`}
                   className="font-medium text-primary hover:underline"
                 >
-                  Download →
+                  Download
                 </a>
               </li>
             ))}

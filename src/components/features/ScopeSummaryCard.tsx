@@ -258,7 +258,7 @@ export function ScopeSummaryCard({
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">
             {canCreateFromEarlier
-              ? "This project was set up before scope summaries. Create one from its earlier documents below."
+              ? "Merge earlier documents into a scope summary."
               : "No scope summary yet."}
           </p>
           {!readOnly && (
@@ -268,7 +268,7 @@ export function ScopeSummaryCard({
               disabled={pending}
               onClick={() => runAgent(canCreateFromEarlier ? "create" : "regenerate")}
             >
-              {canCreateFromEarlier ? "Create scope summary from these" : "Draft the scope summary"}
+              {canCreateFromEarlier ? "Create scope summary" : "Draft the scope summary"}
             </Button>
           )}
         </div>

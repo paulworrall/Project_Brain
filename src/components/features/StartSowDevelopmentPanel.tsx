@@ -291,7 +291,7 @@ export function StartSowDevelopmentPanel({
             htmlFor="sowTemplateId"
             className="block text-xs font-medium uppercase tracking-wide text-muted-foreground"
           >
-            SOW Template
+            SOW template
           </label>
           <select
             id="sowTemplateId"
@@ -302,7 +302,7 @@ export function StartSowDevelopmentPanel({
             className="mt-1 w-full border border-border-strong bg-surface px-3 py-2 text-sm text-foreground"
           >
             <option value="" disabled>
-              Select a SOW Template…
+              Choose a template…
             </option>
             {templateOptions.map((template) => (
               <option key={template.id} value={template.id}>
@@ -356,7 +356,7 @@ export function StartSowDevelopmentPanel({
           aria-disabled={locked ? true : undefined}
           locked={locked}
         >
-          {pending ? "Saving…" : currentTemplate ? "Change SOW Template" : "Select SOW Template"}
+          {pending ? "Saving…" : currentTemplate ? "Change template" : "Choose template"}
         </Button>
         {lock && (
           <LockedNotice
@@ -366,11 +366,6 @@ export function StartSowDevelopmentPanel({
         )}
       </form>
 
-      {currentTemplate && (
-        <p className="text-sm text-muted-foreground">
-          Using <span className="font-medium text-foreground">{currentTemplate.name}</span>.
-        </p>
-      )}
       </SubTaskSection>
 
       <SubTaskSection task={subTasks?.generate} readOnly={readOnly} className="border-t border-border pt-3">
@@ -392,7 +387,7 @@ export function StartSowDevelopmentPanel({
         </div>
         {!currentTemplate && (
           <p className="mt-1 text-xs text-muted-foreground">
-            Select a SOW Template above before generating.
+            Choose a template first.
           </p>
         )}
         {currentTemplate && !briefCompleteness.canProceed && !showBriefGate && (
@@ -445,13 +440,13 @@ export function StartSowDevelopmentPanel({
                 sowChange?.sowVersionId === latestSowVersion.id ? sowChange.status : "no_sow"
               )}
             >
-              Download .docx →
+              Download .docx
             </SowDownloadLink>
 
             {olderSowVersions.length > 0 && (
               <details className="mt-2 border-t border-border pt-2">
                 <summary className="cursor-pointer text-xs font-medium text-primary">
-                  Download a past version ({olderSowVersions.length})
+                  Past versions ({olderSowVersions.length})
                 </summary>
                 <ul className="mt-1.5 space-y-1 border-t border-border pt-1.5">
                   {olderSowVersions.map((version) => (
@@ -474,7 +469,7 @@ export function StartSowDevelopmentPanel({
                         staleWarning={null}
                         className="font-medium text-primary hover:underline"
                       >
-                        Download →
+                        Download
                       </SowDownloadLink>
                     </li>
                   ))}

@@ -75,13 +75,13 @@ export function EstimateBuildWorkspace({
             href={`/api/projects/${projectId}/estimates/${estimateId}/versions/${latestVersion.id}`}
             className="font-medium text-primary hover:underline"
           >
-            Download Word →
+            Download Word
           </a>
           <a
             href={`/api/projects/${projectId}/estimates/${estimateId}/versions/${latestVersion.id}/xlsx`}
             className="font-medium text-primary hover:underline"
           >
-            Download Excel →
+            Download Excel
           </a>
           {latestVersion.needsRecalculation && (
             <p role="status" className="basis-full font-medium text-foreground">

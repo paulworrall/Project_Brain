@@ -87,21 +87,21 @@ describe("SowDownloadLink", () => {
   it("downloads directly when the SOW has no unincluded updates", () => {
     render(
       <SowDownloadLink href="/api/sow/1" staleWarning={null}>
-        Download .docx →
+        Download .docx
       </SowDownloadLink>
     );
-    expect(screen.getByRole("link", { name: "Download .docx →" })).toHaveAttribute("href", "/api/sow/1");
+    expect(screen.getByRole("link", { name: "Download .docx" })).toHaveAttribute("href", "/api/sow/1");
   });
 
   it("asks before downloading a SOW that doesn't include the latest updates, trapping focus and restoring it on close", async () => {
     const user = userEvent.setup();
     render(
       <SowDownloadLink href="/api/sow/1" staleWarning="This SOW doesn't include the latest updates.">
-        Download .docx →
+        Download .docx
       </SowDownloadLink>
     );
 
-    const trigger = screen.getByRole("button", { name: "Download .docx →" });
+    const trigger = screen.getByRole("button", { name: "Download .docx" });
     await user.click(trigger);
 
     const dialog = screen.getByRole("dialog", { name: /latest updates/i });

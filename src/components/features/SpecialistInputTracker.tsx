@@ -72,7 +72,7 @@ function SpecialistRowEditor({
           type="text"
           value={note}
           readOnly={readOnly}
-          placeholder="Optional note (who, when, where it is)…"
+          placeholder="Note (optional)"
           onChange={(event) => setNote(event.target.value)}
           onBlur={() => {
             if (!readOnly && note.trim() !== savedNote.trim()) save({ status, note });
@@ -141,7 +141,7 @@ export function SpecialistInputTracker({
       </div>
       {rows.length === 0 ? (
         <p className="mt-2 text-sm text-muted-foreground">
-          Confirm the capabilities this project needs, and a row for each appears here.
+          Choose teams to add a row for each.
         </p>
       ) : (
         <ul className="mt-1">

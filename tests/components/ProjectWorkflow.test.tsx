@@ -155,19 +155,19 @@ describe("Estimate step", () => {
     );
   });
 
-  it("explains the prerequisite and disables + New estimate until the scope is confirmed", () => {
+  it("explains the prerequisite and disables New estimate until the scope is confirmed", () => {
     const { rerender } = render(<EstimateStep {...estimateProps()} />);
     const note =
       "Confirm the scope first. The estimate is built from the confirmed scope.";
     // Shown once, and it describes the disabled main action.
     expect(document.querySelectorAll('[data-prerequisite="estimate"]')).toHaveLength(1);
-    const button = screen.getByRole("button", { name: "+ New estimate" });
+    const button = screen.getByRole("button", { name: "New estimate" });
     expect(button).toHaveAttribute("aria-disabled", "true");
     expect(button).toHaveAccessibleDescription(note);
 
     rerender(<EstimateStep {...estimateProps({ scopeConfirmed: true })} />);
     expect(document.querySelector('[data-prerequisite="estimate"]')).toBeNull();
-    expect(screen.getByRole("button", { name: "+ New estimate" })).not.toHaveAttribute(
+    expect(screen.getByRole("button", { name: "New estimate" })).not.toHaveAttribute(
       "aria-disabled"
     );
   });
@@ -286,7 +286,7 @@ describe("project complete (FB-012)", () => {
       "/api/projects/p1/sow/s2"
     );
     expect(screen.queryByRole("combobox")).toBeNull();
-    expect(screen.queryByRole("button", { name: /Regenerate SOW|Generate SOW|Change SOW Template/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Regenerate SOW|Generate SOW|Change template/ })).toBeNull();
     expect(screen.queryByText("SOW Template")).toBeNull();
     const history = screen.getByText("Project history").closest("details")!;
     expect(history).not.toHaveAttribute("open");

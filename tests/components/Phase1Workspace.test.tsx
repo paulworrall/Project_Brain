@@ -68,10 +68,10 @@ describe("Phase1Workspace", () => {
     expect(screen.getByRole("region", { name: "Scope summary" })).toContainElement(regenerate[0]);
   });
 
-  it("shows the Scope summary with its sections, and the What We Need to Find Out checklist", () => {
+  it("shows the Scope summary with its sections, and the What we need to find out checklist", () => {
     render(<Phase1Workspace {...baseProps()} />);
 
-    expect(screen.getByRole("heading", { name: "What We Need to Find Out" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "What we need to find out" })).toBeInTheDocument();
     const card = screen.getByRole("region", { name: "Scope summary" });
     expect(card).toHaveTextContent("v2");
     expect(card).toHaveTextContent("Fizzy wants to refresh the campaign.");
@@ -97,7 +97,7 @@ describe("Phase1Workspace", () => {
     expect(screen.getByRole("button", { name: "Draft the scope summary" })).toBeInTheDocument();
   });
 
-  it("keeps a legacy project's earlier documents read-only, with Create scope summary from these", () => {
+  it("keeps a legacy project's earlier documents read-only, with Create scope summary", () => {
     render(
       <Phase1Workspace
         {...baseProps()}
@@ -109,7 +109,7 @@ describe("Phase1Workspace", () => {
     expect(screen.getByText("Earlier documents")).toBeInTheDocument();
     expect(screen.getByText("Refresh the campaign.", { exact: false })).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Create scope summary from these" })
+      screen.getByRole("button", { name: "Create scope summary" })
     ).toBeInTheDocument();
   });
   it("does not render its own client-update composer — that's now the sidebar's Additional Inputs panel", () => {
@@ -222,7 +222,7 @@ describe("Phase1Workspace", () => {
       screen.getByText("1 of 4 required details captured", { exact: false })
     ).toBeInTheDocument();
     const checklist = screen
-      .getByRole("heading", { name: "What We Need to Find Out" })
+      .getByRole("heading", { name: "What we need to find out" })
       .closest("div.p-5, [class*='p-5']")!;
     expect(checklist).not.toHaveTextContent(/confirm/i);
     expect(checklist).not.toHaveTextContent(/suggestion/i);

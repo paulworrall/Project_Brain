@@ -89,7 +89,7 @@ export function deriveNextAction(p: NextActionInput): NextAction {
       id: "create_scope_summary",
       title: "Create the scope summary",
       reason:
-        "This project was set up before scope summaries. Merge its earlier documents into one.",
+        "Merge earlier documents into a scope summary.",
       step: "brief",
       button: { label: "Create scope summary", href: at("brief", "scope-summary") },
     };

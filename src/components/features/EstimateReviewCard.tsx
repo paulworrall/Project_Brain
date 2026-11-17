@@ -297,7 +297,7 @@ export function EstimateReviewCard({
             href={`/api/projects/${projectId}/estimates/${estimateId}/versions/${state.versionId}`}
             className="font-medium text-primary hover:underline"
           >
-            Download .docx →
+            Download .docx
           </a>
         </p>
       )}

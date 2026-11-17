@@ -681,3 +681,49 @@
 - **Refinement**: the missing MSA / rate card rule only applies until an estimate exists (once one is built it has been priced), so existing projects with an estimate keep their normal next step.
 - **Verification**: full suite 116 files, 973 tests passing (including the real-DB tests, which use their own test hubs and clean up; the DB is shared with production); tsc clean; eslint 0 errors. Not run: `next build`, and no browser check of the Copy questions button or banner.
 
+### Feature: UX refresh: clarity, type scale and next-step signposting (FB-012) (2026-11-17)
+
+Ten commits on `feat/fb-012-ux-refresh`, in the order of the brief. Front end only: no schema, migration, agent or prompt change; no change to step gates, next-action rules, approvals or permissions.
+
+- **Step 0 findings** (reported and approved before building): FB-008 to FB-011 were on main. Three contradictions were flagged and agreed: (1) WPP Sans has no semibold (Thin, Light, Regular, Medium, Bold are loaded) and the design system says no semibold, so card titles are Medium (500) and section headings Bold (700); (2) the muted text token already passed AA, so only its size was the problem; (3) the "lavender" buttons were Navy at 50% opacity (the old disabled style on a primary button), and both prerequisites are soft (only the step's main action is blocked), so they became amber notices over usable content.
+- **Tokens and contrast**: the type scale is defined once in `globals.css` (`--text-meta` 14px, `--text-body` 16px, `--text-card` 18px, `--text-banner` 20px, `--text-section` 24px) and Tailwind's xs / sm / base / lg / xl / 2xl are remapped onto it (xs = 14px, sm = 16px), so every existing utility lands on the scale. Line height 1.5 for body and meta, 1.3 for headings. Form controls are 16px and at least 44px tall; buttons 44px. Muted text: old `#59598D` to new `#59598D` (unchanged): 6.18:1 on Cream, 6.48:1 on White, 5.22:1 on the disabled-button grey. Other pairings: Navy on green badge 15.62:1, on the amber tint 17.2:1, on the amber badge 11.17:1, on the complete block 17.7:1, white on Navy 18.82:1. New token `--success-tint` (`#EAFFD4`). A source scan test fails on any font size under 14px.
+- **Badge replacements** (one `StatusBadge`, icon + text, 14px, accessible name): `DocumentStatusBadge` is now a wrapper over it (names unchanged); key-detail rows ("Captured" -> Done, Partial -> In progress, Missing -> Not started; their "From brief / Edited by PM" pills became plain text); specialist input rows (badge beside the select); the pipeline home cards' "Needs review" dot; the project header pill ("Active" -> "Brief / Estimate / SOW · In progress", "Complete — SOW approved" -> "Complete"); the stepper status lines (shared icons). Left as they are: the version history's Client / Internal team source tag, the PM perspective pill, and the admin pages' rate card pills (not status; out of scope).
+- **Button variant changes**: `ghost` -> `tertiary` (11 files); disabled and aria-disabled are one grey look for every tier (no more opacity), with an optional lock icon. Regenerate SOW / Generate SOW, Change SOW template, + New estimate -> secondary (grey with a lock when locked). Duplicate primaries on the project page -> secondary: the Brief callouts' links (Confirm scope, See the open questions), Confirm scope is ready to estimate, Confirm vN, Create / Draft scope summary, Save confirmed capabilities. Reopen scope -> tertiary with a lock. The Project assistant drawer button -> secondary. A test checks no step content holds a primary button (the banner has the one).
+- **Sub-tasks per step** (`deriveSubTasks`, `src/lib/project/subTasks.ts`; the current one is the first not done and not blocked, and agrees with the banner wherever they overlap, tested): Brief: 1 Scope summary, 2 Key details ("3 of 4 captured"), 3 Confirm scope. Estimate: 1 Choose teams, 2 Estimate brief, 3 Specialist inputs ("0 of 2 received"), 4 Build the estimate, 5 Client approval. SOW: 1 Choose template, 2 Generate SOW, 3 Client approval. Blocked reasons: estimate brief and specialist inputs "Choose teams first", estimate approval "Needs an estimate", SOW approval "Needs a SOW". Approval controls stay on the estimate and SOW version cards (several estimates and versions can each be approved), so "Client approval" is a status card that opens them (SOW: the approval buttons moved into their own card).
+- **Hard or soft prerequisites**: both soft. Estimate before the scope is confirmed ("Confirm the scope first") and SOW before an estimate is approved ("Approve the estimate first") show one amber notice (lock icon, title, one line, a secondary "Go to Brief" / "Go to Estimate") above usable content. No step is hard-locked, so no step hides its forms.
+- **Complete project**: the banner becomes one green block ("SOW approved · 19 Oct 2026 · v2", primary Download SOW, secondary Download estimate, the one lock line); the SOW step shows a compact approved card and a collapsed Project history; template and version selectors, Change template and Regenerate are gone; the repeated messages in the step, scope gate and sidebar are removed; the stepper keeps only its SOW link; other steps' sub-tasks are collapsed and read-only; the sidebar has only the Ask tab.
+- **Deviations**: (1) the semibold and muted-colour points above. (2) Tertiary replaces ghost, and the Button gains a `locked` prop. (3) Sub-task "Client approval" is a pointer to the version cards, not a relocation. (4) The Brief "Confirm scope is ready to estimate" button name was kept (its dialog also has a "Confirm scope" button). (5) "Statement of Work" stays title case (a document name). (6) **No before/after screenshots**: the app needs a sign-in and the data is the shared production database, so they were not taken; no browser check at 375px or 200% zoom was possible either. (7) The "details missing" link counts five fields (job number, kick-off, target completion, PM, rate card).
+- **Strings changed** (copy pass; the earlier steps' labels are in the commit messages):
+
+| File | Old | New |
+|---|---|---|
+| `CapabilitiesAndEstimateBriefPanel.tsx` | Ready the Brief for Team Estimates | Choose teams |
+| `CapabilitiesAndEstimateBriefPanel.tsx` | Tick the teams below that you already know should be involved — or, if you're not sure, let AI suggest them from the brief instead. Either way, review and save before moving on. | Tick the teams you know are needed, or get suggestions. Review, then save. |
+| `CapabilitiesAndEstimateBriefPanel.tsx` | or tick the capability teams below yourself | (removed) |
+| `CapabilitiesAndEstimateBriefPanel.tsx` | Confirm at least one capability above before preparing the brief. | Choose teams first. |
+| `CapabilitiesAndEstimateBriefPanel.tsx` | No estimate brief generated yet. | Not prepared yet. |
+| `CapabilitiesAndEstimateBriefPanel.tsx` | Download .docx → | Download .docx |
+| `EstimateBuildWorkspace.tsx` | Download Word → | Download Word |
+| `EstimateBuildWorkspace.tsx` | Download Excel → | Download Excel |
+| `EstimateReviewCard.tsx` | Download .docx → | Download .docx |
+| `EstimatesListPanel.tsx` | Download a past version (n) | Past versions (n) |
+| `EstimatesListPanel.tsx` | Download → | Download |
+| `EstimatesListPanel.tsx` | + New estimate | New estimate |
+| `StartSowDevelopmentPanel.tsx` | SOW Template (label) | SOW template |
+| `StartSowDevelopmentPanel.tsx` | Select a SOW Template… | Choose a template… |
+| `StartSowDevelopmentPanel.tsx` | Change SOW Template / Select SOW Template | Change template / Choose template |
+| `StartSowDevelopmentPanel.tsx` | Using {template}. | (removed: the select shows it) |
+| `StartSowDevelopmentPanel.tsx` | Select a SOW Template above before generating. | Choose a template first. |
+| `StartSowDevelopmentPanel.tsx` | Download .docx → | Download .docx |
+| `StartSowDevelopmentPanel.tsx` | Download a past version (n) | Past versions (n) |
+| `StartSowDevelopmentPanel.tsx` | Download → | Download |
+| `ScopeSummaryCard.tsx` | This project was set up before scope summaries. Create one from its earlier documents below. | Merge earlier documents into a scope summary. |
+| `ScopeSummaryCard.tsx` | Create scope summary from these | Create scope summary |
+| `nextAction.ts` | This project was set up before scope summaries. Merge its earlier documents into one. | Merge earlier documents into a scope summary. |
+| `SpecialistInputTracker.tsx` | Optional note (who, when, where it is)… | Note (optional) |
+| `SpecialistInputTracker.tsx` | Confirm the capabilities this project needs, and a row for each appears here. | Choose teams to add a row for each. |
+| `ScopeGate.tsx` | When the scope is clear enough to estimate, confirm it to move on to the estimate. | (removed: the title and button say it) |
+| `BriefChecklist.tsx` | What We Need to Find Out | What we need to find out |
+| `AddProjectInformationPanel.tsx` | Paste meeting notes, a client's reply or other information… | Paste notes or a client reply |
+
+- **Verification**: type check and lint clean; full suite passing (see the final run below). `next build` was run after step 1 only.

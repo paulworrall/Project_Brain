@@ -197,7 +197,7 @@ export function CapabilitiesAndEstimateBriefPanel({
   return (
     <Wrapper {...wrapperProps}>
       {!subTasks && (
-        <h3 className="text-card font-medium text-foreground">Ready the Brief for Team Estimates</h3>
+        <h3 className="text-card font-medium text-foreground">Choose teams</h3>
       )}
 
       <SubTaskSection task={subTasks?.teams} readOnly={readOnly}>
@@ -220,9 +220,7 @@ export function CapabilitiesAndEstimateBriefPanel({
         {choosingTeams ? (
           <>
             <p className="mt-1 text-xs text-muted-foreground">
-              Tick the teams below that you already know should be involved — or, if you&apos;re not
-              sure, let AI suggest them from the brief instead. Either way, review and save before
-              moving on.
+              Tick the teams you know are needed, or get suggestions. Review, then save.
             </p>
 
             <div className="mt-3 flex flex-wrap items-center gap-3 bg-surface-muted p-3">
@@ -237,9 +235,6 @@ export function CapabilitiesAndEstimateBriefPanel({
                   {suggestPending ? "Thinking…" : "Not sure? Get suggestions"}
                 </Button>
               </form>
-              <span className="text-xs text-muted-foreground">
-                or tick the capability teams below yourself
-              </span>
             </div>
 
             {lowConfidenceReason && (
@@ -352,7 +347,7 @@ export function CapabilitiesAndEstimateBriefPanel({
         </div>
         {confirmedCapabilities.length === 0 && (
           <p className="mt-1 text-xs text-muted-foreground">
-            Confirm at least one capability above before preparing the brief.
+            Choose teams first.
           </p>
         )}
         {generateState?.message && (
@@ -374,11 +369,11 @@ export function CapabilitiesAndEstimateBriefPanel({
               href={`/api/projects/${projectId}/estimate-brief/${estimateBriefVersion.id}`}
               className="inline-block text-xs font-medium text-primary hover:underline"
             >
-              Download .docx →
+              Download .docx
             </a>
           </Card>
         ) : (
-          <p className="mt-3 text-sm text-muted-foreground">No estimate brief generated yet.</p>
+          <p className="mt-3 text-sm text-muted-foreground">Not prepared yet.</p>
         )}
       </div>
       </SubTaskSection>

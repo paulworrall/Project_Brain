@@ -247,9 +247,9 @@ describe("locked estimates", () => {
     },
   ];
 
-  it("disables + New estimate (still focusable), explains why, and switches Open to View", () => {
+  it("disables New estimate (still focusable), explains why, and switches Open to View", () => {
     render(<LockedHarness estimates={estimates} />);
-    const newButton = screen.getByRole("button", { name: "+ New estimate" });
+    const newButton = screen.getByRole("button", { name: "New estimate" });
     expect(newButton).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("note")).toHaveTextContent(
       "Locked — the client approved v1 on 18 Oct 2026"

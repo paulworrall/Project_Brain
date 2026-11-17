@@ -31,7 +31,7 @@ function row(attributeId: string): HTMLElement {
   return document.getElementById(`brief-attribute-${attributeId}`)!;
 }
 
-describe("BriefChecklist — What We Need to Find Out", () => {
+describe("BriefChecklist — What we need to find out", () => {
   it("lists the required details first, in config order, and the optional ones in a separate group", () => {
     renderChecklist();
 

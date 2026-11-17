@@ -24,7 +24,7 @@ describe("PositionDocumentView", () => {
   it("never shows AI-generated open questions in the live view — the key-details checklist replaces them", () => {
     renderView({ fields: { ...baseFields, whatWeNeedToFindOut: ["Audience", "Approval chain"] } });
 
-    expect(screen.queryByText("What We Need to Find Out")).not.toBeInTheDocument();
+    expect(screen.queryByText("What we need to find out")).not.toBeInTheDocument();
     expect(screen.queryByText("Earlier open questions")).not.toBeInTheDocument();
     expect(screen.queryByText("Audience")).not.toBeInTheDocument();
   });
