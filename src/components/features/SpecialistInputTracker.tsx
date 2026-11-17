@@ -2,6 +2,8 @@
 
 import { useId, useState, useTransition } from "react";
 import { StatusBadge, type StatusBadgeState } from "@/components/ui/StatusBadge";
+import { SubTaskCard } from "./SubTaskCard";
+import type { SubTask } from "@/lib/project/subTasks";
 import { updateSpecialistInputAction } from "@/app/(dashboard)/projects/[projectId]/step-actions";
 import {
   SPECIALIST_STATUS_LABEL,
@@ -118,20 +120,19 @@ export function SpecialistInputTracker({
   projectId,
   rows,
   readOnly = false,
+  task,
 }: {
   projectId: string;
   rows: SpecialistRow[];
   readOnly?: boolean;
+  /** FB-012: inside a sub-task card (its title replaces the section heading). */
+  task?: SubTask;
 }) {
   const headingId = useId();
-  return (
-    <section
-      id="specialist-inputs"
-      aria-labelledby={headingId}
-      className="border border-border bg-surface px-4 py-3"
-    >
+  const body = (
+    <div id="specialist-inputs" className="scroll-mt-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 id={headingId} className="text-card font-medium text-foreground">
+        <h3 id={headingId} className={task ? "sr-only" : "text-card font-medium text-foreground"}>
           Specialist input
         </h3>
         {rows.length > 0 && (
@@ -154,6 +155,18 @@ export function SpecialistInputTracker({
           ))}
         </ul>
       )}
+    </div>
+  );
+  if (task) {
+    return (
+      <SubTaskCard task={task} readOnly={readOnly}>
+        {body}
+      </SubTaskCard>
+    );
+  }
+  return (
+    <section aria-labelledby={headingId} className="border border-border bg-surface px-4 py-3">
+      {body}
     </section>
   );
 }

@@ -50,8 +50,6 @@ function baseProps() {
   return {
     projectId: "proj_1",
     scopeSummary: scopeSummary(),
-    openQuestions: 1,
-    clientUpdates: [],
     briefCompleteness: briefCompleteness(),
     pmPerspective: pmPerspectiveView(),
   };
@@ -146,7 +144,6 @@ describe("Phase1Workspace", () => {
     render(
       <Phase1Workspace
         {...baseProps()}
-        openQuestions={0}
         briefCompleteness={briefCompleteness(ALL_REQUIRED_CONFIRMED)}
         scopeSummary={{
           ...scopeSummary(),
@@ -177,42 +174,10 @@ describe("Phase1Workspace", () => {
     expect(container.querySelector("fieldset")).toBeDisabled();
   });
 
-  it("shows a compact progress summary computed from the live data", () => {
-    render(
-      <Phase1Workspace
-        {...baseProps()}
-        clientUpdates={[
-          {
-            id: "u1",
-            content: "Confirmed budget.",
-            createdAt: new Date("2026-08-01T10:00:00Z"),
-            createdByName: null,
-          },
-        ]}
-      />
-    );
-
-    const summary = screen.getByLabelText("Brief progress summary");
-    expect(summary).toHaveTextContent("1 open question");
-    // Nothing confirmed yet: all 4 required details are still to find out.
-    expect(summary).toHaveTextContent("4 required details to find out");
-    expect(summary).toHaveTextContent("1 update logged");
-  });
-
-  it("pluralizes progress summary counts correctly", () => {
-    render(
-      <Phase1Workspace
-        {...baseProps()}
-        openQuestions={2}
-        briefCompleteness={briefCompleteness(ALL_REQUIRED_CONFIRMED.slice(1))}
-        clientUpdates={[]}
-      />
-    );
-
-    const summary = screen.getByLabelText("Brief progress summary");
-    expect(summary).toHaveTextContent("2 open questions");
-    expect(summary).toHaveTextContent("1 required detail to find out");
-    expect(summary).toHaveTextContent("0 updates logged");
+  it("has no progress meta line — its information lives in the sub-task summaries (FB-012)", () => {
+    render(<Phase1Workspace {...baseProps()} />);
+    expect(screen.queryByLabelText("Brief progress summary")).not.toBeInTheDocument();
+    expect(screen.queryByText(/updates? logged/)).not.toBeInTheDocument();
   });
 
   it("lists the 4 required key details with their status and question", () => {

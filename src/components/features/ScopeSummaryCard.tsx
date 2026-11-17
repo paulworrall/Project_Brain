@@ -107,6 +107,7 @@ export function ScopeSummaryCard({
   readOnly,
   assessment,
   canCreateFromEarlier,
+  embedded = false,
 }: {
   projectId: string;
   summary: ScopeSummaryCardData | null;
@@ -115,6 +116,8 @@ export function ScopeSummaryCard({
   assessment?: ReactNode;
   /** A pre-FB-009 project with earlier documents and no Scope summary yet. */
   canCreateFromEarlier: boolean;
+  /** Inside a sub-task card (FB-012): no card chrome of its own, and the title is read by assistive tech only. */
+  embedded?: boolean;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -191,12 +194,12 @@ export function ScopeSummaryCard({
     <Card
       id="scope-summary"
       role="region"
-      className="scroll-mt-6 space-y-4 p-4"
+      className={`scroll-mt-6 space-y-4 ${embedded ? "border-0 bg-transparent p-0" : "p-4"}`}
       aria-labelledby={headingId}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 id={headingId} className="text-card font-medium text-foreground">
+          <h3 id={headingId} className={embedded ? "sr-only" : "text-card font-medium text-foreground"}>
             Scope summary
           </h3>
           {summary && (

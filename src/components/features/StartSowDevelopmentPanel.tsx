@@ -27,6 +27,8 @@ import { BriefGateAlert } from "./BriefGateNotice";
 import { DocumentStatusBadge } from "@/components/ui/DocumentStatusBadge";
 import { ApprovalActions } from "./ApprovalActions";
 import { LockedNotice } from "./LockedNotice";
+import { SubTaskSection } from "./SubTaskCard";
+import type { SubTask } from "@/lib/project/subTasks";
 import { formatMoney } from "@/lib/formatMoney";
 import type { ApprovalInfo, ApprovalPermissions, ApprovalState } from "@/types/approvals";
 
@@ -107,7 +109,12 @@ export function StartSowDevelopmentPanel({
   lock = null,
   permissions = { canApprove: false, canRevert: false },
   prerequisiteNoteId = null,
+  subTasks,
+  readOnly = false,
 }: {
+  /** FB-012: the three sub-tasks this panel holds (template, generate, approval); without them it is one block. */
+  subTasks?: { template: SubTask; generate: SubTask; approval: SubTask };
+  readOnly?: boolean;
   lock?: SowLock | null;
   /**
    * FB-008: id of the step's prerequisite note, set while the estimate isn't
@@ -271,6 +278,7 @@ export function StartSowDevelopmentPanel({
 
   return (
     <div id="sow" className="scroll-mt-6 space-y-4">
+      <SubTaskSection task={subTasks?.template} readOnly={readOnly} className="space-y-4">
       <form
         action={formAction}
         onSubmit={(event) => {
@@ -363,8 +371,10 @@ export function StartSowDevelopmentPanel({
           Using <span className="font-medium text-foreground">{currentTemplate.name}</span>.
         </p>
       )}
+      </SubTaskSection>
 
-      <div className="border-t border-border pt-3">
+      <SubTaskSection task={subTasks?.generate} readOnly={readOnly} className="border-t border-border pt-3">
+      <div>
         <div className="flex items-center justify-between gap-2">
           <h4 className="text-card font-medium text-foreground">Statement of Work</h4>
           <Button
@@ -438,27 +448,6 @@ export function StartSowDevelopmentPanel({
               Download .docx →
             </SowDownloadLink>
 
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <ApprovalActions
-                documentType="SOW"
-                versionId={latestSowVersion.id}
-                versionNumber={latestSowVersion.versionNumber}
-                approvalState={latestSowVersion.approvalState ?? "draft"}
-                approval={latestSowVersion.approval ?? null}
-                permissions={permissions}
-                blockedReason={latestSowVersion.approveBlockedReason ?? null}
-                focusId="sow-card"
-                summary={{
-                  name: "Statement of Work",
-                  versionNumber: latestSowVersion.versionNumber,
-                  generatedDate: formatDateTime(latestSowVersion.createdAt),
-                  total: latestSowVersion.total ?? null,
-                  currency: latestSowVersion.currency ?? null,
-                  sourceEstimateVersionNumber: latestSowVersion.sourceEstimateVersionNumber ?? null,
-                }}
-              />
-            </div>
-
             {olderSowVersions.length > 0 && (
               <details className="mt-2 border-t border-border pt-2">
                 <summary className="cursor-pointer text-xs font-medium text-primary">
@@ -497,6 +486,34 @@ export function StartSowDevelopmentPanel({
           <p className="mt-3 text-sm text-muted-foreground">No SOW generated yet.</p>
         )}
       </div>
+      </SubTaskSection>
+
+      <SubTaskSection task={subTasks?.approval} readOnly={readOnly}>
+        {latestSowVersion ? (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <ApprovalActions
+                documentType="SOW"
+                versionId={latestSowVersion.id}
+                versionNumber={latestSowVersion.versionNumber}
+                approvalState={latestSowVersion.approvalState ?? "draft"}
+                approval={latestSowVersion.approval ?? null}
+                permissions={permissions}
+                blockedReason={latestSowVersion.approveBlockedReason ?? null}
+                focusId="sow-card"
+                summary={{
+                  name: "Statement of Work",
+                  versionNumber: latestSowVersion.versionNumber,
+                  generatedDate: formatDateTime(latestSowVersion.createdAt),
+                  total: latestSowVersion.total ?? null,
+                  currency: latestSowVersion.currency ?? null,
+                  sourceEstimateVersionNumber: latestSowVersion.sourceEstimateVersionNumber ?? null,
+                }}
+              />
+            </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Generate a SOW first.</p>
+        )}
+      </SubTaskSection>
 
       {review && (
         <SowReviewOverlay

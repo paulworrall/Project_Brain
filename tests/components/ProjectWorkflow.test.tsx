@@ -38,6 +38,7 @@ const { BriefStep, EstimateStep, SowStep } = await import("@/components/features
 const { buildSpecialistRows } = await import("@/lib/project/readiness");
 const { briefCompleteness, briefRecord } = await import("../fixtures/briefCompleteness");
 const { pmPerspectiveView } = await import("../fixtures/pmPerspective");
+const { allOpen } = await import("../fixtures/subTasks");
 
 function common(projectComplete = false) {
   return { projectId: "p1", projectComplete };
@@ -51,7 +52,7 @@ function briefProps(overrides: Partial<Parameters<typeof BriefStep>[0]> = {}) {
     openQuestions: 2,
     missingMsaRateCard: false,
     clientName: "Fizzy",
-    clientUpdates: [],
+    subTasks: allOpen("brief"),
     briefCompleteness: briefCompleteness([
       briefRecord("budget", { amount: "£50,000", currency: "GBP" }),
     ]),
@@ -67,6 +68,7 @@ function estimateProps(overrides: Partial<Parameters<typeof EstimateStep>[0]> = 
   const confirmed: Capability[] = ["EXPERIENCE_DESIGN", "TECH_AND_DATA", "BUSINESS_ARCHITECTURE"];
   return {
     ...common(),
+    subTasks: allOpen("estimate"),
     scopeConfirmed: false,
     confirmedCapabilities: confirmed,
     estimateBriefVersion: null,
@@ -85,6 +87,7 @@ function estimateProps(overrides: Partial<Parameters<typeof EstimateStep>[0]> = 
 function sowProps(overrides: Partial<Parameters<typeof SowStep>[0]> = {}) {
   return {
     ...common(),
+    subTasks: allOpen("sow"),
     estimateApproved: false,
     currentSowTemplate: { id: "t1", name: "Standard SOW Template" },
     currentSowTemplateVersion: { id: "tv1" },
@@ -122,18 +125,18 @@ describe("Brief step", () => {
 });
 
 describe("Estimate step", () => {
-  it("is headed 'Estimate', with Capabilities, the specialist tracker, then Build The Estimate, in that order", () => {
+  it("is headed 'Estimate', with its five sub-tasks in order: teams, brief, specialist inputs, build, approval", () => {
     render(<EstimateStep {...estimateProps()} />);
     expect(screen.getByRole("heading", { level: 2, name: "Estimate" })).toBeInTheDocument();
-    const tracker = screen.getByRole("region", { name: "Specialist input" });
-    const build = screen.getByRole("region", { name: "Build The Estimate" });
+    const tracker = screen.getByRole("group", { name: "Specialist inputs" });
+    const build = screen.getByRole("group", { name: "Build the estimate" });
     expect(tracker.compareDocumentPosition(build) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByText(/Capability Feedback/)).toBeNull();
   });
 
   it("shows one specialist row per confirmed capability, with the received count", () => {
     render(<EstimateStep {...estimateProps()} />);
-    const tracker = screen.getByRole("region", { name: "Specialist input" });
+    const tracker = screen.getByRole("group", { name: "Specialist inputs" });
     expect(tracker).toHaveTextContent("2 of 3 specialist inputs received");
     expect(within(tracker).getAllByRole("combobox")).toHaveLength(3);
   });

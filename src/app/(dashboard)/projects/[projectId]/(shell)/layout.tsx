@@ -45,6 +45,7 @@ export default async function ProjectLayout({
     missingMsaRateCard,
     estimateScopeSync,
     nextAction,
+    subTasks,
     briefAssessment,
     earlierDocuments,
     permissions,
@@ -53,7 +54,6 @@ export default async function ProjectLayout({
     pmPerspective,
     versionHistory,
     sowChange,
-    clientUpdates,
     confirmedCapabilities,
     estimateBriefVersion,
     estimates,
@@ -142,7 +142,7 @@ export default async function ProjectLayout({
               openQuestions={openQuestions}
               missingMsaRateCard={missingMsaRateCard}
               clientName={client.name}
-              clientUpdates={clientUpdates}
+              subTasks={subTasks.brief}
               briefCompleteness={briefCompleteness}
               pmPerspective={pmPerspective}
               scopeConfirmedAt={project.scopeConfirmedAt?.toISOString() ?? null}
@@ -153,6 +153,7 @@ export default async function ProjectLayout({
           estimate: (
             <EstimateStep
               {...common}
+              subTasks={subTasks.estimate}
               scopeConfirmed={project.scopeConfirmedAt !== null}
               confirmedCapabilities={confirmedCapabilities}
               estimateBriefVersion={estimateBriefVersion}
@@ -188,6 +189,7 @@ export default async function ProjectLayout({
           sow: (
             <SowStep
               {...common}
+              subTasks={subTasks.sow}
               estimateApproved={estimateApproved}
               sowChange={sowChange}
               currentSowTemplate={

@@ -1,7 +1,9 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { Fragment, useActionState, useEffect, useRef, useState } from "react";
 import { Card } from "@/components/ui/Card";
+import { SubTaskSection } from "./SubTaskCard";
+import type { SubTask } from "@/lib/project/subTasks";
 import { Button } from "@/components/ui/Button";
 import { ProcessingOverlay, type ProcessingOverlayStatus } from "@/components/ui/ProcessingOverlay";
 import { useFallbackStageProgress } from "@/hooks/useFallbackStageProgress";
@@ -55,10 +57,15 @@ export function CapabilitiesAndEstimateBriefPanel({
   projectId,
   confirmedCapabilities,
   estimateBriefVersion,
+  subTasks,
+  readOnly = false,
 }: {
   projectId: string;
   confirmedCapabilities: Capability[];
   estimateBriefVersion: EstimateBriefVersionMeta | null;
+  /** FB-012: the two sub-tasks this panel holds; without them it renders as one card. */
+  subTasks?: { teams: SubTask; brief: SubTask };
+  readOnly?: boolean;
 }) {
   const [checked, setChecked] = useState<Set<Capability>>(new Set(confirmedCapabilities));
   const [rationaleByCapability, setRationaleByCapability] = useState<
@@ -185,11 +192,16 @@ export function CapabilitiesAndEstimateBriefPanel({
     (c) => checked.has(c.id) && rationaleByCapability[c.id]
   );
 
+  const Wrapper = subTasks ? Fragment : Card;
+  const wrapperProps = subTasks ? {} : { className: "space-y-5 p-5" };
   return (
-    <Card className="space-y-5 p-5">
-      <h3 className="text-card font-medium text-foreground">Ready the Brief for Team Estimates</h3>
+    <Wrapper {...wrapperProps}>
+      {!subTasks && (
+        <h3 className="text-card font-medium text-foreground">Ready the Brief for Team Estimates</h3>
+      )}
 
-      <div>
+      <SubTaskSection task={subTasks?.teams} readOnly={readOnly}>
+      <div id="capabilities" className="scroll-mt-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h4 className="text-card font-medium text-foreground">
             Which capability teams are needed?
@@ -317,8 +329,10 @@ export function CapabilitiesAndEstimateBriefPanel({
           </p>
         )}
       </div>
+      </SubTaskSection>
 
-      <div className="border-t border-border pt-4">
+      <SubTaskSection task={subTasks?.brief} readOnly={readOnly} className="border-t border-border pt-4">
+      <div>
         <div className="flex items-center justify-between gap-2">
           <h4 className="text-card font-medium text-foreground">Estimate brief</h4>
           <form action={generateFormAction}>
@@ -367,6 +381,7 @@ export function CapabilitiesAndEstimateBriefPanel({
           <p className="mt-3 text-sm text-muted-foreground">No estimate brief generated yet.</p>
         )}
       </div>
+      </SubTaskSection>
 
       <ProcessingOverlay
         isOpen={overlayOpen}
@@ -381,6 +396,6 @@ export function CapabilitiesAndEstimateBriefPanel({
         onRetry={handleRetrySuggest}
         onDismissError={handleDismissSuggestError}
       />
-    </Card>
+    </Wrapper>
   );
 }
