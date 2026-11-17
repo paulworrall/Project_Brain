@@ -7,8 +7,8 @@ const ids = (step: "brief" | "estimate" | "sow") => subTasksFor(step).map((t) =>
 const byId = (tasks: ReturnType<typeof subTasksFor>, id: string) => tasks.find((t) => t.id === id)!;
 
 describe("deriveSubTasks — the list for each step", () => {
-  it("Brief: Scope summary, Key details, Confirm scope", () => {
-    expect(ids("brief")).toEqual(["brief.scope-summary", "brief.key-details", "brief.confirm-scope"]);
+  it("Brief: Key details, Scope summary, Confirm scope", () => {
+    expect(ids("brief")).toEqual(["brief.key-details", "brief.scope-summary", "brief.confirm-scope"]);
     expect(subTasksFor("brief").map((t) => t.number)).toEqual([1, 2, 3]);
   });
   it("Estimate: Choose teams, Estimate brief, Specialist inputs, Build the estimate, Client approval", () => {
@@ -26,7 +26,7 @@ describe("deriveSubTasks — the list for each step", () => {
 });
 
 describe("deriveSubTasks — Brief states", () => {
-  it("a new project: the scope summary is the first thing to do", () => {
+  it("a new project: key details come first, then the scope summary", () => {
     const tasks = subTasksFor("brief", {
       hasScopeSummary: false,
       scopeVersion: null,
@@ -35,7 +35,15 @@ describe("deriveSubTasks — Brief states", () => {
       openQuestions: 0,
     });
     expect(tasks.map((t) => t.status)).toEqual(["not_started", "not_started", "not_started"]);
-    expect(tasks.find((t) => t.current)?.id).toBe("brief.scope-summary");
+    expect(tasks.find((t) => t.current)?.id).toBe("brief.key-details");
+    // With the key details done, the scope summary is next.
+    const afterDetails = subTasksFor("brief", {
+      hasScopeSummary: false,
+      scopeVersion: null,
+      scopeConfirmed: false,
+      requiredCaptured: 4,
+    });
+    expect(afterDetails.find((t) => t.current)?.id).toBe("brief.scope-summary");
   });
 
   it("key details: '3 of 4 captured' is in progress; all captured is done", () => {

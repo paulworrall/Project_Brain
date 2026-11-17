@@ -70,15 +70,6 @@ type Draft = Omit<SubTask, "step" | "number" | "current">;
 function brief(p: SubTaskInput): Draft[] {
   return [
     {
-      id: "brief.scope-summary",
-      title: "Scope summary",
-      status: p.hasScopeSummary ? "done" : "not_started",
-      summary: p.hasScopeSummary
-        ? `v${p.scopeVersion ?? 1}${p.openQuestions > 0 ? ` · ${plural(p.openQuestions, "open question")}` : ""}`
-        : null,
-      blocked: null,
-    },
-    {
       id: "brief.key-details",
       title: "Key details",
       status:
@@ -88,6 +79,15 @@ function brief(p: SubTaskInput): Draft[] {
             ? "in_progress"
             : "not_started",
       summary: `${p.requiredCaptured} of ${p.requiredTotal} captured`,
+      blocked: null,
+    },
+    {
+      id: "brief.scope-summary",
+      title: "Scope summary",
+      status: p.hasScopeSummary ? "done" : "not_started",
+      summary: p.hasScopeSummary
+        ? `v${p.scopeVersion ?? 1}${p.openQuestions > 0 ? ` · ${plural(p.openQuestions, "open question")}` : ""}`
+        : null,
       blocked: null,
     },
     {

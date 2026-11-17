@@ -113,6 +113,16 @@ describe("Brief step", () => {
     expect(screen.queryByText("MSA and rate card set on the project")).toBeNull();
   });
 
+  it("lists its sub-tasks in order: 1 Key details, 2 Scope summary, 3 Confirm scope", () => {
+    render(<BriefStep {...briefProps()} />);
+    const groups = Array.from(document.querySelectorAll("[data-subtask]")).map((g) =>
+      g.getAttribute("data-subtask")
+    );
+    expect(groups).toEqual(["brief.key-details", "brief.scope-summary", "brief.confirm-scope"]);
+    const numbers = groups.map((id) => document.querySelector(`[data-subtask="${id}"] button span`)?.textContent);
+    expect(numbers).toEqual(["1", "2", "3"]);
+  });
+
   it("keeps the Scope summary with its Copy questions button, drops the Clarification email, and ends with the confirm-scope gate", () => {
     render(<BriefStep {...briefProps()} />);
     expect(screen.getByRole("region", { name: "Scope summary" })).toBeInTheDocument();

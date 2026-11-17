@@ -727,3 +727,7 @@ Ten commits on `feat/fb-012-ux-refresh`, in the order of the brief. Front end on
 | `AddProjectInformationPanel.tsx` | Paste meeting notes, a client's reply or other information… | Paste notes or a client reply |
 
 - **Verification**: type check clean; eslint 0 errors; full suite 124 files, 1072 tests passing (including the real-DB tests; `tests/services/brief-upload.test.ts` has a PDF-parse timeout that appears only under parallel load and passes on its own, as noted at FB-001); `next build` clean. Not done: screenshots and a browser check at 375px / 200% zoom (they need a sign-in on the shared production database).
+
+### Follow-up: Key details first in the Brief step (2026-11-17)
+
+- The Brief step's sub-tasks are now 1 Key details, 2 Scope summary, 3 Confirm scope (was Scope summary first). `deriveSubTasks` and the Brief workspace order changed; the workspace finds each card by id, not by position. With the key details incomplete, Key details is now the step's current (expanded) sub-task, so the banner and the open card can differ until they are captured (the banner's rules are unchanged).
