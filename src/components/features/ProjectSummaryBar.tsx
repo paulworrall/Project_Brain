@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatRateCardLabel } from "@/lib/formatRateCardLabel";
 import {
   updateProjectSummaryAction,
@@ -38,6 +39,8 @@ export interface RateCardOption {
 interface ProjectSummaryBarProps {
   projectId: string;
   status: "ACTIVE" | "COMPLETE";
+  /** The step the project is in, for the status pill ("Estimate · In progress"). */
+  currentStepLabel?: string;
   jobCode: string | null;
   kickOffDate: Date | null;
   targetCompletionDate: Date | null;
@@ -50,6 +53,7 @@ interface ProjectSummaryBarProps {
 export function ProjectSummaryBar({
   projectId,
   status,
+  currentStepLabel,
   jobCode,
   kickOffDate,
   targetCompletionDate,
@@ -167,39 +171,36 @@ export function ProjectSummaryBar({
     );
   }
 
+  // FB-012: only the fields that have a value; the rest collapse into one link.
+  const fields: { label: string; value: string | null }[] = [
+    { label: "Job #", value: jobCode },
+    { label: "Kick-off", value: kickOffDate ? formatDate(kickOffDate) : null },
+    { label: "Target completion", value: targetCompletionDate ? formatDate(targetCompletionDate) : null },
+    { label: "PM", value: projectManager?.name ?? null },
+    { label: "Rate card", value: rateCard ? formatRateCardLabel(rateCard.name, rateCard.currency) : null },
+  ];
+  const set = fields.filter((f) => f.value);
+  const missing = fields.length - set.length;
+
   return (
     <Card className="p-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-6">
-          <span
-            className={`px-2.5 py-1 text-xs font-medium ${
-              status === "COMPLETE" ? "bg-primary text-primary-foreground" : "bg-accent text-accent-foreground"
-            }`}
-          >
-            {status === "COMPLETE" ? (
-              <>
-                <span aria-hidden="true">✓ </span>Complete — SOW approved
-              </>
-            ) : (
-              "Active"
-            )}
-          </span>
-          <SummaryField label="Job #" value={jobCode ?? NOT_SET} />
-          <SummaryField label="Kick-off" value={formatDate(kickOffDate)} />
-          <SummaryField label="Target Completion" value={formatDate(targetCompletionDate)} />
-          <SummaryField label="PM" value={projectManager?.name ?? NOT_SET} />
-          <SummaryField
-            label="Rate Card"
-            value={rateCard ? formatRateCardLabel(rateCard.name, rateCard.currency) : NOT_SET}
-          />
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          {status === "COMPLETE" ? (
+            <StatusBadge state="done" text="Complete" />
+          ) : (
+            <StatusBadge
+              state="in_progress"
+              text={`${currentStepLabel ? `${currentStepLabel} · ` : ""}In progress`}
+            />
+          )}
+          {set.map((field) => (
+            <SummaryField key={field.label} label={field.label} value={field.value!} />
+          ))}
         </div>
-        <button
-          type="button"
-          onClick={() => setIsEditing(true)}
-          className="text-sm font-medium text-primary hover:underline"
-        >
-          Edit
-        </button>
+        <Button type="button" variant="tertiary" onClick={() => setIsEditing(true)}>
+          {missing > 0 ? `${missing} detail${missing === 1 ? "" : "s"} missing · Add` : "Edit"}
+        </Button>
       </div>
     </Card>
   );
@@ -208,9 +209,7 @@ export function ProjectSummaryBar({
 function SummaryField({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </span>
+      <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{label}</span>
       <p className="text-sm text-foreground">{value}</p>
     </div>
   );

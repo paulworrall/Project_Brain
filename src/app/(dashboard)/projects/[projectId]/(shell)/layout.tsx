@@ -5,6 +5,7 @@ import { ProjectSummaryBar } from "@/components/features/ProjectSummaryBar";
 import { ProjectSidebar } from "@/components/features/ProjectSidebar";
 import { ProjectShell } from "@/components/features/ProjectShell";
 import { loadProjectPageData } from "@/lib/projectPageData";
+import { getStep } from "@/lib/projectSteps";
 import { approvalViewFor } from "@/lib/commercial/approvalViewData";
 import { sowApprovalBlockedReason } from "@/lib/commercial/sowApprovalGate";
 import { NEEDS_REVIEW_TEXT } from "@/lib/estimateScopeSyncView";
@@ -61,6 +62,7 @@ export default async function ProjectLayout({
     sow,
     stepStatuses,
     stepSummaries,
+    currentStepId,
     projectComplete,
     specialistRows,
   } = data;
@@ -101,6 +103,7 @@ export default async function ProjectLayout({
       <ProjectSummaryBar
         projectId={project.id}
         status={projectStatus}
+        currentStepLabel={getStep(currentStepId).label}
         jobCode={project.jobCode}
         kickOffDate={project.kickOffDate}
         targetCompletionDate={project.targetCompletionDate}
