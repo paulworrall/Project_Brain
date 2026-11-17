@@ -45,6 +45,7 @@ export default async function ProjectLayout({
     missingMsaRateCard,
     estimateScopeSync,
     nextAction,
+    completion,
     subTasks,
     briefAssessment,
     earlierDocuments,
@@ -127,6 +128,7 @@ export default async function ProjectLayout({
         stepSummaries={stepSummaries}
         nextAction={nextAction}
         openQuestionsText={openQuestionsText}
+        completion={completion}
         // FB-009 B: a step whose document is stale against what it was built from.
         attention={{
           ...(estimateScopeSync.needsReview ? { estimate: NEEDS_REVIEW_TEXT } : {}),

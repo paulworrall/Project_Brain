@@ -246,6 +246,17 @@ async function fetchProjectPageData(projectId: string) {
     draftScopeDocument: draftScopeDocument.success ? draftScopeDocument.data : null,
   };
 
+  // FB-012: the complete-project success block's facts.
+  const completion =
+    projectComplete && approvals.summary.sow
+      ? {
+          approvedOn: approvals.summary.sow.approval.clientApprovedOn,
+          versionNumber: approvals.summary.sow.versionNumber,
+          sowHref: approvals.summary.sow.downloadHref,
+          estimateHref: approvals.summary.estimate?.downloadHref ?? null,
+        }
+      : null;
+
   const briefAssessment = normaliseBriefAssessment(project.briefAssessment);
   const nextInput: NextActionInput = {
     projectId: project.id,
@@ -295,6 +306,7 @@ async function fetchProjectPageData(projectId: string) {
   return {
     briefAssessment,
     nextAction,
+    completion,
     subTasks,
     estimateScopeSync,
     scopeSummary,

@@ -79,4 +79,40 @@ describe("NextStepBanner (FB-012)", () => {
     );
     expect(screen.getByText(/Done/)).toBeInTheDocument();
   });
+
+  it("a complete project replaces the banner with one green success block: facts, primary and secondary downloads, one lock line", () => {
+    const { container } = render(
+      <NextStepBanner
+        action={action("complete", {
+          title: "Project complete: SOW approved",
+          button: { label: "Download the approved SOW", href: "/api/x" },
+        })}
+        completion={{
+          approvedOn: "2026-10-19",
+          versionNumber: 2,
+          sowHref: "/api/projects/p1/sow/s2",
+          estimateHref: "/api/projects/p1/estimates/e1/versions/v3",
+        }}
+      />
+    );
+    expect(container.querySelector("section")).toHaveAttribute("data-tone", "success");
+    expect(screen.getByRole("heading")).toHaveTextContent("SOW approved · 19 Oct 2026 · v2");
+    const sow = screen.getByRole("link", { name: "Download SOW" });
+    expect(sow).toHaveAttribute("href", "/api/projects/p1/sow/s2");
+    expect(sow.className).toContain("bg-primary");
+    const estimate = screen.getByRole("link", { name: "Download estimate" });
+    expect(estimate.className).not.toContain("bg-primary ");
+    expect(estimate.className).toContain("border-primary");
+    expect(screen.getAllByText("Locked. Changes will need a change request (coming soon).")).toHaveLength(1);
+  });
+
+  it("offers no estimate download when there is none", () => {
+    render(
+      <NextStepBanner
+        action={action("complete")}
+        completion={{ approvedOn: "2026-10-19", versionNumber: 1, sowHref: "/x", estimateHref: null }}
+      />
+    );
+    expect(screen.queryByRole("link", { name: "Download estimate" })).toBeNull();
+  });
 });

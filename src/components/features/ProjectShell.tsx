@@ -12,7 +12,7 @@ import {
   type StepSummary,
 } from "@/lib/projectSteps";
 import { ProjectStepper } from "./ProjectStepper";
-import { NextStepBanner } from "./NextStepBanner";
+import { NextStepBanner, type CompletionSummary } from "./NextStepBanner";
 import { Button } from "@/components/ui/Button";
 import type { NextAction } from "@/lib/nextAction";
 
@@ -35,6 +35,7 @@ export function ProjectShell({
   attention,
   nextAction,
   openQuestionsText = "",
+  completion = null,
   steps,
   sidebar,
   children,
@@ -48,6 +49,8 @@ export function ProjectShell({
   nextAction?: NextAction;
   /** FB-011: the open questions as a numbered list, for the banner's "Copy questions". */
   openQuestionsText?: string;
+  /** FB-012: the complete-project success block's facts (set only once the SOW is approved). */
+  completion?: CompletionSummary | null;
   steps: Record<StepId, ReactNode>;
   sidebar: ReactNode;
   children: ReactNode;
@@ -55,6 +58,14 @@ export function ProjectShell({
   const segment = useSelectedLayoutSegment();
   const activeStepId = segment && isStepId(segment) ? segment : null;
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Complete: the success block carries both downloads, so the stepper keeps only its SOW link.
+  const stepperSummaries: Partial<Record<StepId, StepSummary>> =
+    completion && stepSummaries.estimate
+      ? {
+          ...stepSummaries,
+          estimate: { ...stepSummaries.estimate, downloadHref: undefined, downloadLabel: undefined },
+        }
+      : stepSummaries;
   const [announcement, setAnnouncement] = useState("");
   const asideRef = useRef<HTMLElement>(null);
   const previousStepRef = useRef(activeStepId);
@@ -130,13 +141,17 @@ export function ProjectShell({
         <ProjectStepper
           projectId={projectId}
           statuses={stepStatuses}
-          summaries={stepSummaries}
+          summaries={stepperSummaries}
           activeStepId={activeStepId}
           attention={attention}
         />
         {nextAction && (
           <div className="border-t border-border">
-            <NextStepBanner action={nextAction} openQuestionsText={openQuestionsText} />
+            <NextStepBanner
+              action={nextAction}
+              openQuestionsText={openQuestionsText}
+              completion={completion}
+            />
           </div>
         )}
       </div>

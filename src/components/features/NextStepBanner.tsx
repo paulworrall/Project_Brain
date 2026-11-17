@@ -2,7 +2,20 @@
 
 import Link from "next/link";
 import type { NextAction, NextActionId } from "@/lib/nextAction";
+import { formatApprovalDate } from "@/lib/commercial/approvalCopy";
 import { CopyQuestionsButton } from "./CopyQuestionsButton";
+
+/** What the complete-project success block needs (FB-012). */
+export interface CompletionSummary {
+  /** YYYY-MM-DD the client approved the SOW. */
+  approvedOn: string;
+  versionNumber: number;
+  sowHref: string;
+  estimateHref: string | null;
+}
+
+/** The one lock line, shown once under the success block. */
+export const LOCKED_LINE = "Locked. Changes will need a change request (coming soon).";
 
 /**
  * FB-009 C, restyled in FB-012: directly under the stepper, inside the same
@@ -39,13 +52,49 @@ const TONE_CLASSES: Record<BannerTone, string> = {
 export function NextStepBanner({
   action,
   openQuestionsText = "",
+  completion = null,
 }: {
   action: NextAction;
+  /** Set once the project is complete: the banner becomes one green success block with the downloads. */
+  completion?: CompletionSummary | null;
   /** The numbered open-questions list, for the "Copy questions" button (FB-011). */
   openQuestionsText?: string;
 }) {
   const copies = action.button.action === "copy_questions" && openQuestionsText !== "";
   const tone = bannerTone(action.id);
+  if (action.id === "complete" && completion) {
+    return (
+      <section
+        aria-labelledby="next-step-title"
+        data-tone="success"
+        className="space-y-2 border-l-4 border-l-navy bg-success-tint px-4 py-4"
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 id="next-step-title" className="text-banner font-medium text-foreground">
+            <span aria-hidden="true">✓ </span>SOW approved · {formatApprovalDate(completion.approvedOn)} · v
+            {completion.versionNumber}
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            <a
+              href={completion.sowHref}
+              className="inline-flex min-h-11 items-center justify-center bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary-hover"
+            >
+              Download SOW
+            </a>
+            {completion.estimateHref && (
+              <a
+                href={completion.estimateHref}
+                className="inline-flex min-h-11 items-center justify-center border border-primary bg-surface px-4 py-2 text-sm font-medium text-primary hover:bg-cream"
+              >
+                Download estimate
+              </a>
+            )}
+          </div>
+        </div>
+        <p className="text-sm text-foreground">{LOCKED_LINE}</p>
+      </section>
+    );
+  }
   return (
     <section
       aria-labelledby="next-step-title"

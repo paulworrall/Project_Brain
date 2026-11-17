@@ -38,7 +38,7 @@ const { BriefStep, EstimateStep, SowStep } = await import("@/components/features
 const { buildSpecialistRows } = await import("@/lib/project/readiness");
 const { briefCompleteness, briefRecord } = await import("../fixtures/briefCompleteness");
 const { pmPerspectiveView } = await import("../fixtures/pmPerspective");
-const { allOpen } = await import("../fixtures/subTasks");
+const { allOpen, subTasksFor } = await import("../fixtures/subTasks");
 
 function common(projectComplete = false) {
   return { projectId: "p1", projectComplete };
@@ -212,37 +212,93 @@ describe("Statement of Work step", () => {
   });
 });
 
-describe("project complete", () => {
-  it("makes every step read-only: specialist rows, key details and capabilities", () => {
+describe("project complete (FB-012)", () => {
+  const approvedSow = {
+    id: "s2",
+    versionNumber: 2,
+    createdAt: new Date("2026-10-20T10:00:00Z"),
+    approvalState: "approved" as const,
+    approval: {
+      id: "a1",
+      clientApprovedOn: "2026-10-22",
+      clientApproverName: "Caroline",
+      reference: null,
+      recordedBy: { id: "u1", name: "Pat" },
+      recordedAt: "2026-10-22T10:00:00Z",
+    },
+    sourceEstimateVersionNumber: 3,
+    total: 45675,
+    currency: "USD",
+  };
+  const earlierSow = {
+    id: "s1",
+    versionNumber: 1,
+    createdAt: new Date("2026-10-10T10:00:00Z"),
+    approvalState: "superseded" as const,
+  };
+
+  function completeProps() {
+    return {
+      brief: briefProps({
+        ...common(true),
+        scopeConfirmedAt: "2026-11-03T10:00:00Z",
+        estimateApproved: true,
+      }),
+      estimate: estimateProps({ ...common(true), scopeConfirmed: true }),
+      sow: sowProps({
+        ...common(true),
+        estimateApproved: true,
+        sowVersions: [approvedSow, earlierSow],
+        sowLock: { versionNumber: 2, clientApprovedOn: "2026-10-22" },
+      }),
+    };
+  }
+
+  it("makes every step read-only, and says 'project complete' nowhere in the steps", () => {
+    const props = completeProps();
     render(
       <>
-        <BriefStep
-          {...briefProps({
-            ...common(true),
-            scopeConfirmedAt: "2026-11-03T10:00:00Z",
-            estimateApproved: true,
-          })}
-        />
-        <EstimateStep {...estimateProps({ ...common(true), scopeConfirmed: true })} />
-        <SowStep
-          {...sowProps({
-            ...common(true),
-            estimateApproved: true,
-            // FB-005's lock is what a complete project has on its SOW.
-            sowLock: { versionNumber: 2, clientApprovedOn: "2026-10-22" },
-          })}
-        />
+        <BriefStep {...props.brief} />
+        <EstimateStep {...props.estimate} />
+        <SowStep {...props.sow} />
       </>
     );
-    expect(screen.getAllByText(/This project is complete/).length).toBeGreaterThanOrEqual(3);
+    // The one lock line lives under the stepper (NextStepBanner), not repeated here.
+    expect(screen.queryByText(/This project is complete/)).toBeNull();
+    expect(screen.queryByText(/change request/i)).toBeNull();
     for (const box of screen.queryAllByRole("checkbox")) expect(box).toBeDisabled();
     for (const select of screen.getAllByRole("combobox")) {
-      // Disabled, or inert under FB-005's SOW lock (aria-disabled keeps it focusable and explained).
       expect(
         select.hasAttribute("disabled") || select.getAttribute("aria-disabled") === "true"
       ).toBe(true);
     }
     expect(screen.getByRole("button", { name: "Reopen scope" })).toBeDisabled();
     for (const fieldset of document.querySelectorAll("fieldset")) expect(fieldset).toBeDisabled();
+  });
+
+  it("the SOW step shows a compact approved version and a collapsed history, with no selectors or Regenerate", () => {
+    render(<SowStep {...completeProps().sow} />);
+    expect(screen.getByText("Version 2")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /Document status: Client approved/ })).toBeInTheDocument();
+    expect(screen.getByText(/Approved by Caroline on 22 Oct 2026/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Download .docx" })).toHaveAttribute(
+      "href",
+      "/api/projects/p1/sow/s2"
+    );
+    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Regenerate SOW|Generate SOW|Change SOW Template/ })).toBeNull();
+    expect(screen.queryByText("SOW Template")).toBeNull();
+    const history = screen.getByText("Project history").closest("details")!;
+    expect(history).not.toHaveAttribute("open");
+    expect(history).toHaveTextContent("Version 1");
+  });
+
+  it("other steps of a complete project show their sub-tasks collapsed", () => {
+    const props = completeProps();
+    render(<EstimateStep {...estimateProps({ ...common(true), scopeConfirmed: true, subTasks: subTasksFor("estimate", { projectComplete: true, sowApproved: true }) })} />);
+    for (const header of screen.getAllByRole("button", { name: /Choose teams|Estimate brief|Specialist inputs|Build the estimate|Client approval/ })) {
+      expect(header).toHaveAttribute("aria-expanded", "false");
+    }
+    expect(props).toBeDefined();
   });
 });

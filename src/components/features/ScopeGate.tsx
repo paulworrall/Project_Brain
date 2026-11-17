@@ -93,20 +93,20 @@ export function ScopeGate({
           {scopeConfirmedByName ? ` by ${scopeConfirmedByName}` : ""}
         </p>
         <div className="text-right">
-          <button
+          <Button
             type="button"
+            variant="tertiary"
             disabled={reopenBlocked || pending}
-            aria-describedby={reopenBlocked ? reopenNoteId : undefined}
+            locked={reopenBlocked}
+            aria-describedby={reopenBlocked && !projectComplete ? reopenNoteId : undefined}
             onClick={() => run(reopenScopeAction)}
-            className="min-h-11 px-2 text-sm font-medium text-primary underline-offset-2 hover:underline disabled:text-muted-foreground disabled:no-underline"
           >
             {pending ? "Reopening…" : "Reopen scope"}
-          </button>
-          {reopenBlocked && (
+          </Button>
+          {reopenBlocked && !projectComplete && (
             <p id={reopenNoteId} className="text-xs text-muted-foreground">
-              {projectComplete
-                ? "This project is complete. Changes will need a change request (coming soon)."
-                : "The client has approved an estimate, so the scope can't be reopened. Changes will need a change request (coming soon)."}
+              The client has approved an estimate, so the scope can&apos;t be reopened. Changes will
+              need a change request (coming soon).
             </p>
           )}
           {error && (

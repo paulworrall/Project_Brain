@@ -108,8 +108,11 @@ describe("ScopeGate", () => {
         projectComplete
       />
     );
-    expect(screen.getByRole("button", { name: "Reopen scope" })).toHaveAccessibleDescription(
-      "This project is complete. Changes will need a change request (coming soon)."
-    );
+    // The one lock line lives under the stepper; the gate repeats nothing (FB-012).
+    const button = screen.getByRole("button", { name: "Reopen scope" });
+    expect(button).toBeDisabled();
+    expect(button).not.toHaveAccessibleDescription();
+    expect(button.querySelector("svg")).not.toBeNull();
+    expect(screen.queryByText(/change request/i)).toBeNull();
   });
 });

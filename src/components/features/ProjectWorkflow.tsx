@@ -8,7 +8,6 @@ import type { SowChangeStatus } from "@/lib/sowChangeView";
 import type { SpecialistRow } from "@/lib/project/readiness";
 import {
   getStep,
-  PROJECT_COMPLETE_MESSAGE,
   STEP_PREREQUISITE,
   type StepPrerequisite,
   type StepId,
@@ -24,6 +23,7 @@ import {
 } from "./CapabilitiesAndEstimateBriefPanel";
 import { BriefCompletenessWarning } from "./BriefGateNotice";
 import { EstimatesListPanel, type EstimateListItem, type EstimateLock } from "./EstimatesListPanel";
+import { CompletedSowSummary } from "./CompletedSowSummary";
 import { ScopeGate } from "./ScopeGate";
 import { OpenSubTaskButton, SubTaskCard, SubTaskGroup } from "./SubTaskCard";
 import type { SubTask } from "@/lib/project/subTasks";
@@ -114,12 +114,6 @@ export function StepSection({
       <h2 id={headingId} tabIndex={-1} className="text-section font-bold text-foreground outline-none">
         {step.heading}
       </h2>
-      {projectComplete && (
-        <p className="border border-border bg-surface-muted px-3 py-2 text-sm text-foreground">
-          <span aria-hidden="true">✓ </span>
-          {PROJECT_COMPLETE_MESSAGE} Downloads are still available.
-        </p>
-      )}
       {prerequisite && !projectComplete && (
         <PrerequisiteNotice stepId={stepId} projectId={projectId} prerequisite={prerequisite} />
       )}
@@ -270,6 +264,13 @@ export interface SowStepProps extends StepCommonProps {
 }
 
 export function SowStep(props: SowStepProps) {
+  if (props.projectComplete) {
+    return (
+      <StepSection stepId="sow" projectId={props.projectId} projectComplete>
+        <CompletedSowSummary projectId={props.projectId} sowVersions={props.sowVersions} />
+      </StepSection>
+    );
+  }
   const prerequisite = props.estimateApproved ? null : STEP_PREREQUISITE.sow;
   return (
     <StepSection
