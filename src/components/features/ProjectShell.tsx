@@ -13,6 +13,7 @@ import {
 } from "@/lib/projectSteps";
 import { ProjectStepper } from "./ProjectStepper";
 import { NextStepBanner } from "./NextStepBanner";
+import { Button } from "@/components/ui/Button";
 import type { NextAction } from "@/lib/nextAction";
 
 /**
@@ -112,7 +113,20 @@ export function ProjectShell({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-end gap-2 border-b border-border">
+      <div className="flex justify-end lg:hidden">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => setDrawerOpen(true)}
+          aria-expanded={drawerOpen}
+        >
+          Project assistant
+        </Button>
+      </div>
+
+      {/* FB-012: the stepper ("where you are") and the Next step banner ("what to do
+          now") read as one block, in one bordered container. */}
+      <div className="border border-border bg-surface">
         <ProjectStepper
           projectId={projectId}
           statuses={stepStatuses}
@@ -120,17 +134,12 @@ export function ProjectShell({
           activeStepId={activeStepId}
           attention={attention}
         />
-        <button
-          type="button"
-          onClick={() => setDrawerOpen(true)}
-          aria-expanded={drawerOpen}
-          className="mb-1 min-h-11 shrink-0 border border-border bg-surface px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-muted lg:hidden"
-        >
-          Project assistant
-        </button>
+        {nextAction && (
+          <div className="border-t border-border">
+            <NextStepBanner action={nextAction} openQuestionsText={openQuestionsText} />
+          </div>
+        )}
       </div>
-
-      {nextAction && <NextStepBanner action={nextAction} openQuestionsText={openQuestionsText} />}
 
       <p role="status" aria-live="polite" className="sr-only">
         {announcement}

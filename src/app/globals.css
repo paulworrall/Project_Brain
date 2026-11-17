@@ -54,6 +54,8 @@
   /* "Done" is Navy (as Reporting Hub's Complete chip); the fill is MAP Green */
   --success: var(--navy);
   --success-bg: var(--rag-green);
+  /* A light green wash for the Project complete block — always with a tick and words */
+  --success-tint: #eaffd4;
   /* Amber is a fill/border colour — warning text is Navy with its word or icon */
   --warning: var(--amber);
   --warning-bg: var(--tint);
@@ -109,6 +111,7 @@
 
   --color-success: var(--success);
   --color-success-bg: var(--success-bg);
+  --color-success-tint: var(--success-tint);
   --color-warning: var(--warning);
   --color-warning-bg: var(--warning-bg);
   --color-danger: var(--danger);
