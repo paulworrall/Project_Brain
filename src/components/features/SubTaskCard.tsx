@@ -37,17 +37,20 @@ const GroupContext = createContext<{ open: (id: string) => void; register: (id: 
 );
 
 export function SubTaskGroup({ children }: { children: ReactNode }) {
-  const openers = useRef(new Map<string, () => void>());
-  const value = useRef({
-    open: (id: string) => openers.current.get(id)?.(),
-    register: (id: string, fn: () => void) => {
-      openers.current.set(id, fn);
-      return () => {
-        openers.current.delete(id);
-      };
-    },
+  // Created once (lazy state), so the context value is stable and no ref is read during render.
+  const [value] = useState(() => {
+    const openers = new Map<string, () => void>();
+    return {
+      open: (id: string) => openers.get(id)?.(),
+      register: (id: string, fn: () => void) => {
+        openers.set(id, fn);
+        return () => {
+          openers.delete(id);
+        };
+      },
+    };
   });
-  return <GroupContext.Provider value={value.current}>{children}</GroupContext.Provider>;
+  return <GroupContext.Provider value={value}>{children}</GroupContext.Provider>;
 }
 
 export function useOpenSubTask(): (id: string) => void {
