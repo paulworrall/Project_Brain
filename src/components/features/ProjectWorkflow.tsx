@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import type { Capability } from "@/generated/prisma/enums";
 import type { ApprovalPermissions } from "@/types/approvals";
@@ -8,7 +9,8 @@ import type { SpecialistRow } from "@/lib/project/readiness";
 import {
   getStep,
   PROJECT_COMPLETE_MESSAGE,
-  STEP_PREREQUISITE_NOTE,
+  STEP_PREREQUISITE,
+  type StepPrerequisite,
   type StepId,
 } from "@/lib/projectSteps";
 import type { RateCardOption } from "@/app/(dashboard)/projects/new/actions";
@@ -52,15 +54,56 @@ export function prerequisiteNoteId(stepId: StepId): string {
   return `${stepId}-prerequisite-note`;
 }
 
+/** The amber "do this first" notice (soft prerequisite): lock icon, title, one line, a link. */
+function PrerequisiteNotice({ stepId, projectId, prerequisite }: { stepId: StepId; projectId: string; prerequisite: StepPrerequisite }) {
+  return (
+    <div
+      data-prerequisite={stepId}
+      className="flex flex-wrap items-center justify-between gap-3 border border-amber border-l-4 bg-tint px-4 py-3"
+    >
+      <div className="flex min-w-0 items-start gap-3">
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          focusable="false"
+          className="mt-0.5 shrink-0 text-navy"
+        >
+          <rect x="4" y="11" width="16" height="10" />
+          <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+        </svg>
+        {/* The step's blocked main action is described by this text. */}
+        <p id={prerequisiteNoteId(stepId)} className="text-sm text-foreground">
+          <span className="font-medium">{prerequisite.title}.</span> {prerequisite.reason}
+        </p>
+      </div>
+      <Link
+        href={`/projects/${projectId}/${prerequisite.goTo.step}`}
+        className="inline-flex min-h-11 items-center justify-center border border-primary bg-surface px-4 py-2 text-sm font-medium text-primary hover:bg-cream"
+      >
+        {prerequisite.goTo.label}
+      </Link>
+    </div>
+  );
+}
+
 export function StepSection({
   stepId,
-  prerequisiteNote = null,
+  projectId,
+  prerequisite = null,
   projectComplete,
   children,
 }: {
   stepId: StepId;
-  /** Quiet inline note shown when the step's prerequisite isn't met. No step is locked. */
-  prerequisiteNote?: string | null;
+  projectId: string;
+  /** Amber notice shown when the step's prerequisite isn't met. No step is locked. */
+  prerequisite?: StepPrerequisite | null;
   projectComplete: boolean;
   children: ReactNode;
 }) {
@@ -77,10 +120,8 @@ export function StepSection({
           {PROJECT_COMPLETE_MESSAGE} Downloads are still available.
         </p>
       )}
-      {prerequisiteNote && !projectComplete && (
-        <p id={prerequisiteNoteId(stepId)} className="text-sm text-muted-foreground">
-          {prerequisiteNote}
-        </p>
+      {prerequisite && !projectComplete && (
+        <PrerequisiteNotice stepId={stepId} projectId={projectId} prerequisite={prerequisite} />
       )}
       {children}
     </section>
@@ -111,7 +152,7 @@ export interface BriefStepProps extends StepCommonProps {
 
 export function BriefStep(props: BriefStepProps) {
   return (
-    <StepSection stepId="brief" projectComplete={props.projectComplete}>
+    <StepSection stepId="brief" projectId={props.projectId} projectComplete={props.projectComplete}>
       <BriefAssessmentCallout
         projectId={props.projectId}
         assessment={props.briefAssessment ?? null}
@@ -163,11 +204,12 @@ export interface EstimateStepProps extends StepCommonProps {
 }
 
 export function EstimateStep(props: EstimateStepProps) {
-  const prerequisiteNote = props.scopeConfirmed ? null : STEP_PREREQUISITE_NOTE.estimate;
+  const prerequisite = props.scopeConfirmed ? null : STEP_PREREQUISITE.estimate;
   return (
     <StepSection
       stepId="estimate"
-      prerequisiteNote={prerequisiteNote}
+      projectId={props.projectId}
+      prerequisite={prerequisite}
       projectComplete={props.projectComplete}
     >
       <SubTaskGroup>
@@ -193,7 +235,7 @@ export function EstimateStep(props: EstimateStepProps) {
               lock={props.estimateLock}
               permissions={props.approvalPermissions}
               prerequisiteNoteId={
-                prerequisiteNote && !props.projectComplete ? prerequisiteNoteId("estimate") : null
+                prerequisite && !props.projectComplete ? prerequisiteNoteId("estimate") : null
               }
             />
           </SubTaskCard>
@@ -228,11 +270,12 @@ export interface SowStepProps extends StepCommonProps {
 }
 
 export function SowStep(props: SowStepProps) {
-  const prerequisiteNote = props.estimateApproved ? null : STEP_PREREQUISITE_NOTE.sow;
+  const prerequisite = props.estimateApproved ? null : STEP_PREREQUISITE.sow;
   return (
     <StepSection
       stepId="sow"
-      prerequisiteNote={prerequisiteNote}
+      projectId={props.projectId}
+      prerequisite={prerequisite}
       projectComplete={props.projectComplete}
     >
       <SubTaskGroup>
@@ -253,7 +296,7 @@ export function SowStep(props: SowStepProps) {
           lock={props.sowLock}
           permissions={props.approvalPermissions}
           prerequisiteNoteId={
-            prerequisiteNote && !props.projectComplete ? prerequisiteNoteId("sow") : null
+            prerequisite && !props.projectComplete ? prerequisiteNoteId("sow") : null
           }
         />
       </SubTaskGroup>

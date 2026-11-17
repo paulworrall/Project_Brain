@@ -145,23 +145,28 @@ describe("Estimate step", () => {
     render(<EstimateStep {...estimateProps()} />);
     expect(screen.queryByText("Before you move on")).toBeNull();
     expect(screen.queryByText("At least one capability confirmed")).toBeNull();
-    expect(
-      screen.getByText("The estimate is built from the confirmed scope. Confirm the scope in Brief first.")
-    ).toBeInTheDocument();
+    const notice = document.querySelector('[data-prerequisite="estimate"]')!;
+    expect(notice).toHaveTextContent("Confirm the scope first. The estimate is built from the confirmed scope.");
+    // An amber notice with a lock icon and one secondary link to where to fix it.
+    expect(notice.querySelector("svg")).not.toBeNull();
+    expect(within(notice as HTMLElement).getByRole("link", { name: "Go to Brief" })).toHaveAttribute(
+      "href",
+      "/projects/p1/brief"
+    );
   });
 
   it("explains the prerequisite and disables + New estimate until the scope is confirmed", () => {
     const { rerender } = render(<EstimateStep {...estimateProps()} />);
     const note =
-      "The estimate is built from the confirmed scope. Confirm the scope in Brief first.";
+      "Confirm the scope first. The estimate is built from the confirmed scope.";
     // Shown once, and it describes the disabled main action.
-    expect(screen.getAllByText(note)).toHaveLength(1);
+    expect(document.querySelectorAll('[data-prerequisite="estimate"]')).toHaveLength(1);
     const button = screen.getByRole("button", { name: "+ New estimate" });
     expect(button).toHaveAttribute("aria-disabled", "true");
     expect(button).toHaveAccessibleDescription(note);
 
     rerender(<EstimateStep {...estimateProps({ scopeConfirmed: true })} />);
-    expect(screen.queryByText(note)).toBeNull();
+    expect(document.querySelector('[data-prerequisite="estimate"]')).toBeNull();
     expect(screen.getByRole("button", { name: "+ New estimate" })).not.toHaveAttribute(
       "aria-disabled"
     );
@@ -181,14 +186,14 @@ describe("Statement of Work step", () => {
 
   it("explains the prerequisite and disables Generate SOW until the estimate is approved", () => {
     const { rerender } = render(<SowStep {...sowProps()} />);
-    const note = "The SOW is generated from the approved estimate. Approve the estimate first.";
-    expect(screen.getAllByText(note)).toHaveLength(1);
+    const note = "Approve the estimate first. The SOW is generated from the approved estimate.";
+    expect(document.querySelectorAll('[data-prerequisite="sow"]')).toHaveLength(1);
     const button = screen.getByRole("button", { name: "Generate SOW" });
     expect(button).toHaveAttribute("aria-disabled", "true");
     expect(button).toHaveAccessibleDescription(note);
 
     rerender(<SowStep {...sowProps({ estimateApproved: true })} />);
-    expect(screen.queryByText(note)).toBeNull();
+    expect(document.querySelector('[data-prerequisite="sow"]')).toBeNull();
     expect(screen.getByRole("button", { name: "Generate SOW" })).not.toHaveAttribute(
       "aria-disabled"
     );
@@ -198,9 +203,12 @@ describe("Statement of Work step", () => {
     render(<SowStep {...sowProps()} />);
     expect(screen.queryByText("Before you move on")).toBeNull();
     expect(screen.queryByText("SOW generated from the approved estimate")).toBeNull();
-    expect(
-      screen.getByText("The SOW is generated from the approved estimate. Approve the estimate first.")
-    ).toBeInTheDocument();
+    const notice = document.querySelector('[data-prerequisite="sow"]')!;
+    expect(notice).toHaveTextContent("Approve the estimate first. The SOW is generated from the approved estimate.");
+    expect(within(notice as HTMLElement).getByRole("link", { name: "Go to Estimate" })).toHaveAttribute(
+      "href",
+      "/projects/p1/estimate"
+    );
   });
 });
 
