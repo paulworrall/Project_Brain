@@ -53,7 +53,7 @@ function MilestonesEditor({
           />
           <Button
             type="button"
-            variant="ghost"
+            variant="tertiary"
             className="px-2 py-1 text-xs"
             aria-label={`Remove milestone ${index + 1}`}
             onClick={() => setMilestones((current) => current.filter((_, i) => i !== index))}
@@ -233,7 +233,7 @@ export function KeyAttributeForm({
         </Button>
         <Button
           type="button"
-          variant="ghost"
+          variant="tertiary"
           className="px-3 py-1.5 text-xs"
           disabled={pending}
           onClick={() => onDone?.()}

@@ -139,7 +139,7 @@ function NewEstimateForm({
         <Button
           type="button"
           variant="secondary"
-          className={`text-xs ${blocked ? "cursor-not-allowed opacity-50" : ""}`}
+          locked={lock !== null}
           aria-disabled={blocked ? true : undefined}
           aria-describedby={prerequisiteNoteId && !lock ? prerequisiteNoteId : undefined}
           onClick={() => {
@@ -170,7 +170,7 @@ function NewEstimateForm({
               embedded
             />
             <div className="flex justify-end border-t border-border pt-3">
-              <Button type="button" variant="ghost" className="text-xs" onClick={closeModal}>
+              <Button type="button" variant="tertiary" className="text-xs" onClick={closeModal}>
                 Done
               </Button>
             </div>
@@ -230,7 +230,7 @@ function NewEstimateForm({
               </p>
             )}
             <div className="flex justify-end gap-2 border-t border-border pt-3">
-              <Button type="button" variant="ghost" className="text-xs" onClick={closeModal}>
+              <Button type="button" variant="tertiary" className="text-xs" onClick={closeModal}>
                 Cancel
               </Button>
               <Button type="submit" disabled={pending} className="text-xs">
@@ -449,7 +449,7 @@ export function EstimatesListPanel({
       {hiddenCount > 0 && (
         <Button
           type="button"
-          variant="ghost"
+          variant="tertiary"
           className="text-xs"
           onClick={() => setShowAllOpen(true)}
         >

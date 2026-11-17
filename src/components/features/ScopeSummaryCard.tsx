@@ -245,7 +245,7 @@ export function ScopeSummaryCard({
             <span aria-hidden="true">● </span>v{summary!.versionNumber} has changes since the
             confirmed v{summary!.confirmedVersionNumber}.
           </p>
-          <Button type="button" className="text-xs" disabled={pending} onClick={confirmLatest}>
+          <Button type="button" variant="secondary" disabled={pending} onClick={confirmLatest}>
             Confirm v{summary!.versionNumber}
           </Button>
         </div>
@@ -261,6 +261,7 @@ export function ScopeSummaryCard({
           {!readOnly && (
             <Button
               type="button"
+              variant="secondary"
               disabled={pending}
               onClick={() => runAgent(canCreateFromEarlier ? "create" : "regenerate")}
             >

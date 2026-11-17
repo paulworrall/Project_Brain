@@ -304,7 +304,7 @@ export function CapabilitiesAndEstimateBriefPanel({
                   {saveState.message}
                 </p>
               )}
-              <Button type="submit" className="text-xs" disabled={savePending}>
+              <Button type="submit" variant="secondary" disabled={savePending}>
                 {savePending ? "Saving…" : "Save confirmed capabilities"}
               </Button>
             </form>

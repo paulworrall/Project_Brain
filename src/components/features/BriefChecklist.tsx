@@ -48,7 +48,7 @@ export function BriefChecklist({
         <form action={formAction}>
           <Button
             type="submit"
-            variant="ghost"
+            variant="tertiary"
             className="px-2 py-1 text-xs"
             disabled={pending}
             title="Fills in anything still missing from the brief and inputs — never overwrites what's there"

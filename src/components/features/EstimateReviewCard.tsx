@@ -101,7 +101,7 @@ function EstimateReviewLineRow({
             </select>
             <Button
               type="submit"
-              variant="ghost"
+              variant="tertiary"
               className="px-2 py-0.5 text-xs"
               disabled={pending}
             >

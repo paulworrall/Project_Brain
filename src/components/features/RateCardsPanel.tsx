@@ -85,7 +85,7 @@ function ArchiveToggleButton({
     <form action={formAction} className="shrink-0">
       <Button
         type="submit"
-        variant="ghost"
+        variant="tertiary"
         disabled={pending}
         className="text-xs"
         onClick={handleClick}

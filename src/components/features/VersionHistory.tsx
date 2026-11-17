@@ -48,7 +48,7 @@ function RevertButton({ action }: { action: VersionAction }) {
           flagged current, so it must read as a forward action, not a
           rollback, even though the Server Action underneath is still named
           "revert". */}
-      <Button type="submit" variant="ghost" disabled={pending} className="text-xs">
+      <Button type="submit" variant="tertiary" disabled={pending} className="text-xs">
         {pending ? "Setting as current…" : "Set as current version"}
       </Button>
       {state?.message && <p className="text-xs text-danger">{state.message}</p>}

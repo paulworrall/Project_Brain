@@ -343,9 +343,10 @@ export function StartSowDevelopmentPanel({
         )}
         <Button
           type="submit"
+          variant="secondary"
           disabled={pending}
           aria-disabled={locked ? true : undefined}
-          className={locked ? "cursor-not-allowed opacity-50" : ""}
+          locked={locked}
         >
           {pending ? "Saving…" : currentTemplate ? "Change SOW Template" : "Select SOW Template"}
         </Button>
@@ -373,7 +374,8 @@ export function StartSowDevelopmentPanel({
             disabled={busy || !currentTemplate}
             aria-disabled={locked || prerequisiteNoteId ? true : undefined}
             aria-describedby={prerequisiteNoteId && !locked ? prerequisiteNoteId : undefined}
-            className={`text-xs ${locked || prerequisiteNoteId ? "cursor-not-allowed opacity-50" : ""}`}
+            variant="secondary"
+            locked={locked}
           >
             {busy ? "Working…" : latestSowVersion ? "Regenerate SOW" : "Generate SOW"}
           </Button>
